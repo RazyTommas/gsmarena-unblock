@@ -1,0 +1,3 @@
+# Core: stdlib only — no external deps required
+# Optional: for brotli-compressed responses
+# brotli

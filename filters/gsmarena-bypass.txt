@@ -1,0 +1,52 @@
+[Adblock Plus 2.0]
+! Title: GSMArena Anti-Adblock Bypass
+! Description: Neutralizes GSMArena's 3-layer ad-block detection without disabling your ad blocker
+! Homepage: https://github.com/gsmarena-unblock
+! Last modified: 2026-09-03
+! License: MIT
+
+! ──────────────────────────────────────────────────────────────
+! LAYER 1: DeviceID cookie — the main server-side signal
+! misc.js encodes adblock status in the cookie's parity:
+!   ODD  = ad-blocker detected → feeds server-side 429 decision
+!   EVEN = clean
+! Force it to 10000 (even) so the server always sees "clean".
+! The beforeunload handler re-sets it every navigation, so
+! trusted-set-cookie must win persistently.
+! ──────────────────────────────────────────────────────────────
+gsmarena.com##+js(trusted-set-cookie, DeviceID, 10000)
+
+! ──────────────────────────────────────────────────────────────
+! LAYER 2: Beacon starvation — counter-js.php3
+! EasyPrivacy generic rule /counter-js.php blocks this beacon.
+! Without it, the server sees 0 beacons / N pageviews per IP,
+! a clean adblock/bot discriminator. Exempt it.
+! ──────────────────────────────────────────────────────────────
+@@||gsmarena.com/counter-js.php3$xhr
+
+! ──────────────────────────────────────────────────────────────
+! LAYER 3: Network probes — let detection probes through
+! These are DETECTION probes, not actual ads. Letting them
+! load passes the network-filter check without serving ads.
+! ──────────────────────────────────────────────────────────────
+
+! misc.js fetches this as a network-filter canary
+@@||ad.doubleclick.net/favicon.ico$domain=gsmarena.com
+
+! Blockthrough (via Playwire RAMP) differential pixel bait
+@@||ad-delivery.net/px.gif$domain=gsmarena.com,image
+
+! srvb1.com differential pixel bait (ch=1 control + ch=2 probe)
+! NOTE: srvb1.com is already dead for EasyList users (||srvb1.com^
+! blocks the whole domain, which the script reads as "network
+! failure, not adblock"). Leaving it blocked is fine — or exempt:
+! @@||srvb1.com/px.gif$domain=gsmarena.com,image
+
+! ──────────────────────────────────────────────────────────────
+! OPTIONAL: Block the recovery/reinsertion ads themselves
+! These load AFTER detection and serve replacement ads.
+! Blocking them does NOT trigger re-detection.
+! ──────────────────────────────────────────────────────────────
+! ||srvb1.com/banner/$image
+! ||cdn.btmessage.com^
+! ||api.btloader.com^

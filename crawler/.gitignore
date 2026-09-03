@@ -1,0 +1,8 @@
+# generated / heavy — not source
+output/
+data/
+bi/data/
+.cache/
+.venv/
+__pycache__/
+*.pyc

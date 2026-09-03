@@ -25,7 +25,10 @@ rather than guessed — the crawl is what proves a CSC exists for a given model.
 ZONES = {
     "Levant": {
         "Iraq":      {"codes": ["MID"],                     "confidence": "verified"},
-        "Lebanon":   {"codes": ["LEB", "DAM"],              "confidence": "verified"},
+        # LEB/DAM were tentative and the samfw crawl (2026-09-03, 27 models) found
+        # ZERO builds for them — disproven. Lebanon has no dedicated CSC; it ships on
+        # MID (the generic Middle-East open channel), same builds as Iraq.
+        "Lebanon":   {"codes": ["MID"],                     "confidence": "crawl-verified"},
         "Israel":    {"codes": ["ILO", "PTR", "CEL",
                                  "MIR", "PCL"],             "confidence": "verified"},
         "Jordan":    {"codes": ["LEV"],                     "confidence": "verified"},

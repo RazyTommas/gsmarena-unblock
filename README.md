@@ -126,6 +126,35 @@ $ python gsmarena.py specs apple_iphone_17e-14487
 
 You don't need to wait out the 10-hour ban — tier 2 (live proxy) and tier 3 (Wayback) both work immediately from the banned IP. For direct live browsing in a real browser: change your IP (VPN, residential proxy, mobile-hotspot IP cycle) and apply the filter rules before visiting.
 
+## Use as a library (`gsmarena_fetch`)
+
+Other tools can import the tiered fetcher as a one-way dependency — one call,
+`fetch(url) -> html`, that climbs access tiers until one returns real content:
+
+```python
+from gsmarena_fetch import fetch, Tiers
+
+# Default policy: NON-evasive tiers only (direct + Wayback).
+html = fetch("https://www.gsmarena.com/samsung_galaxy_s23-12082.php")
+
+# Opt into the IP-ban circumvention tier (clean-egress live proxy) explicitly:
+html = fetch(url, tiers=Tiers(proxy=True))
+```
+
+**Tier policy is deliberate.** Enabling ban-circumvention is a deployment
+decision, not a library default, so the middle tier is **off unless the caller
+asks**:
+
+| Tier | What | Default |
+|------|------|---------|
+| `direct` | plain request + `DeviceID` cookie forcing (ad-block detection only) | **on** |
+| `proxy` | live page via clean-egress CORS proxy — sidesteps a 429 IP ban | **off** (opt-in) |
+| `wayback` | public Web Archive snapshot | **on** |
+
+Flip it globally with `DEFAULT_TIERS.proxy = True`, or per-call as above. Raises
+`TurnstileChallenge` for CAPTCHA-gated endpoints and `AllTiersFailed` if every
+enabled tier comes up empty. Stdlib only.
+
 ## Project structure
 
 ```

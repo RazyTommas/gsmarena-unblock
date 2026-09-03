@@ -2,6 +2,16 @@
 
 Reverse-engineered GSMArena's ad-block detection and built bypass tools.
 
+## Demo
+
+Live phone data pulled from a **fully 429-banned IP** via the clean-egress proxy tier:
+
+![demo](docs/demo.gif)
+
+| `specs` — live spec sheet | `search` — Turnstile detected |
+|---|---|
+| ![specs](docs/screenshot-specs.png) | ![turnstile](docs/screenshot-turnstile.png) |
+
 GSMArena uses **three independent client-side detectors** that funnel into one server-side enforcement: an HTTP 429 wall with a 10-hour ban. There is no client-side overlay — the kill switch is a cookie.
 
 ## How the detection works

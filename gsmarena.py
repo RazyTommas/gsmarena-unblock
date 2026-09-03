@@ -25,10 +25,13 @@ import time
 from html.parser import HTMLParser
 from http.cookiejar import CookieJar
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import quote_plus, urljoin
 from urllib.request import Request, build_opener, HTTPCookieProcessor
 
 BASE = "https://www.gsmarena.com/"
+WAYBACK_CDX = "http://web.archive.org/cdx/search/cdx"
+WAYBACK_FETCH = "https://web.archive.org/web/{ts}id_/{url}"
 MIN_DELAY = 5.0  # seconds between requests — below this triggers the 429 wall
 _last_request_time = 0.0
 
@@ -132,7 +135,28 @@ class GSMArenaClient:
             pass  # non-critical — best effort
 
     def fetch(self, url: str, referer: str | None = None) -> str:
-        """Fetch a page with full bypass active."""
+        """
+        Fetch a page with full bypass active.
+
+        Strategy:
+          1. Try the live origin with the clean-cookie bypass.
+          2. On HTTP 429 (IP/ASN ban — the cookie can't rescue an
+             already-banned IP), fall back to the Wayback Machine, which
+             serves the same content from a different infrastructure.
+        """
+        try:
+            return self._fetch_live(url, referer)
+        except HTTPError as e:
+            if e.code == 429:
+                sys.stderr.write(
+                    "⚠ Live origin returned 429 (IP banned). "
+                    "Falling back to Wayback Machine...\n"
+                )
+                return self._fetch_wayback(url)
+            raise
+
+    def _fetch_live(self, url: str, referer: str | None = None) -> str:
+        """Fetch from the live origin with the ad-block bypass active."""
         self._throttle()
         self._force_clean_cookie()  # re-force before every request (misc.js re-sets on beforeunload)
 
@@ -162,6 +186,53 @@ class GSMArenaClient:
         self._send_beacon()
 
         return html
+
+    def _fetch_wayback(self, url: str) -> str:
+        """
+        Fetch the newest 200-status snapshot of a URL from the Wayback Machine.
+
+        Works from any IP — including datacenter/banned IPs — because the
+        request goes to archive.org, not GSMArena. Content may be slightly
+        stale, but GSMArena's data-spec markup is preserved intact.
+        """
+        # List archived 200-status snapshots, newest first
+        cdx = (
+            f"{WAYBACK_CDX}?url={quote_plus(url)}"
+            "&output=json&filter=statuscode:200&limit=-12&collapse=digest"
+        )
+        req = Request(cdx, headers={"User-Agent": HEADERS["User-Agent"]})
+        rows = json.loads(self.opener.open(req, timeout=30).read().decode())
+        if len(rows) < 2:
+            raise RuntimeError(f"No Wayback snapshot available for {url}")
+
+        # Walk newest → oldest, skipping "poisoned" snapshots — captures where
+        # Wayback's own crawler hit GSMArena's 429 wall and archived the block
+        # page body. Return the newest snapshot with real content.
+        for row in reversed(rows[1:]):  # rows[0] is the CDX header
+            timestamp = row[1]
+            snapshot = f"https://web.archive.org/web/{timestamp}id_/{url}"
+            try:
+                req = Request(snapshot, headers={"User-Agent": HEADERS["User-Agent"]})
+                resp = self.opener.open(req, timeout=90)
+                data = resp.read()
+            except Exception:
+                continue
+
+            # The `id_` raw endpoint replays the ORIGINAL bytes, often gzip'd
+            # with no Content-Encoding header. Detect the magic number.
+            if data[:2] == b"\x1f\x8b" or resp.headers.get("Content-Encoding") == "gzip":
+                import gzip
+                data = gzip.decompress(data)
+
+            html = data.decode("utf-8", errors="replace")
+            if "Too Many Requests" in html or len(html) < 2000:
+                sys.stderr.write(f"  · skipping poisoned snapshot {timestamp}\n")
+                continue
+
+            sys.stderr.write(f"  ✓ Wayback snapshot {timestamp}\n")
+            return html
+
+        raise RuntimeError(f"All recent Wayback snapshots for {url} are 429-poisoned")
 
 
 # --- HTML parsers ---
@@ -323,20 +394,35 @@ def cmd_search(client: GSMArenaClient, query: str):
 
 
 def cmd_specs(client: GSMArenaClient, slug: str):
-    """Get phone specs by slug (e.g., samsung_galaxy_s24-12644)."""
+    """Get phone specs by slug (e.g., samsung_galaxy_s23-12082)."""
     if not slug.endswith(".php"):
         slug += ".php"
     url = urljoin(BASE, slug)
     html = client.fetch(url)
 
-    if "Too Many Requests" in html or "429" in html:
-        print("⚠ Got 429 — your IP is banned. Change IP and retry.", file=sys.stderr)
-        sys.exit(1)
+    # GSMArena tags every spec value with data-spec="<key>". This markup is
+    # present in both live and Wayback HTML, so it's the robust parse path.
+    specs = {}
+    for m in re.finditer(r'data-spec="([a-z0-9_]+)"\s*>(.*?)</td>', html, re.S):
+        key = m.group(1)
+        # Strip inner tags and collapse whitespace
+        value = re.sub(r"<[^>]+>", " ", m.group(2))
+        value = re.sub(r"\s+", " ", value).strip()
+        if value:
+            specs[key] = value
 
-    parser = SpecParser()
-    parser.feed(html)
+    if not specs:
+        # Fall back to the table parser
+        parser = SpecParser()
+        parser.feed(html)
+        out = {"name": parser.phone_name.strip(), "specs": parser.specs}
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+        return
 
-    out = {"name": parser.phone_name.strip(), "specs": parser.specs}
+    specs.pop("modelname", None)  # noisy — real name is in the <h1>
+    m = re.search(r'<h1[^>]*class="specs-phone-name-title"[^>]*>([^<]+)</h1>', html)
+    name = m.group(1).strip() if m else ""
+    out = {"name": name, "url": url, "specs": specs}
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 

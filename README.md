@@ -79,9 +79,33 @@ python gsmarena.py brands
 
 The client handles cookie management, detection evasion, and rate limiting automatically.
 
+### Two separate walls — know which one you hit
+
+GSMArena has **two independent blocking systems**. Bypassing them requires different things:
+
+| Wall | Trigger | Fix |
+|------|---------|-----|
+| **Ad-block detection** | `DeviceID` cookie parity, blocked ad probes | The 4 filter rules / this client's cookie forcing |
+| **IP/ASN 429 ban** | Datacenter IP, scraper-rate requests, bad IP reputation | A clean **residential** IP + human request rate |
+
+The cookie bypass only helps on a **clean IP**. It cannot rescue an already-banned IP — the 429 is stamped server-side against the IP before any cookie is read. Datacenter and proxy IPs (including Tor and most reader-proxies) are 429-banned outright.
+
+### Automatic Wayback fallback
+
+When the live origin returns 429, this client automatically falls back to the **Wayback Machine**, which serves the same `data-spec` markup from archive.org's infrastructure — so `specs` works from **any** IP, banned or not:
+
+```
+$ python gsmarena.py specs samsung_galaxy_s23-12082
+⚠ Live origin returned 429 (IP banned). Falling back to Wayback Machine...
+  ✓ Wayback snapshot 20260826204014
+{ "name": "Samsung Galaxy S23", "specs": { "chipset": "Snapdragon 8 Gen 2 ...", ... } }
+```
+
+The fallback walks newest→oldest and skips "poisoned" snapshots (captures where Wayback's own crawler hit the 429 wall).
+
 ### Already banned?
 
-Change your IP (VPN, proxy, router restart) and apply the bypass rules before visiting again. The ban is IP-based with a 10-hour TTL.
+For **live** access: change your IP (VPN, residential proxy, router restart / mobile hotspot to cycle a dynamic IP) and apply the bypass rules before visiting again. The ban is IP-based with a 10-hour TTL. For **data** access regardless of ban: use the Wayback fallback (automatic in this client).
 
 ## Project structure
 

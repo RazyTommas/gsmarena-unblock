@@ -32,6 +32,15 @@ from urllib.request import Request, build_opener, HTTPCookieProcessor
 BASE = "https://www.gsmarena.com/"
 WAYBACK_CDX = "http://web.archive.org/cdx/search/cdx"
 WAYBACK_FETCH = "https://web.archive.org/web/{ts}id_/{url}"
+
+# Live-content proxies with clean egress IPs. When our own IP is 429-banned,
+# these fetch the LIVE page from GSMArena on our behalf from an un-banned
+# address — so we get current data, not an archived snapshot. Each entry is a
+# (name, url_template, needs_encoding) tuple.
+LIVE_PROXIES = [
+    ("proxy.cors.sh", "https://proxy.cors.sh/{url}", False),
+    ("r.jina.ai", "https://r.jina.ai/{url}", False),
+]
 MIN_DELAY = 5.0  # seconds between requests — below this triggers the 429 wall
 _last_request_time = 0.0
 
@@ -61,6 +70,10 @@ HEADERS = {
     "Sec-CH-UA-Platform": '"Windows"',
     "Cache-Control": "max-age=0",
 }
+
+
+class TurnstileChallenge(Exception):
+    """Raised when an endpoint is gated behind a Cloudflare Turnstile CAPTCHA."""
 
 
 class GSMArenaClient:
@@ -138,22 +151,79 @@ class GSMArenaClient:
         """
         Fetch a page with full bypass active.
 
-        Strategy:
-          1. Try the live origin with the clean-cookie bypass.
+        Strategy (in order — stops at the first that returns real content):
+          1. Direct live origin with the clean-cookie ad-block bypass.
           2. On HTTP 429 (IP/ASN ban — the cookie can't rescue an
-             already-banned IP), fall back to the Wayback Machine, which
-             serves the same content from a different infrastructure.
+             already-banned IP), retry the LIVE page through clean-egress
+             CORS proxies. Still live, current data.
+          3. If every proxy fails, fall back to the Wayback Machine
+             (archived, but works from anywhere).
         """
         try:
             return self._fetch_live(url, referer)
         except HTTPError as e:
-            if e.code == 429:
-                sys.stderr.write(
-                    "⚠ Live origin returned 429 (IP banned). "
-                    "Falling back to Wayback Machine...\n"
-                )
-                return self._fetch_wayback(url)
-            raise
+            if e.code != 429:
+                raise
+            sys.stderr.write(
+                "⚠ Live origin returned 429 (IP banned). "
+                "Retrying live via clean-egress proxies...\n"
+            )
+
+        html = self._fetch_via_proxy(url)
+        if html is not None:
+            return html
+
+        sys.stderr.write("  · all live proxies failed — falling back to Wayback\n")
+        return self._fetch_wayback(url)
+
+    def _fetch_via_proxy(self, url: str) -> str | None:
+        """
+        Fetch the LIVE page through a clean-egress CORS proxy.
+
+        Returns the page HTML, or None if every proxy fails. These proxies
+        request GSMArena from their own un-banned IPs, so the response is the
+        current live page — the ad-block cookie bypass is irrelevant here
+        because the detection never runs server-side against our IP.
+        """
+        for name, template, needs_enc in LIVE_PROXIES:
+            target = quote_plus(url) if needs_enc else url
+            proxy_url = template.format(url=target)
+            try:
+                req = Request(proxy_url, headers={
+                    "User-Agent": HEADERS["User-Agent"],
+                    # proxy.cors.sh requires an Origin/x-requested header
+                    "Origin": "https://gsmarena-unblock.local",
+                    "x-requested-with": "gsmarena-unblock",
+                })
+                resp = self.opener.open(req, timeout=45)
+                data = resp.read()
+                if data[:2] == b"\x1f\x8b":
+                    import gzip
+                    data = gzip.decompress(data)
+                html = data.decode("utf-8", errors="replace")
+            except Exception as e:
+                sys.stderr.write(f"  · proxy {name} failed ({type(e).__name__})\n")
+                continue
+
+            # Reject block pages and proxy landing/error pages.
+            if "Too Many Requests" in html:
+                sys.stderr.write(f"  · proxy {name} still got 429\n")
+                continue
+            if "Turnstile check" in html:
+                # Cloudflare Turnstile CAPTCHA — some endpoints (search results)
+                # require an interactive browser challenge a proxy can't solve.
+                raise TurnstileChallenge(url)
+            # fdn.gsmarena.com is the asset host referenced by every real page
+            # (home, search results, spec pages) — and never by a proxy's own
+            # landing/error page.
+            if "fdn.gsmarena.com" not in html and "gsmarena.com/vv/" not in html:
+                sys.stderr.write(f"  · proxy {name} returned non-GSMArena content\n")
+                continue
+
+            sys.stderr.write(f"  ✓ live via {name}\n")
+            return html
+
+        return None
 
     def _fetch_live(self, url: str, referer: str | None = None) -> str:
         """Fetch from the live origin with the ad-block bypass active."""
@@ -372,7 +442,7 @@ def cmd_search(client: GSMArenaClient, query: str):
     # Quick regex fallback — works even if parser misses structure
     results = []
     for m in re.finditer(
-        r'<a href="([^"]+\.php)"[^>]*>\s*<img[^>]*>\s*<span[^>]*>(?:<br\s*/?>)?([^<]+)',
+        r'<a href="([^"]+\.php)"><img[^>]*><strong><span>([^<]+)</span>',
         html,
     ):
         results.append({"url": m.group(1), "name": m.group(2).strip()})
@@ -461,7 +531,7 @@ def cmd_brand(client: GSMArenaClient, slug: str):
 
     results = []
     for m in re.finditer(
-        r'<a href="([^"]+\.php)"[^>]*>\s*<img[^>]*>\s*<span[^>]*>(?:<br\s*/?>)?([^<]+)',
+        r'<a href="([^"]+\.php)"><img[^>]*><strong><span>([^<]+)</span>',
         html,
     ):
         results.append({"url": m.group(1), "name": m.group(2).strip()})
@@ -503,14 +573,26 @@ def main():
     args = parser.parse_args()
     client = GSMArenaClient(delay=args.delay)
 
-    if args.command == "search":
-        cmd_search(client, args.query)
-    elif args.command == "specs":
-        cmd_specs(client, args.slug)
-    elif args.command == "brands":
-        cmd_brands(client)
-    elif args.command == "brand":
-        cmd_brand(client, args.slug)
+    try:
+        if args.command == "search":
+            cmd_search(client, args.query)
+        elif args.command == "specs":
+            cmd_specs(client, args.slug)
+        elif args.command == "brands":
+            cmd_brands(client)
+        elif args.command == "brand":
+            cmd_brand(client, args.slug)
+    except TurnstileChallenge as e:
+        sys.stderr.write(
+            f"\n✗ Endpoint gated behind Cloudflare Turnstile (CAPTCHA):\n  {e}\n\n"
+            "  This endpoint needs an interactive browser challenge that a\n"
+            "  headless proxy can't solve. Options:\n"
+            "    • Run from a clean residential IP (no proxy needed)\n"
+            "    • Use a headless browser with a Turnstile solver\n"
+            "    • For phone data, use `specs <slug>` — detail pages are NOT\n"
+            "      Turnstile-gated and work live through the proxy tier.\n"
+        )
+        sys.exit(2)
 
 
 if __name__ == "__main__":

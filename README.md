@@ -90,22 +90,31 @@ GSMArena has **two independent blocking systems**. Bypassing them requires diffe
 
 The cookie bypass only helps on a **clean IP**. It cannot rescue an already-banned IP — the 429 is stamped server-side against the IP before any cookie is read. Datacenter and proxy IPs (including Tor and most reader-proxies) are 429-banned outright.
 
-### Automatic Wayback fallback
+### Three-tier access — works even from a banned IP
 
-When the live origin returns 429, this client automatically falls back to the **Wayback Machine**, which serves the same `data-spec` markup from archive.org's infrastructure — so `specs` works from **any** IP, banned or not:
+The client tries three routes in order and stops at the first that returns real content:
+
+| Tier | Route | Data | Works from banned IP? |
+|------|-------|------|-----------------------|
+| 1 | **Direct** live origin + cookie bypass | live | needs clean IP |
+| 2 | **Clean-egress CORS proxy** (`proxy.cors.sh`, `r.jina.ai`) | **live** | ✅ yes |
+| 3 | **Wayback Machine** (archived snapshot) | archived | ✅ yes |
+
+Tier 2 is the key: the proxy fetches the **live** page from an un-banned IP, so you get current data even when your own IP is 429-banned. Verified pulling a March-2026 phone from a fully-banned IP:
 
 ```
-$ python gsmarena.py specs samsung_galaxy_s23-12082
-⚠ Live origin returned 429 (IP banned). Falling back to Wayback Machine...
-  ✓ Wayback snapshot 20260826204014
-{ "name": "Samsung Galaxy S23", "specs": { "chipset": "Snapdragon 8 Gen 2 ...", ... } }
+$ python gsmarena.py specs apple_iphone_17e-14487
+⚠ Live origin returned 429 (IP banned). Retrying live via clean-egress proxies...
+  ✓ live via proxy.cors.sh
+{ "name": "Apple iPhone 17e",
+  "specs": { "chipset": "Apple A19 (3 nm)", "os": "iOS 26.3, ...", ... } }
 ```
 
-The fallback walks newest→oldest and skips "poisoned" snapshots (captures where Wayback's own crawler hit the 429 wall).
+`specs`, `brands`, and `brand <slug>` all work through this tier. **`search`** hits a **Cloudflare Turnstile CAPTCHA** (a third wall, only on `results.php3`) that a headless proxy can't solve — the client detects it and prints alternatives. Use `brand <slug>` to enumerate phones instead, or run `search` from a clean residential IP.
 
 ### Already banned?
 
-For **live** access: change your IP (VPN, residential proxy, router restart / mobile hotspot to cycle a dynamic IP) and apply the bypass rules before visiting again. The ban is IP-based with a 10-hour TTL. For **data** access regardless of ban: use the Wayback fallback (automatic in this client).
+You don't need to wait out the 10-hour ban — tier 2 (live proxy) and tier 3 (Wayback) both work immediately from the banned IP. For direct live browsing in a real browser: change your IP (VPN, residential proxy, mobile-hotspot IP cycle) and apply the filter rules before visiting.
 
 ## Project structure
 

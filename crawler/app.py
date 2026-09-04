@@ -294,7 +294,7 @@ function cell(col,val,row){
     const cls=col==="download_url"?"dl":"ext";
     return `<a class="${cls}" href="${esc(val)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${lbl}</a>`;}
   if(col==="name"||col==="device") return `<span class="name">${esc(val)}</span>`;
-  if(col==="source"){const c={"mifirm.net":"#5b8cff","firmwarefile.com":"#38d39f","samfw.com":"#f5b13d","givemerom.com":"#ff8ac0","romprovider.com":"#c46bff"}[val]||"#8b5cff";
+  if(col==="source"){const c={"mifirm.net":"#5b8cff","firmwarefile.com":"#38d39f","samfw.com":"#f5b13d","givemerom.com":"#ff8ac0","romprovider.com":"#c46bff","needrom.com":"#38d39f"}[val]||"#8b5cff";
     return `<span class="pill" style="color:${c};border-color:${c}55;background:${c}18">${esc(val)}</span>`;}
   if(["region","type","branch"].includes(col)) return pill(col,val);
   if(col==="codename") return `<span class="v" style="font-family:ui-monospace,monospace;color:#9fb3d9">${esc(val)}</span>`;

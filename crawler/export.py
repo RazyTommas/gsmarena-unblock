@@ -151,11 +151,11 @@ def load_json(out_dir: Path) -> tuple[list[dict], list[dict]]:
                 "matched_devices": None,
             })
             rom_meta.append(keys)
-        elif src == "romprovider.com":
+        elif src in ("romprovider.com", "needrom.com", "archive.org"):
             keys = {norm_code(d.get("model"))} if d.get("model") else set()
             keys |= join_keys(d.get("name"))
             roms.append({
-                "source": "romprovider.com",
+                "source": src,
                 "device": d.get("name"),
                 "codename": None,
                 "model": d.get("model"),

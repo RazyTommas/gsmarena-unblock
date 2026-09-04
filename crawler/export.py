@@ -164,7 +164,7 @@ def load_json(out_dir: Path) -> tuple[list[dict], list[dict]]:
                 "branch": (d.get("brand") or "").title() or None,
                 "version": d.get("version"),
                 "android": d.get("android"),
-                "size": None,
+                "size": d.get("size"),
                 "updated_at": None,
                 "downloads": None,
                 "download_url": d.get("download_url"),

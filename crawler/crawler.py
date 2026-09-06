@@ -37,6 +37,14 @@ import mifirm
 import firmwarefile
 import romprovider
 
+# vendored (from gsmarena-unblock): non-evasive Wayback last-resort for a hard IP ban
+import os as _os
+sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "vendor"))
+try:
+    from wayback_fallback import wayback_fallback
+except Exception:  # vendor missing → feature simply off
+    wayback_fallback = None
+
 BASE = "https://www.gsmarena.com/"
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -114,13 +122,24 @@ class Fetcher:
                 self._log(f"  [http error] {e} (attempt {attempt+1}/3)")
                 time.sleep(2 ** attempt)
 
-        if self._looks_blocked(status, html) and self.allow_browser:
+        blocked = self._looks_blocked(status, html)
+        if blocked and self.allow_browser:
             self._log(f"  [fallback] plain HTTP blocked ({status}); trying headless browser")
-            html = self._get_browser(url) or html
+            b = self._get_browser(url)
+            if b and not self._looks_blocked(200, b):   # content-based: browser has no status
+                html, blocked = b, False
 
-        if self.use_cache and html and not self._looks_blocked(status, html):
+        # last-resort, gsmarena only, non-evasive: newest clean archive.org snapshot
+        if blocked and wayback_fallback and "gsmarena.com" in url:
+            self._log(f"  [fallback] still blocked; trying Wayback (archive.org) for {url}")
+            wb = wayback_fallback(url)
+            if wb and not self._looks_blocked(200, wb):
+                html, blocked = wb, False
+                self._log("  [wayback] recovered a clean snapshot")
+
+        if self.use_cache and html and not blocked:
             cp.write_text(html, encoding="utf-8")
-        self._log(f"  [http {status or 'browser'}] {url}")
+        self._log(f"  [http {status or 'fallback'}] {'blocked' if blocked else 'ok'} {url}")
         return html
 
     # -- lazy Playwright fallback ------------------------------------------- #

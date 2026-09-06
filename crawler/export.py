@@ -151,7 +151,7 @@ def load_json(out_dir: Path) -> tuple[list[dict], list[dict]]:
                 "matched_devices": None,
             })
             rom_meta.append(keys)
-        elif src in ("romprovider.com", "needrom.com", "archive.org"):
+        elif src in ("romprovider.com", "needrom.com", "archive.org", "androidmtk.com"):
             keys = {norm_code(d.get("model"))} if d.get("model") else set()
             keys |= join_keys(d.get("name"))
             roms.append({

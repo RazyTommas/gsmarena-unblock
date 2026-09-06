@@ -30,7 +30,7 @@ GATE = {  # source -> (label, directly-fetchable?)
     "archive.org": ("DIRECT", True), "mifirm.net": ("DIRECT", True),
     "firmwarefile.com": ("MIRROR", False), "romprovider.com": ("MIRROR", False),
     "samfw.com": ("BROWSER", False), "needrom.com": ("LOGIN", False),
-    "gofirmware.com": ("PAGE", False),
+    "gofirmware.com": ("PAGE", False), "androidmtk.com": ("PAGE", False),
 }
 
 

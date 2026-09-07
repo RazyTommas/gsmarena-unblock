@@ -149,6 +149,7 @@ a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
   cursor:pointer;font-weight:600;font-size:13px;display:flex;gap:7px;align-items:center;transition:.15s}
 .btn:hover{border-color:var(--line2);background:#111a2d}
 .btn svg{width:15px;height:15px}
+.btn.on{background:#13203a;border-color:var(--acc);color:#fff}
 .count{color:var(--mut);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
 
 /* column panel */
@@ -294,6 +295,7 @@ tbody tr.clk:hover td{background:#132043}
     <input id="q" placeholder="Search any field — codename, chipset, region, Android version…">
     <span class="kbd">/</span>
   </div>
+  <button class="btn" id="latestBtn" title="Collapse to the newest build per device + region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v10m0 0l4-4m-4 4l-4-4M4 21h16"/></svg>Latest only</button>
   <button class="btn" id="colBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="4" x2="8" y2="20"/><line x1="16" y1="4" x2="16" y2="20"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>Columns</button>
   <span class="count" id="count"></span>
 </div>
@@ -309,7 +311,7 @@ tbody tr.clk:hover td{background:#132043}
 
 <script>
 const $=s=>document.querySelector(s);
-let ALL=null, VIEW="devices", VIS=new Set(), SORT={i:-1,d:1};
+let ALL=null, VIEW="devices", VIS=new Set(), SORT={i:-1,d:1}, LATEST_ONLY=false;
 
 const REGION_COL={China:"#ff6b6b",Global:"#5b8cff",EEA:"#38d39f",Russian:"#8b5cff",
   Indo:"#4dd0e1",India:"#f5993d",Taiwan:"#ff8ac0",Japan:"#ff5c7a",Turkey:"#f5b13d",EU:"#59d0ff"};
@@ -361,6 +363,8 @@ function setView(v){VIEW=v;SORT={i:-1,d:1};
   $("#analytics").classList.toggle("show",v==="analytics");
   $("#q").style.display=isTable?"":"none";
   $("#colBtn").style.display=isTable?"":"none";
+  $("#latestBtn").style.display=(v==="roms")?"":"none";
+  if(v!=="roms"){LATEST_ONLY=false;$("#latestBtn").classList.remove("on");}
   $("#count").style.display=isTable?"":"none";
   if(isTable){VIS=new Set(ALL[v].defaults);buildPop();}
   renderStats();
@@ -399,6 +403,13 @@ function filtered(){
     if(t.length){const h=r.join(" ").toLowerCase();if(!t.every(x=>h.includes(x)))return false;}
     if(useF&&A[i]){if(VIEW==="devices"&&!filtDev(A[i]))return false;if(VIEW==="roms"&&!filtRom(A[i]))return false;}
     return true;});
+  if(LATEST_ONLY&&VIEW==="roms"){
+    const di=idx("device"),ri=idx("region"),ui=idx("updated_at");
+    const best={};
+    rows.forEach(r=>{const k=(r[di]||"")+"|"+(r[ri]||""),d=r[ui]||"";
+      if(!best[k]||d>(best[k][ui]||""))best[k]=r;});
+    rows=Object.values(best);
+  }
   if(SORT.i>=0){rows=rows.slice().sort((a,b)=>{let x=a[SORT.i]??"",y=b[SORT.i]??"";
     const nx=parseFloat(String(x).replace(/[^\d.]/g,"")),ny=parseFloat(String(y).replace(/[^\d.]/g,""));
     if(!isNaN(nx)&&!isNaN(ny)&&/\d/.test(x)&&/\d/.test(y)){x=nx;y=ny;}
@@ -489,6 +500,7 @@ function closeDrawer(){$("#drawer").classList.remove("show");$("#scrim").classLi
 $("#scrim").onclick=closeDrawer;
 $("#q").addEventListener("input",render);
 $("#colBtn").onclick=e=>{e.stopPropagation();$("#pop").classList.toggle("show");};
+$("#latestBtn").onclick=()=>{LATEST_ONLY=!LATEST_ONLY;$("#latestBtn").classList.toggle("on",LATEST_ONLY);render();};
 document.addEventListener("click",e=>{if(!$("#pop").contains(e.target)&&e.target!==$("#colBtn"))$("#pop").classList.remove("show");});
 document.addEventListener("keydown",e=>{
   if(e.key==="/"&&document.activeElement!==$("#q")){e.preventDefault();$("#q").focus();}
@@ -817,7 +829,7 @@ function renderAnalytics(){
   hbar(c,count(dev,d=>d.android?("Android "+d.android):null).sort((a,b)=>parseInt(b.label.slice(8))-parseInt(a.label.slice(8))),l=>ANDROID_COL[l.slice(8)]||OTHER);
 }
 
-fetch("/api/all").then(r=>r.json()).then(d=>{ALL=d;enrich();buildFilterBar();VIS=new Set(d.devices.defaults);renderStats();buildPop();render();});
+fetch("/api/all").then(r=>r.json()).then(d=>{ALL=d;enrich();buildFilterBar();VIS=new Set(d.devices.defaults);renderStats();buildPop();render();$("#latestBtn").style.display="none";});
 </script></body></html>"""
 
 

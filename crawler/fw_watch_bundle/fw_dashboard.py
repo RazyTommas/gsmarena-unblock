@@ -30,6 +30,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BASELINE = HERE / "baseline_latest.csv"
+HISTORY = HERE / "history.csv"
 STATE = HERE / "fw_state.json"
 MANIFEST = "https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
 ZONE_NAME = {"ILO": "Israel", "MID": "Iraq / Lebanon"}
@@ -68,6 +69,25 @@ def load_baseline():
                          "device": r.get("device", r["model"]),
                          "ours": r["build"], "our_date": r.get("released", "")})
     return rows
+
+
+def load_history():
+    """Full per-device build history we already collected (from history.csv)."""
+    hist = {}
+    if not HISTORY.exists():
+        return hist
+    with open(HISTORY, newline="") as f:
+        for r in csv.DictReader(f):
+            key = f'{r["csc"]}/{r["model"]}'
+            hist.setdefault(key, []).append(
+                {"build": r["build"], "android": r.get("android", ""),
+                 "date": r.get("released", "")})
+    for k in hist:
+        hist[k].sort(key=lambda x: x["date"], reverse=True)
+    return hist
+
+
+_history = load_history()
 
 
 def upstream(csc, model):
@@ -217,6 +237,10 @@ transform:translateY(140%);transition:transform .4s;z-index:9}
 .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;
 animation:pulse 1.8s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 .hero.pop{animation:flash 1.6s ease-out}@keyframes flash{0%{border-left-color:var(--up);background:linear-gradient(100deg,#4a3a1a,#161b26)}100%{}}
+.drow{cursor:pointer}.drow:hover td{background:#ffffff0a}.chev{color:var(--mut);width:20px;text-align:center}
+.histrow td{background:#0c1016;padding:0 16px}
+.histhdr{color:var(--acc);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:10px 0 6px}
+.histtbl{width:auto;margin-bottom:12px}.histtbl td{border-bottom:1px solid #ffffff06;padding:4px 22px 4px 0}
 </style></head><body>
 <h1>Firmware Watch <span class="dim" style="font-size:14px;font-weight:400">— Israel &amp; Iraq/Lebanon</span></h1>
 <p class="sub"><span class="live"></span><span id="live">connecting…</span></p>
@@ -256,10 +280,18 @@ async function tick(){
     }
     for(const z of Object.keys(s.zones)){
       const zn=s.zones[z];
-      html+=`<div class="card"><h2>${h(zn.name)}<span class="csc">${h(z)}</span></h2><div class="tablewrap"><table>
-        <thead><tr><th>Device</th><th>Model</th><th>Current build</th><th>Released</th></tr></thead><tbody>`;
-      for(const r of zn.rows){html+=`<tr><td class="dev">${h(r.device)}${r.new?'<span class="badge b-new">NEW</span>':''}</td>
-        <td class="mono dim">${h(r.model)}</td><td class="mono">${h(r.build)}</td><td class="dim">${h(r.date_approx)}</td></tr>`;}
+      html+=`<div class="card"><h2>${h(zn.name)}<span class="csc">${h(z)}</span>
+        <span class="dim" style="font-size:11px;font-weight:400;margin-left:8px">click a device for full history</span></h2>
+        <div class="tablewrap"><table>
+        <thead><tr><th></th><th>Device</th><th>Model</th><th>Current build</th><th>Released</th></tr></thead><tbody>`;
+      for(const r of zn.rows){
+        const rid=(z+'_'+r.model).replace(/[^A-Za-z0-9_]/g,'');
+        html+=`<tr class="drow" onclick="toggleHist('${h(z)}','${h(r.model)}','${rid}')">
+          <td class="chev" id="cv_${rid}">▸</td>
+          <td class="dev">${h(r.device)}${r.new?'<span class="badge b-new">NEW</span>':''}</td>
+          <td class="mono dim">${h(r.model)}</td><td class="mono">${h(r.build)}</td><td class="dim">${h(r.date_approx)}</td></tr>
+          <tr id="hr_${rid}" class="histrow" style="display:none"><td></td><td colspan="4" id="hc_${rid}"></td></tr>`;
+      }
       html+='</tbody></table></div></div>';
     }
     document.getElementById('grid').innerHTML=html;
@@ -271,6 +303,20 @@ async function tick(){
       const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),12000);
     }
   }catch(e){document.getElementById('live').textContent='dashboard offline?';}
+}
+async function toggleHist(csc,model,rid){
+  const row=document.getElementById('hr_'+rid), cell=document.getElementById('hc_'+rid), cv=document.getElementById('cv_'+rid);
+  if(row.style.display!=='none'){row.style.display='none';cv.textContent='▸';return;}
+  cv.textContent='▾';row.style.display='';
+  cell.innerHTML='<span class="dim">loading history…</span>';
+  try{
+    const d=await (await fetch('/api/history?csc='+encodeURIComponent(csc)+'&model='+encodeURIComponent(model),{cache:'no-store'})).json();
+    const b=d.builds||[];
+    if(!b.length){cell.innerHTML='<span class="dim">no history on file for this device</span>';return;}
+    let t='<div class="histhdr">'+b.length+' builds on file — full version history</div><table class="histtbl"><tbody>';
+    for(const r of b){t+=`<tr><td class="dim">${h(r.date)}</td><td class="mono">${h(r.build)}</td><td class="dim">${r.android?'A'+h(r.android):''}</td></tr>`;}
+    t+='</tbody></table>';cell.innerHTML=t;
+  }catch(e){cell.innerHTML='<span class="dim">could not load history</span>';}
 }
 tick();setInterval(tick,30000);
 </script></body></html>"""
@@ -288,6 +334,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/state"):
             with _lock:
                 body = json.dumps(_state).encode()
+            self._send(200, body, "application/json")
+        elif self.path.startswith("/api/history"):
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            key = f'{q.get("csc",[""])[0]}/{q.get("model",[""])[0]}'
+            body = json.dumps({"key": key, "builds": _history.get(key, [])}).encode()
             self._send(200, body, "application/json")
         elif self.path.startswith("/api/refresh"):
             threading.Thread(target=self._refresh, daemon=True).start()

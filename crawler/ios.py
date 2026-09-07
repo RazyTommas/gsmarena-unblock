@@ -15,22 +15,14 @@ Idempotent: clears prior ipsw.me rows and re-inserts, so re-running refreshes.
 Stdlib only.
 """
 from __future__ import annotations
-import argparse, json, sqlite3, time, urllib.request
-from pathlib import Path
+import argparse, sqlite3, time, urllib.request
+from common import DB_PATH as DB, http_get
 
-DB = Path(__file__).with_name("data") / "devices.db"
 API = "https://api.ipsw.me/v4"
-UA = {"User-Agent": "Mozilla/5.0 (device-crawler)", "Accept": "application/json"}
 
 
-def get(url, timeout=25, retries=3):
-    for _ in range(retries):
-        try:
-            return json.loads(urllib.request.urlopen(
-                urllib.request.Request(url, headers=UA), timeout=timeout).read())
-        except Exception:
-            time.sleep(0.6)
-    return None
+def get(url):
+    return http_get(url, as_json=True)
 
 
 def main():

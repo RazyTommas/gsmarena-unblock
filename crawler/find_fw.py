@@ -23,9 +23,7 @@ Usage:
 """
 from __future__ import annotations
 import argparse, json, os, re, sqlite3, urllib.parse, urllib.request
-from pathlib import Path
-
-DB = Path(__file__).with_name("data") / "devices.db"
+from common import DB_PATH as DB
 GATE = {  # source -> (label, directly-fetchable?)
     "archive.org": ("DIRECT", True), "mifirm.net": ("DIRECT", True),
     "firmwarefile.com": ("MIRROR", False), "romprovider.com": ("MIRROR", False),

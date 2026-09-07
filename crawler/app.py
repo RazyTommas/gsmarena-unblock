@@ -57,7 +57,7 @@ def check_upstream(csc, model):
             time.sleep(0.5)
     return None
 
-DB_PATH = Path("data/devices.db")
+DB_PATH = Path(__file__).resolve().parent / "data" / "devices.db"
 INGEST_DIR = Path("output")     # browser-ingested models land here for export.py
 LINK_COLS = {"url", "image", "download_url", "model_url", "rom_url"}
 DEFAULTS = {
@@ -962,7 +962,8 @@ def main():
     global DB_PATH
     ap = argparse.ArgumentParser(description="Firmware Atlas — local device & ROM explorer.")
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--data", default="data")
+    ap.add_argument("--data", default=str(Path(__file__).resolve().parent / "data"),
+                    help="corpus dir containing devices.db (default: alongside app.py)")
     ap.add_argument("--host", default="0.0.0.0",
                     help="bind address; 0.0.0.0 exposes it on the lab LAN (default), "
                          "127.0.0.1 keeps it local-only")

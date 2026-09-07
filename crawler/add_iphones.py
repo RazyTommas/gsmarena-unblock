@@ -13,9 +13,7 @@ for the ROMs view. Values left blank where not confidently known (never invented
 """
 from __future__ import annotations
 import re, sqlite3, time
-from pathlib import Path
-
-DB = Path(__file__).with_name("data") / "devices.db"
+from common import DB_PATH as DB
 
 # base model -> (chipset, display size, battery mAh, announced YYYY-MM)
 SPECS = {

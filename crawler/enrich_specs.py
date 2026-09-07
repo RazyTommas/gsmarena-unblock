@@ -17,17 +17,14 @@ are useful. Stdlib + selectolax only.
   python enrich_specs.py --limit 300     # just the top-N by build count this run
 """
 from __future__ import annotations
-import argparse, json, re, sqlite3, sys, time
+import argparse, re, sqlite3, sys, time
 from pathlib import Path
 from urllib.parse import quote_plus
-from urllib.request import Request, urlopen
 
+from common import DB_PATH as DB, http_get
 sys.path.insert(0, str(Path(__file__).with_name("vendor")))
 from wayback_fallback import wayback_fallback  # noqa: E402
 from selectolax.parser import HTMLParser        # noqa: E402
-
-DB = Path(__file__).with_name("data") / "devices.db"
-UA = "Mozilla/5.0 (compatible; device-crawler/1.0; +wayback)"
 
 
 def ensure_table(con):
@@ -87,18 +84,15 @@ def slugs_for(name):
 def _cdx(slug, timeout):
     q = ("http://web.archive.org/cdx/search/cdx?url=" + quote_plus("gsmarena.com/" + slug)
          + "*&output=json&collapse=urlkey&filter=statuscode:200&limit=15")
-    for _ in range(3):                        # archive.org CDX throws intermittent 503s
-        try:
-            rows = json.loads(urlopen(Request(q, headers={"User-Agent": UA}), timeout=timeout).read().decode())
-            cands = [r[2] for r in rows[1:]] if len(rows) > 1 else []
-            # canonical device page only — drop -pictures-/-price-/-reviews-/-versus- variants
-            cands = [u for u in cands if re.search(r"-\d+\.php$", u)
-                     and not re.search(r"-(pictures|price|reviews|opinions|versus|specs)-", u)]
-            cands.sort(key=len)
-            return cands
-        except Exception:
-            time.sleep(0.8)
-    return []
+    # archive.org CDX throws intermittent 503s — http_get already retries
+    rows = http_get(q, timeout=timeout, as_json=True)
+    if not rows or len(rows) <= 1:
+        return []
+    cands = [r[2] for r in rows[1:]
+             if re.search(r"-\d+\.php$", r[2])
+             and not re.search(r"-(pictures|price|reviews|opinions|versus|specs)-", r[2])]
+    cands.sort(key=len)
+    return cands
 
 
 def resolve_url(name, timeout=15):
@@ -136,6 +130,9 @@ def main():
     # distinct devices by build count, filtered to requested vendors, not yet cached
     rows = con.execute("SELECT device, COUNT(*) n FROM roms WHERE device!='' GROUP BY device ORDER BY n DESC").fetchall()
     todo = [(d, n) for d, n in rows if vendor_of(d) in args.vendors and d not in done]
+    # priority: Samsung first (user focus), then Tecno, then Xiaomi; by build count within each
+    _pri = {"samsung": 0, "tecno": 1, "xiaomi": 2}
+    todo.sort(key=lambda t: (_pri.get(vendor_of(t[0]), 9), -t[1]))
     if args.limit:
         todo = todo[:args.limit]
     print(f"device_specs cached: {len(done)} | to do this run: {len(todo)}", flush=True)

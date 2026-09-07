@@ -30,38 +30,10 @@ Exit code is the number of new-in-line devices (0 = everything current), so it
 composes in cron/CI: `python check_updates.py --only-updates || echo "updates!"`.
 """
 from __future__ import annotations
-import argparse, csv, json, re, sqlite3, sys, time, urllib.request
-from pathlib import Path
+import argparse, csv, json, re, sqlite3, sys, time
+from common import DB_PATH as DB, http_get, decode_pda as decode_date, pda_month as approx
 
-DB = Path(__file__).with_name("data") / "devices.db"
 MANIFEST = "https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
-MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-
-def decode_date(pda: str):
-    """Decode the trailing 3 chars of a Samsung PDA build into (year, month, minor).
-
-    Calibrated against our own dated builds: year letter runs ...X=2024, Y=2025,
-    Z=2026; month letter A..L = Jan..Dec; last char is a minor build counter.
-    Returns None when the tail isn't a decodable date code.
-    """
-    m = re.search(r"([A-Z0-9]{3})$", pda or "")
-    if not m:
-        return None
-    y, mo, minor = m.group(1)
-    if not (y.isalpha() and mo.isalpha()):
-        return None
-    year = 2024 + (ord(y) - ord("X"))
-    month = ord(mo) - ord("A") + 1
-    if not (1 <= month <= 12):
-        return None
-    return (year, month, minor)
-
-
-def approx(pda: str) -> str:
-    d = decode_date(pda)
-    return f"{MONTHS[d[1]]} {d[0]}" if d else ""
 
 
 def ours_from_db(regions):
@@ -98,18 +70,12 @@ def ours_from_csv(path):
     return out
 
 
-def upstream(csc, model, retries=2):
-    url = MANIFEST.format(csc=csc, model=model)
-    for attempt in range(retries + 1):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            xml = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
-            m = re.search(r"<latest[^>]*>([^<]+)</latest>", xml)
-            return m.group(1).split("/")[0] if m else None
-        except Exception:
-            if attempt < retries:
-                time.sleep(0.5)
-    return None
+def upstream(csc, model):
+    xml = http_get(MANIFEST.format(csc=csc, model=model), timeout=20)
+    if not xml:
+        return None
+    m = re.search(r"<latest[^>]*>([^<]+)</latest>", xml)
+    return m.group(1).split("/")[0] if m else None
 
 
 def classify(ours, up):

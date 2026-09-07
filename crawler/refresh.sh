@@ -7,8 +7,9 @@ PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 && { PY="$c";
 ts(){ date '+%Y-%m-%d %H:%M:%S'; }
 
 echo "[$(ts)] refresh start"
-# 1) Apple iOS/iPadOS — clean public API, always refreshable
+# 1) Apple iPhones — clean public API, always refreshable; then (re)attach specs + links
 "$PY" ios.py            && echo "[$(ts)] iOS refreshed"      || echo "[$(ts)] iOS refresh FAILED"
+"$PY" add_iphones.py    && echo "[$(ts)] iPhone specs linked" || echo "[$(ts)] iPhone specs FAILED"
 # 2) Samsung 'new versions in line' check (writes nothing to corpus; logs pending)
 "$PY" check_updates.py --only-updates 2>/dev/null | head -20
 # 3) chipset enrichment continues where it left off (resumable, best-effort)

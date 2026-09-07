@@ -41,8 +41,9 @@ def main():
     devices = get(f"{API}/devices?type=ipsw")
     if not devices:
         raise SystemExit("could not reach ipsw.me API")
-    # keep the real product lines (drop AudioAccessory/AppleTV? keep all — they're firmware too)
-    print(f"Apple devices: {len(devices)}", flush=True)
+    # iPhones only, all versions each (identifiers like iPhone16,2)
+    devices = [d for d in devices if (d.get("identifier") or "").startswith("iPhone")]
+    print(f"iPhone devices: {len(devices)}", flush=True)
 
     con = sqlite3.connect(DB)
     con.execute("DELETE FROM roms WHERE source='ipsw.me'")     # refresh cleanly

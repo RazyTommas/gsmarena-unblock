@@ -82,8 +82,28 @@ def _read(table: str) -> dict:
             "defaults": [c for c in DEFAULTS.get(table, []) if c in cols] or cols[:9]}
 
 
+def _specs_map() -> dict:
+    """device name -> chipset, from the Wayback-enriched device_specs cache."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        rows = conn.execute("SELECT device, chipset FROM device_specs "
+                            "WHERE chipset IS NOT NULL AND chipset!=''").fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    conn.close()
+    return {d: c for d, c in rows}
+
+
 def read_all() -> dict:
     d, r = _read("devices"), _read("roms")
+    # enrich the ROMs view with a chipset column joined from the spec cache by device name
+    if r["columns"] and "device" in r["columns"]:
+        sm = _specs_map()
+        di = r["columns"].index("device")
+        r["columns"].append("chipset")
+        for row in r["rows"]:
+            row.append(sm.get(row[di]) or "")
+        r["defaults"].append("chipset")
     regions = sorted({row[r["columns"].index("region")]
                       for row in r["rows"]} - {None, ""}) if r["columns"] else []
     linked = sum(1 for row in d["rows"]
@@ -342,7 +362,7 @@ function cell(col,val,row){
     const cls=col==="download_url"?"dl":"ext";
     return `<a class="${cls}" href="${esc(val)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${lbl}</a>`;}
   if(col==="name"||col==="device") return `<span class="name">${esc(val)}</span>`;
-  if(col==="source"){const c={"mifirm.net":"#5b8cff","firmwarefile.com":"#38d39f","samfw.com":"#f5b13d","givemerom.com":"#ff8ac0","romprovider.com":"#c46bff","needrom.com":"#38d39f","androidmtk.com":"#f5b13d","gofirmware.com":"#8b5cff"}[val]||"#8b5cff";
+  if(col==="source"){const c={"mifirm.net":"#5b8cff","firmwarefile.com":"#38d39f","samfw.com":"#f5b13d","givemerom.com":"#ff8ac0","romprovider.com":"#c46bff","needrom.com":"#38d39f","androidmtk.com":"#f5b13d","gofirmware.com":"#8b5cff","ipsw.me":"#0a84ff"}[val]||"#8b5cff";
     return `<span class="pill" style="color:${c};border-color:${c}55;background:${c}18">${esc(val)}</span>`;}
   if(["region","type","branch"].includes(col)) return pill(col,val);
   if(col==="codename") return `<span class="v" style="font-family:ui-monospace,monospace;color:#9fb3d9">${esc(val)}</span>`;
@@ -512,7 +532,7 @@ document.addEventListener("keydown",e=>{
 
 /* ===================== ANALYTICS ===================== */
 const SERIES=["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"];
-const SRC_COL={"mifirm.net":"#5b8cff","firmwarefile.com":"#38d39f","samfw.com":"#f5b13d","givemerom.com":"#ff8ac0","romprovider.com":"#c46bff"};
+const SRC_COL={"mifirm.net":"#5b8cff","firmwarefile.com":"#38d39f","samfw.com":"#f5b13d","givemerom.com":"#ff8ac0","romprovider.com":"#c46bff","ipsw.me":"#0a84ff"};
 const OTHER="#7c8db0";
 const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,
   jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11};

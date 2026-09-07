@@ -74,8 +74,66 @@ SPECS = {
 }
 
 
+# base model -> modem/baseband (vendor + part + gen). Blank where not confidently known.
+MODEM = {
+    "iPhone 2G":  "Infineon PMB8876 (S-GOLD2) — GSM/EDGE",
+    "iPhone 3G":  "Infineon PMB8878 (X-GOLD 608) — 3G/HSDPA",
+    "iPhone 3GS": "Infineon PMB8878 (X-GOLD 608) — 3G",
+    "iPhone 4":   "Infineon X-GOLD 618 (PMB9800) — 3G  ·  CDMA: Qualcomm MDM6600",
+    "iPhone 4s":  "Qualcomm MDM6610 — 3G",
+    "iPhone 5":   "Qualcomm MDM9615 — LTE Cat 3 (first LTE iPhone)",
+    "iPhone 5c":  "Qualcomm MDM9615 — LTE Cat 3",
+    "iPhone 5s":  "Qualcomm MDM9615 — LTE Cat 4",
+    "iPhone 6":   "Qualcomm MDM9625 — LTE Cat 4",
+    "iPhone 6 Plus": "Qualcomm MDM9625 — LTE Cat 4",
+    "iPhone 6s":  "Qualcomm MDM9635 — LTE Cat 6",
+    "iPhone 6s Plus": "Qualcomm MDM9635 — LTE Cat 6",
+    "iPhone SE":  "Qualcomm MDM9625 — LTE Cat 4",
+    "iPhone 7":   "Qualcomm MDM9645 / Intel XMM7360 — LTE Cat 9 (dual-sourced by carrier)",
+    "iPhone 7 Plus": "Qualcomm MDM9645 / Intel XMM7360 — LTE Cat 9",
+    "iPhone 8":   "Qualcomm MDM9655 / Intel XMM7480 — LTE Cat 16",
+    "iPhone 8 Plus": "Qualcomm MDM9655 / Intel XMM7480 — LTE Cat 16",
+    "iPhone X":   "Qualcomm MDM9655 / Intel XMM7480 — LTE Cat 16",
+    "iPhone XR":  "Intel XMM7560 — LTE Cat 16 (Intel-only year)",
+    "iPhone XS":  "Intel XMM7560 — LTE Cat 16",
+    "iPhone XS Max": "Intel XMM7560 — LTE Cat 16",
+    "iPhone 11":  "Intel XMM7660 — LTE Cat 16",
+    "iPhone 11 Pro": "Intel XMM7660 — LTE Cat 16",
+    "iPhone 11 Pro Max": "Intel XMM7660 — LTE Cat 16",
+    "iPhone SE (2020)": "Intel XMM7660 — LTE (no 5G)",
+    "iPhone 12":  "Qualcomm Snapdragon X55 — 5G (first 5G iPhone)",
+    "iPhone 12 mini": "Qualcomm Snapdragon X55 — 5G",
+    "iPhone 12 Pro": "Qualcomm Snapdragon X55 — 5G",
+    "iPhone 12 Pro Max": "Qualcomm Snapdragon X55 — 5G",
+    "iPhone 13":  "Qualcomm Snapdragon X60 — 5G",
+    "iPhone 13 mini": "Qualcomm Snapdragon X60 — 5G",
+    "iPhone 13 Pro": "Qualcomm Snapdragon X60 — 5G",
+    "iPhone 13 Pro Max": "Qualcomm Snapdragon X60 — 5G",
+    "iPhone SE (3rd generation)": "Qualcomm Snapdragon X57 — 5G",
+    "iPhone 14":  "Qualcomm Snapdragon X65 — 5G",
+    "iPhone 14 Plus": "Qualcomm Snapdragon X65 — 5G",
+    "iPhone 14 Pro": "Qualcomm Snapdragon X65 — 5G",
+    "iPhone 14 Pro Max": "Qualcomm Snapdragon X65 — 5G",
+    "iPhone 15":  "Qualcomm Snapdragon X70 — 5G",
+    "iPhone 15 Plus": "Qualcomm Snapdragon X70 — 5G",
+    "iPhone 15 Pro": "Qualcomm Snapdragon X70 — 5G",
+    "iPhone 15 Pro Max": "Qualcomm Snapdragon X70 — 5G",
+    "iPhone 16":  "Qualcomm Snapdragon X71 — 5G",
+    "iPhone 16 Plus": "Qualcomm Snapdragon X71 — 5G",
+    "iPhone 16 Pro": "Qualcomm Snapdragon X71 — 5G",
+    "iPhone 16 Pro Max": "Qualcomm Snapdragon X71 — 5G",
+    "iPhone 16e": "Apple C1 — 5G (Apple's first in-house modem)",
+    "iPhone 17":  "Qualcomm (Snapdragon X-series) — 5G",
+    "iPhone 17 Pro": "Qualcomm (Snapdragon X-series) — 5G",
+    "iPhone 17 Pro Max": "Qualcomm (Snapdragon X-series) — 5G",
+    "iPhone Air": "Apple C1X — 5G",
+    "iPhone 17e": "",
+}
+
 # chipset -> (CPU config, GPU, process node, transistors) — public Apple facts
 CHIP = {
+    "Samsung S5L8900":  ("1-core 412 MHz ARM11 (ARM1176JZ)", "PowerVR MBX Lite", "90 nm", ""),
+    "Samsung S5PC100":  ("1-core 600 MHz ARM Cortex-A8", "PowerVR SGX535", "65 nm", ""),
     "Apple A4":         ("1-core 1.0 GHz Cortex-A8", "PowerVR SGX535", "45 nm", ""),
     "Apple A5":         ("2-core 0.8 GHz Cortex-A9", "PowerVR SGX543MP2", "45 nm", ""),
     "Apple A6":         ("2-core 1.3 GHz Swift", "PowerVR SGX543MP3", "32 nm", ""),
@@ -108,6 +166,9 @@ def base(name):
 def main():
     con = sqlite3.connect(DB)
     dcols = [d[1] for d in con.execute("PRAGMA table_info(devices)")]
+    if "Network — Modem" not in dcols:
+        con.execute('ALTER TABLE devices ADD COLUMN "Network — Modem" TEXT')
+        dcols.append("Network — Modem")
     con.execute("""CREATE TABLE IF NOT EXISTS device_specs(device TEXT PRIMARY KEY,vendor TEXT,
         chipset TEXT,os TEXT,android TEXT,gsmarena_url TEXT,status TEXT,checked_at TEXT)""")
     # clear any prior iPhone device rows for a clean refresh
@@ -124,6 +185,9 @@ def main():
         romn = con.execute("SELECT COUNT(*) FROM roms WHERE source='ipsw.me' AND device=?", (name,)).fetchone()[0]
         row = {"device_id": did, "name": name, "codenames": ids, "rom_count": romn,
                "url": f"https://ipsw.me/{ids.split(',')[0]}" if ids else None}
+        modem = MODEM.get(base(name))
+        if modem:
+            row["Network — Modem"] = modem
         chip = ""
         if spec:
             chip, disp, batt, ann = spec

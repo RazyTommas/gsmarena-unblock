@@ -16,9 +16,46 @@ import argparse
 import json
 import re
 import sqlite3
+import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
+
+_MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _decode_pda(pda):
+    """(year, month) from a Samsung PDA build's trailing 3 chars, or None."""
+    m = re.search(r"([A-Z0-9]{3})$", pda or "")
+    if not m:
+        return None
+    y, mo, _ = m.group(1)
+    if not (y.isalpha() and mo.isalpha()):
+        return None
+    year = 2024 + (ord(y) - ord("X"))
+    month = ord(mo) - ord("A") + 1
+    return (year, month) if 1 <= month <= 12 else None
+
+
+def _pda_month(pda):
+    d = _decode_pda(pda)
+    return f"{_MON[d[1]]} {d[0]}" if d else ""
+
+
+def check_upstream(csc, model):
+    """Query Samsung's public firmware manifest for the latest build (no login)."""
+    url = f"https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
+    for _ in range(3):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            xml = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+            m = re.search(r"<latest[^>]*>([^<]+)</latest>", xml)
+            return m.group(1).split("/")[0] if m else None
+        except Exception:
+            time.sleep(0.5)
+    return None
 
 DB_PATH = Path("data/devices.db")
 INGEST_DIR = Path("output")     # browser-ingested models land here for export.py
@@ -125,6 +162,8 @@ a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
   border-radius:9px;cursor:pointer;font-size:12.5px;color:var(--mut);user-select:none;transition:.12s}
 .chk:hover{border-color:var(--line2);color:var(--fg)}
 .chk.on{background:#13203a;border-color:var(--acc);color:#fff}
+.chk .tick{display:inline-block;width:10px;color:var(--acc);font-weight:800;font-size:11px}
+.chk{cursor:pointer;user-select:none}
 .linkbtn{background:none;border:0;color:var(--acc);cursor:pointer;font-size:12px;font-weight:600}
 
 /* table */
@@ -178,6 +217,11 @@ tbody tr.clk:hover td{background:#132043}
 .romgroup summary{padding:11px 14px;cursor:pointer;display:flex;gap:10px;align-items:center;
   background:#101a2c;font-weight:650;list-style:none}
 .romgroup summary::-webkit-details-marker{display:none}
+.chkupd{margin-left:auto;background:#13203a;border:1px solid var(--acc);color:var(--acc);border-radius:8px;
+  padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer}
+.chkupd:hover{background:#1a2b4d}.chkupd:disabled{opacity:.6;cursor:default}
+.chkres{font-size:11.5px;flex-basis:100%;padding:2px 2px 0}
+.chkres.newer{color:#f5b13d}.chkres.okc{color:#38d39f}.chkres.dim{color:var(--mut)}
 .romrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 14px;border-top:1px solid #1a2540;font-size:12.5px}
 .romrow .v{font-family:ui-monospace,monospace;color:#cdd8ee}
 .romrow .meta{color:var(--mut);margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
@@ -255,8 +299,9 @@ tbody tr.clk:hover td{background:#132043}
 </div>
 <div class="pop" id="pop"></div>
 
+<div class="filterbar" id="filterbar"></div>
 <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
-<div id="analytics"><div class="filterbar" id="filterbar"></div><div class="chartgrid" id="chartgrid"></div></div>
+<div id="analytics"><div class="chartgrid" id="chartgrid"></div></div>
 <div class="viz-tip" id="viztip"></div>
 
 <div class="scrim" id="scrim"></div>
@@ -329,12 +374,19 @@ function buildPop(){
     <button class="linkbtn" id="cDef">Reset</button> ·
     <button class="linkbtn" id="cNone">None</button></span></h4>
     <div class="grid">${COL().map(c=>`<label class="chk ${VIS.has(c)?"on":""}" data-c="${esc(c)}">
-      <input type="checkbox" ${VIS.has(c)?"checked":""} style="display:none">${esc(c)}</label>`).join("")}</div>`;
-  p.querySelectorAll(".chk").forEach(l=>l.onclick=()=>{const c=l.dataset.c;
-    VIS.has(c)?VIS.delete(c):VIS.add(c);buildPop();render();});
-  $("#cAll").onclick=()=>{VIS=new Set(COL());buildPop();render();};
-  $("#cNone").onclick=()=>{VIS=new Set();buildPop();render();};
-  $("#cDef").onclick=()=>{VIS=new Set(ALL[VIEW].defaults);buildPop();render();};
+      <span class="tick">${VIS.has(c)?"✓":""}</span>${esc(c)}</label>`).join("")}</div>`;
+  // keep clicks inside the popup from bubbling to the document "close on outside click" handler
+  p.onclick=e=>e.stopPropagation();
+  // toggle a single column IN PLACE (no rebuild → popup stays open, table updates live)
+  p.querySelectorAll(".chk").forEach(l=>l.addEventListener("click",ev=>{ev.preventDefault();
+    const c=l.dataset.c, on=VIS.has(c);
+    if(on){VIS.delete(c);l.classList.remove("on");l.querySelector(".tick").textContent="";}
+    else {VIS.add(c);l.classList.add("on");l.querySelector(".tick").textContent="✓";}
+    render();}));
+  const bulk=fn=>{fn();buildPop();render();};
+  $("#cAll").onclick=()=>bulk(()=>VIS=new Set(COL()));
+  $("#cNone").onclick=()=>bulk(()=>VIS=new Set());
+  $("#cDef").onclick=()=>bulk(()=>VIS=new Set(ALL[VIEW].defaults));
 }
 
 function anyFilter(){return ["vendor","source","region","android","type"].some(k=>F[k]&&F[k].size)||F.name||F.chipset||F.minBatt;}
@@ -388,8 +440,12 @@ function openDrawer(ri){
   const rg=c=>rc.indexOf(c);
 
   const src=c=>rc.indexOf("source");
-  let romHtml=mine.length? Object.entries(byRegion).map(([reg,list])=>`
-    <details class="romgroup" open><summary>${pill("region",reg)}<span class="dim" style="font-weight:500">${list.length} build${list.length===1?"":"s"}</span></summary>
+  let romHtml=mine.length? Object.entries(byRegion).map(([reg,list])=>{
+    const mrow=list.find(r=>/^SM-/.test(r[rg("model")]||""))||list[0];
+    const model=mrow?(mrow[rg("model")]||""):"";
+    const canCheck=/^SM-/.test(model) && /^[A-Z]{3}$/.test(reg);
+    return `
+    <details class="romgroup" open><summary>${pill("region",reg)}<span class="dim" style="font-weight:500">${list.length} build${list.length===1?"":"s"}</span>${canCheck?`<button class="chkupd" data-csc="${esc(reg)}" data-model="${esc(model)}">check for newer</button><span class="chkres"></span>`:""}</summary>
       ${list.map(r=>{const meta=[r[rg("android")]?"Android "+r[rg("android")]:"",r[rg("size")]||"",
         (r[rg("updated_at")]||"").slice(0,10)].filter(Boolean).join(" · ");
         return `<div class="romrow">${pill("source",r[rg("source")])}
@@ -397,7 +453,7 @@ function openDrawer(ri){
         ${r[rg("type")]?pill("type",r[rg("type")]):""}${r[rg("branch")]?pill("branch",r[rg("branch")]):""}
         <span class="meta">${esc(meta)}
         ${r[rg("download_url")]?`<a class="dl" href="${esc(r[rg("download_url")])}" target="_blank" rel="noopener">${ICON.dl}get</a>`:""}</span></div>`;}).join("")}
-    </details>`).join("")
+    </details>`;}).join("")
     : `<div class="dim" style="padding:6px 2px">No firmware matched yet for this device.</div>`;
 
   const specHtml=Object.entries(sections).map(([s,kvs])=>`<div class="sect"><div class="st">${esc(s)}</div>
@@ -414,6 +470,18 @@ function openDrawer(ri){
       <div class="sect"><div class="st">Firmware / ROMs · ${mine.length}</div>${romHtml}</div>
       ${specHtml}</div>`;
   $("#dClose").onclick=closeDrawer;
+  $("#drawer").querySelectorAll(".chkupd").forEach(b=>b.onclick=async(e)=>{
+    e.preventDefault();e.stopPropagation();
+    const res=b.parentElement.querySelector(".chkres");
+    b.disabled=true;res.className="chkres dim";res.textContent=" checking Samsung…";
+    try{
+      const d=await (await fetch(`/api/check?csc=${encodeURIComponent(b.dataset.csc)}&model=${encodeURIComponent(b.dataset.model)}`)).json();
+      if(d.error||(!d.upstream)){res.className="chkres dim";res.textContent=" no upstream data";}
+      else if(d.newer){res.className="chkres newer";res.innerHTML=` ⬆ NEWER upstream: <b>${esc(d.upstream)}</b> (${esc(d.upstream_month)}) — we have ${esc(d.ours)||"—"} · checked ${esc(d.checked_at)}`;}
+      else {res.className="chkres okc";res.innerHTML=` ✓ up to date (${esc(d.upstream)}) · checked ${esc(d.checked_at)}`;}
+    }catch(err){res.className="chkres dim";res.textContent=" check failed";}
+    b.disabled=false;
+  });
   $("#drawer").classList.add("show");$("#scrim").classList.add("show");
 }
 function closeDrawer(){$("#drawer").classList.remove("show");$("#scrim").classList.remove("show");}
@@ -501,17 +569,18 @@ function buildFilterBar(){
     el.querySelector("button").onclick=e=>{e.stopPropagation();document.querySelectorAll(".facet").forEach(x=>{if(x!==el)x.classList.remove("open")});el.classList.toggle("open");};
     el.querySelectorAll(".opt[data-v]").forEach(op=>{
       const v=op.dataset.v; if(colf){const d=op.querySelector(".dot");d.style.background=colf(v);} else op.querySelector(".dot").remove();
-      op.onclick=()=>{const S=F[key];S.has(v)?S.delete(v):S.add(v);op.classList.toggle("on");op.querySelector(".box").textContent=S.has(v)?"✓":"";updateFacetCounts();renderAnalytics();};
+      op.onclick=()=>{const S=F[key];S.has(v)?S.delete(v):S.add(v);op.classList.toggle("on");op.querySelector(".box").textContent=S.has(v)?"✓":"";updateFacetCounts();applyFilters();};
     });
   });
-  $("#fName").oninput=e=>{F.name=e.target.value.trim().toLowerCase();renderAnalytics();};
-  $("#fChip").oninput=e=>{F.chipset=e.target.value.trim().toLowerCase();renderAnalytics();};
-  $("#fBatt").oninput=e=>{F.minBatt=+e.target.value||0;renderAnalytics();};
+  $("#fName").oninput=e=>{F.name=e.target.value.trim().toLowerCase();applyFilters();};
+  $("#fChip").oninput=e=>{F.chipset=e.target.value.trim().toLowerCase();applyFilters();};
+  $("#fBatt").oninput=e=>{F.minBatt=+e.target.value||0;applyFilters();};
   $("#fClear").onclick=()=>{["vendor","source","region","android","type"].forEach(k=>F[k].clear());F.name=F.chipset="";F.minBatt=0;
-    $("#fName").value=$("#fChip").value=$("#fBatt").value="";fb.querySelectorAll(".opt.on").forEach(o=>{o.classList.remove("on");o.querySelector(".box").textContent="";});updateFacetCounts();renderAnalytics();};
+    $("#fName").value=$("#fChip").value=$("#fBatt").value="";fb.querySelectorAll(".opt.on").forEach(o=>{o.classList.remove("on");o.querySelector(".box").textContent="";});updateFacetCounts();applyFilters();};
   document.addEventListener("click",()=>document.querySelectorAll(".facet.open").forEach(x=>x.classList.remove("open")));
   updateFacetCounts();
 }
+function applyFilters(){ if(VIEW==="analytics"){renderAnalytics();} else {render();} }
 function updateFacetCounts(){["vendor","source","region","android","type"].forEach(k=>{
   const el=$("#filterbar").querySelector(`.facet[data-key="${k}"]`);if(!el)return;
   const n=F[k].size;const b=el.querySelector("button");b.classList.toggle("active",n>0);
@@ -748,7 +817,7 @@ function renderAnalytics(){
   hbar(c,count(dev,d=>d.android?("Android "+d.android):null).sort((a,b)=>parseInt(b.label.slice(8))-parseInt(a.label.slice(8))),l=>ANDROID_COL[l.slice(8)]||OTHER);
 }
 
-fetch("/api/all").then(r=>r.json()).then(d=>{ALL=d;enrich();VIS=new Set(d.devices.defaults);renderStats();buildPop();render();});
+fetch("/api/all").then(r=>r.json()).then(d=>{ALL=d;enrich();buildFilterBar();VIS=new Set(d.devices.defaults);renderStats();buildPop();render();});
 </script></body></html>"""
 
 
@@ -777,6 +846,31 @@ class Handler(BaseHTTPRequestHandler):
             self._send(PAGE.encode(), "text/html; charset=utf-8")
         elif p == "/api/all":
             self._send(json.dumps(read_all()).encode(), "application/json")
+        elif p == "/api/check":
+            q = parse_qs(urlparse(self.path).query)
+            csc = (q.get("csc", [""])[0] or "").upper()
+            model = q.get("model", [""])[0] or ""
+            if not csc or not model:
+                self._send(b'{"error":"need csc and model"}', "application/json"); return
+            up = check_upstream(csc, model)
+            # our newest recorded build for this model+region
+            ours = ours_date = None
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                row = conn.execute("SELECT version, updated_at FROM roms WHERE model=? AND region=? "
+                                   "AND updated_at!='' ORDER BY updated_at DESC LIMIT 1",
+                                   (model, csc)).fetchone()
+                conn.close()
+                if row:
+                    ours, ours_date = row[0], row[1]
+            except Exception:
+                pass
+            newer = bool(up and ours and up != ours and (_decode_pda(up) or (0,)) > (_decode_pda(ours) or (0,)))
+            res = {"csc": csc, "model": model, "upstream": up or "",
+                   "upstream_month": _pda_month(up) if up else "",
+                   "ours": ours or "", "ours_date": ours_date or "",
+                   "newer": newer, "checked_at": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}
+            self._send(json.dumps(res).encode(), "application/json")
         else:
             self.send_error(404)
 

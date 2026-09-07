@@ -216,7 +216,20 @@ border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:16px
 .kpi{background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:12px 18px;min-width:118px}
 .kpi .n{font-size:26px;font-weight:700}.kpi.up .n{color:var(--up)}.kpi.ok .n{color:var(--ok)}
 .kpi .l{color:var(--mut);font-size:12px}
-.grid{display:grid;grid-template-columns:1fr;gap:16px;max-width:1200px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 16px;
+  background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:10px 14px}
+.controls .grp{display:flex;gap:6px;align-items:center}
+.controls label{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-right:2px}
+.zbtn{background:#0f1626;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 12px;
+  font-size:13px;cursor:pointer}.zbtn.on{background:#13203a;border-color:var(--acc);color:#fff;font-weight:600}
+.controls input[type=text]{background:#0f1626;border:1px solid var(--line);color:var(--ink);border-radius:8px;
+  padding:7px 11px;font-size:13px;min-width:200px}
+.tgl{display:flex;gap:6px;align-items:center;color:var(--mut);font-size:13px;cursor:pointer;user-select:none}
+.tgl input{width:15px;height:15px;accent-color:var(--acc)}
+.star{cursor:pointer;color:var(--mut);font-size:15px;line-height:1;background:none;border:0;padding:0 4px}
+.star.on{color:var(--up)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,560px),1fr));gap:16px;max-width:100%}
+.card.wide{grid-column:1/-1}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:15px;overflow:hidden}
 .card h2{font-size:16px;margin:0;padding:14px 18px 10px}
 .card h2 .csc{font-size:11px;color:var(--acc);border:1px solid var(--acc);border-radius:999px;padding:1px 7px;margin-left:6px}
@@ -246,64 +259,112 @@ animation:pulse 1.8s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25
 <p class="sub"><span class="live"></span><span id="live">connecting…</span></p>
 <div id="hero" class="hero"><div class="k">Latest release</div><div class="dev">—</div></div>
 <div class="kpis" id="kpis"></div>
+<div class="controls" id="controls">
+  <div class="grp"><label>Zone</label>
+    <button class="zbtn on" data-z="all">All</button>
+    <button class="zbtn" data-z="ILO">🇮🇱 Israel</button>
+    <button class="zbtn" data-z="MID">🇮🇶🇱🇧 Iraq/Lebanon</button></div>
+  <div class="grp"><input type="text" id="q" placeholder="filter device / model / build…"></div>
+  <label class="tgl"><input type="checkbox" id="onlyWatch"> ★ only watched</label>
+  <label class="tgl"><input type="checkbox" id="onlyNew"> only new-in-line</label>
+  <span class="dim" id="watchcnt" style="font-size:12px"></span>
+</div>
 <div class="grid" id="grid"></div>
 <div class="foot" id="foot"></div>
 <div class="toast" id="toast"><div class="t">New firmware in line</div><div class="m" id="toastmsg"></div></div>
 <script>
-let lastReleaseBuild=null;
+let lastReleaseBuild=null, LAST=null;
+let ZONE='all', Q='', ONLY_WATCH=false, ONLY_NEW=false;
+let WATCH=new Set(JSON.parse(localStorage.getItem('fw_watch')||'[]'));
 function h(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function fmt(iso){if(!iso)return '';const d=new Date(iso);return d.toLocaleString();}
+function saveWatch(){localStorage.setItem('fw_watch',JSON.stringify([...WATCH]));
+  document.getElementById('watchcnt').textContent=WATCH.size?(WATCH.size+' watched'):'';}
+function toggleWatch(ev,key){ev.stopPropagation();WATCH.has(key)?WATCH.delete(key):WATCH.add(key);saveWatch();renderAll();}
+function starBtn(key){return `<button class="star ${WATCH.has(key)?'on':''}" title="watch this device"
+  onclick="toggleWatch(event,'${h(key)}')">${WATCH.has(key)?'★':'☆'}</button>`;}
+function passRow(csc,r){
+  if(ZONE!=='all'&&csc!==ZONE)return false;
+  if(ONLY_WATCH&&!WATCH.has(csc+'/'+r.model))return false;
+  if(ONLY_NEW&&!r.new)return false;
+  if(Q&&!((r.device+' '+r.model+' '+r.build).toLowerCase().includes(Q)))return false;
+  return true;
+}
+function passPend(p){
+  if(ZONE!=='all'&&p.csc!==ZONE)return false;
+  if(ONLY_WATCH&&!WATCH.has(p.csc+'/'+p.model))return false;
+  if(Q&&!((p.device+' '+p.model+' '+p.upstream+' '+p.ours).toLowerCase().includes(Q)))return false;
+  return true;
+}
+function renderAll(){
+  const s=LAST; if(!s||s.status!=='ok')return;
+  const lr=s.latest_release||{};
+  const hero=document.getElementById('hero');
+  hero.innerHTML=`<div class="k">Latest release across tracked devices</div>
+    <div class="dev">${h(lr.device||'—')} <span class="dim" style="font-size:14px">${h(lr.csc||'')}</span></div>
+    <div class="meta"><span class="mono">${h(lr.build||'')}</span> · ${h(lr.date_approx||'')} · model ${h(lr.model||'')}</div>`;
+  if(lr.build&&lr.build!==lastReleaseBuild){hero.classList.remove('pop');void hero.offsetWidth;hero.classList.add('pop');lastReleaseBuild=lr.build;}
+  const pendAll=(s.pending||[]), pend=pendAll.filter(passPend);
+  document.getElementById('kpis').innerHTML=
+    `<div class="kpi up"><div class="n">${pend.length}</div><div class="l">new in line${ZONE!=='all'||Q||ONLY_WATCH?' (shown)':''}</div></div>
+     <div class="kpi ok"><div class="n">${s.current}</div><div class="l">up to date</div></div>
+     <div class="kpi"><div class="n">${s.checked}</div><div class="l">devices tracked</div></div>
+     <div class="kpi"><div class="n">${WATCH.size}</div><div class="l">★ watched</div></div>`;
+  let html='';
+  if(pend.length){
+    html+=`<div class="card up wide"><h2>New versions in line (${pend.length})</h2><div class="tablewrap"><table>
+      <thead><tr><th></th><th>Zone</th><th>Device</th><th>Model</th><th>Our build</th><th>Upstream (new)</th></tr></thead><tbody>`;
+    for(const p of pend){const k=p.csc+'/'+p.model;
+      html+=`<tr><td>${starBtn(k)}</td><td class="dim mono">${h(p.csc)}</td><td class="dev">${h(p.device)}</td>
+      <td class="mono">${h(p.model)}</td><td class="mono dim">${h(p.ours)}</td>
+      <td class="mono"><span class="arrow">→</span> ${h(p.upstream)} <span class="dim">· ${h(p.approx)}</span></td></tr>`;}
+    html+='</tbody></table></div></div>';
+  }
+  for(const z of Object.keys(s.zones)){
+    if(ZONE!=='all'&&z!==ZONE)continue;
+    const zn=s.zones[z], rows=zn.rows.filter(r=>passRow(z,r));
+    if(!rows.length)continue;
+    html+=`<div class="card"><h2>${h(zn.name)}<span class="csc">${h(z)}</span>
+      <span class="dim" style="font-size:11px;font-weight:400;margin-left:8px">★ to watch · click a row for history</span></h2>
+      <div class="tablewrap"><table>
+      <thead><tr><th></th><th></th><th>Device</th><th>Model</th><th>Current build</th><th>Released</th></tr></thead><tbody>`;
+    for(const r of rows){
+      const rid=(z+'_'+r.model).replace(/[^A-Za-z0-9_]/g,''), k=z+'/'+r.model;
+      html+=`<tr class="drow" onclick="toggleHist('${h(z)}','${h(r.model)}','${rid}')">
+        <td>${starBtn(k)}</td><td class="chev" id="cv_${rid}">▸</td>
+        <td class="dev">${h(r.device)}${r.new?'<span class="badge b-new">NEW</span>':''}</td>
+        <td class="mono dim">${h(r.model)}</td><td class="mono">${h(r.build)}</td><td class="dim">${h(r.date_approx)}</td></tr>
+        <tr id="hr_${rid}" class="histrow" style="display:none"><td></td><td></td><td colspan="4" id="hc_${rid}"></td></tr>`;
+    }
+    html+='</tbody></table></div></div>';
+  }
+  if(!html)html='<div class="card"><h2 style="color:var(--mut)">No devices match the current filters</h2></div>';
+  document.getElementById('grid').innerHTML=html;
+  document.getElementById('foot').textContent='Source: Samsung public firmware version manifest (fota-cloud, no login). '
+    +'Standalone dashboard — no login, no lab infra. ★ = devices you watch (saved on this machine). Dates decoded from the PDA build code.';
+}
 async function tick(){
   try{
     const s=await (await fetch('/api/state',{cache:'no-store'})).json();
     if(s.status!=='ok'){document.getElementById('live').textContent='first check running…';return;}
     document.getElementById('live').textContent='updated '+fmt(s.updated_at)+' · auto-refresh 30s';
-    const lr=s.latest_release||{};
-    const hero=document.getElementById('hero');
-    hero.innerHTML=`<div class="k">Latest release across tracked devices</div>
-      <div class="dev">${h(lr.device||'—')} <span class="dim" style="font-size:14px">${h(lr.csc||'')}</span></div>
-      <div class="meta"><span class="mono">${h(lr.build||'')}</span> · ${h(lr.date_approx||'')} · model ${h(lr.model||'')}</div>`;
-    if(lr.build&&lr.build!==lastReleaseBuild){hero.classList.remove('pop');void hero.offsetWidth;hero.classList.add('pop');lastReleaseBuild=lr.build;}
-    document.getElementById('kpis').innerHTML=
-      `<div class="kpi up"><div class="n">${s.new_in_line}</div><div class="l">new in line</div></div>
-       <div class="kpi ok"><div class="n">${s.current}</div><div class="l">up to date</div></div>
-       <div class="kpi"><div class="n">${s.checked}</div><div class="l">devices tracked</div></div>
-       <div class="kpi"><div class="n">${s.unchecked}</div><div class="l">unchecked</div></div>`;
-    let html='';
-    if(s.pending&&s.pending.length){
-      html+=`<div class="card up"><h2>New versions in line (${s.pending.length})</h2><div class="tablewrap"><table>
-        <thead><tr><th>Zone</th><th>Device</th><th>Model</th><th>Our build</th><th>Upstream (new)</th></tr></thead><tbody>`;
-      for(const p of s.pending){html+=`<tr><td class="dim mono">${h(p.csc)}</td><td class="dev">${h(p.device)}</td>
-        <td class="mono">${h(p.model)}</td><td class="mono dim">${h(p.ours)}</td>
-        <td class="mono"><span class="arrow">→</span> ${h(p.upstream)} <span class="dim">· ${h(p.approx)}</span></td></tr>`;}
-      html+='</tbody></table></div></div>';
-    }
-    for(const z of Object.keys(s.zones)){
-      const zn=s.zones[z];
-      html+=`<div class="card"><h2>${h(zn.name)}<span class="csc">${h(z)}</span>
-        <span class="dim" style="font-size:11px;font-weight:400;margin-left:8px">click a device for full history</span></h2>
-        <div class="tablewrap"><table>
-        <thead><tr><th></th><th>Device</th><th>Model</th><th>Current build</th><th>Released</th></tr></thead><tbody>`;
-      for(const r of zn.rows){
-        const rid=(z+'_'+r.model).replace(/[^A-Za-z0-9_]/g,'');
-        html+=`<tr class="drow" onclick="toggleHist('${h(z)}','${h(r.model)}','${rid}')">
-          <td class="chev" id="cv_${rid}">▸</td>
-          <td class="dev">${h(r.device)}${r.new?'<span class="badge b-new">NEW</span>':''}</td>
-          <td class="mono dim">${h(r.model)}</td><td class="mono">${h(r.build)}</td><td class="dim">${h(r.date_approx)}</td></tr>
-          <tr id="hr_${rid}" class="histrow" style="display:none"><td></td><td colspan="4" id="hc_${rid}"></td></tr>`;
+    LAST=s; renderAll();
+    if(s.just_released){const jr=s.just_released;
+      if(!WATCH.size||WATCH.has(jr.csc+'/'+jr.model)){
+        document.getElementById('toastmsg').textContent=`${jr.device} (${jr.csc}): ${jr.build} · ${jr.date_approx}`;
+        const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),12000);
       }
-      html+='</tbody></table></div></div>';
-    }
-    document.getElementById('grid').innerHTML=html;
-    document.getElementById('foot').textContent='Source: Samsung public firmware version manifest (fota-cloud, no login). '
-      +'This is a standalone dashboard — no login, no lab infra. Dates decoded from the PDA build code.';
-    if(s.just_released){
-      document.getElementById('toastmsg').textContent=
-        `${s.just_released.device} (${s.just_released.csc}): ${s.just_released.build} · ${s.just_released.date_approx}`;
-      const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),12000);
     }
   }catch(e){document.getElementById('live').textContent='dashboard offline?';}
 }
+// wire controls
+document.querySelectorAll('.zbtn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.zbtn').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  ZONE=b.dataset.z;renderAll();});
+document.getElementById('q').addEventListener('input',e=>{Q=e.target.value.trim().toLowerCase();renderAll();});
+document.getElementById('onlyWatch').addEventListener('change',e=>{ONLY_WATCH=e.target.checked;renderAll();});
+document.getElementById('onlyNew').addEventListener('change',e=>{ONLY_NEW=e.target.checked;renderAll();});
+saveWatch();
 async function toggleHist(csc,model,rid){
   const row=document.getElementById('hr_'+rid), cell=document.getElementById('hc_'+rid), cv=document.getElementById('cv_'+rid);
   if(row.style.display!=='none'){row.style.display='none';cv.textContent='▸';return;}
@@ -344,7 +405,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/refresh"):
             threading.Thread(target=self._refresh, daemon=True).start()
             self._send(200, b'{"ok":true}', "application/json")
-        elif self.path in ("/", "/index.html"):
+        elif self.path.split("?")[0] in ("/", "/index.html"):
             self._send(200, PAGE.encode(), "text/html; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain")

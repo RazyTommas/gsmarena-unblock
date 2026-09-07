@@ -74,6 +74,29 @@ SPECS = {
 }
 
 
+# chipset -> (CPU config, GPU, process node, transistors) — public Apple facts
+CHIP = {
+    "Apple A4":         ("1-core 1.0 GHz Cortex-A8", "PowerVR SGX535", "45 nm", ""),
+    "Apple A5":         ("2-core 0.8 GHz Cortex-A9", "PowerVR SGX543MP2", "45 nm", ""),
+    "Apple A6":         ("2-core 1.3 GHz Swift", "PowerVR SGX543MP3", "32 nm", ""),
+    "Apple A7":         ("2-core 1.3 GHz Cyclone (64-bit)", "PowerVR G6430", "28 nm", "1.0B"),
+    "Apple A8":         ("2-core 1.4 GHz Typhoon", "PowerVR GX6450", "20 nm", "2.0B"),
+    "Apple A9":         ("2-core 1.85 GHz Twister", "PowerVR GT7600", "14/16 nm", "2.0B"),
+    "Apple A10 Fusion": ("4-core 2.34 GHz (2 Hurricane + 2 Zephyr)", "PowerVR GT7600 Plus (6-core)", "16 nm", "3.3B"),
+    "Apple A11 Bionic": ("6-core 2.39 GHz (2 Monsoon + 4 Mistral)", "Apple GPU (3-core)", "10 nm", "4.3B"),
+    "Apple A12 Bionic": ("6-core 2.49 GHz (2 Vortex + 4 Tempest)", "Apple GPU (4-core)", "7 nm", "6.9B"),
+    "Apple A13 Bionic": ("6-core 2.65 GHz (2 Lightning + 4 Thunder)", "Apple GPU (4-core)", "7 nm (N7P)", "8.5B"),
+    "Apple A14 Bionic": ("6-core 3.1 GHz (2 Firestorm + 4 Icestorm)", "Apple GPU (4-core)", "5 nm (N5)", "11.8B"),
+    "Apple A15 Bionic": ("6-core 3.23 GHz (2 Avalanche + 4 Blizzard)", "Apple GPU (4/5-core)", "5 nm (N5P)", "15B"),
+    "Apple A16 Bionic": ("6-core 3.46 GHz (2 Everest + 4 Sawtooth)", "Apple GPU (5-core)", "4 nm (N4P)", "16B"),
+    "Apple A17 Pro":    ("6-core 3.78 GHz (2 + 4)", "Apple GPU (6-core, hardware ray tracing)", "3 nm (N3B)", "19B"),
+    "Apple A18":        ("6-core 4.04 GHz (2 + 4)", "Apple GPU (5-core, ray tracing)", "3 nm (N3E)", ""),
+    "Apple A18 Pro":    ("6-core 4.05 GHz (2 + 4)", "Apple GPU (6-core, ray tracing)", "3 nm (N3E)", ""),
+    "Apple A19":        ("6-core (2 + 4)", "Apple GPU (5-core)", "3 nm", ""),
+    "Apple A19 Pro":    ("6-core (2 + 4)", "Apple GPU (6-core)", "3 nm", ""),
+}
+
+
 def base(name):
     s = name.strip()
     s = re.sub(r"\s*\((GSM|Global|CDMA|China|GSM / 2012)\)\s*", "", s)
@@ -106,6 +129,12 @@ def main():
             chip, disp, batt, ann = spec
             row["Platform — Chipset"] = chip
             row["Platform — OS"] = "iOS"
+            cd = CHIP.get(chip)
+            if cd:
+                row["Platform — CPU"] = cd[0]
+                row["Platform — GPU"] = cd[1]
+                if cd[2]:
+                    row["Platform — Chipset"] = f"{chip} ({cd[2]})"
             if disp: row["Display — Size"] = disp
             if batt: row["Battery — Type"] = batt
             if ann: row["Launch — Announced"] = ann

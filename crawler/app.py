@@ -65,7 +65,7 @@ DEFAULTS = {
                 "Body — Weight", "Platform — Chipset", "Platform — OS",
                 "Misc — Price", "url"],
     "roms": ["source", "device", "model", "region", "type", "branch", "version",
-             "android", "size", "updated_at", "download_url", "model_url"],
+             "android", "size", "updated_at", "security_patch", "download_url", "model_url"],
 }
 
 
@@ -358,7 +358,7 @@ function cell(col,val,row){
   if(col==="rom_count"){const n=+val||0;
     return `<span class="romcount ${n?"":"zero"}">${n?ICON.dl:""}${n} ROM${n===1?"":"s"}</span>`;}
   if(/^https?:\/\//.test(val)){
-    const lbl=col==="download_url"?`${ICON.dl}download`:(col==="model_url"||col==="rom_url")?`${ICON.ext}ROM page`:`${ICON.ext}gsmarena`;
+    const lbl=col==="download_url"?`${ICON.dl}download`:(col==="model_url"||col==="rom_url")?`${ICON.ext}ROM page`:col==="security_patch"?`${ICON.ext}Apple CVEs`:`${ICON.ext}gsmarena`;
     const cls=col==="download_url"?"dl":"ext";
     return `<a class="${cls}" href="${esc(val)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${lbl}</a>`;}
   if(col==="name"||col==="device") return `<span class="name">${esc(val)}</span>`;

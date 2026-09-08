@@ -65,7 +65,7 @@ DEFAULTS = {
                 "Body — Weight", "Platform — Chipset", "Platform — OS",
                 "Misc — Price", "url"],
     "roms": ["source", "device", "model", "region", "type", "branch", "version",
-             "android", "size", "updated_at", "security_patch", "download_url", "model_url"],
+             "android", "size", "updated_at", "security_patch", "baseband", "download_url", "model_url"],
 }
 
 

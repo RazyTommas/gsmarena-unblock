@@ -184,6 +184,32 @@ tbody tr.clk{cursor:pointer}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
 .mini-t td:last-child{padding-right:0}
 .tr-dev{color:var(--ink-secondary);overflow:hidden;text-overflow:ellipsis}
+.star{background:none;border:0;cursor:pointer;color:var(--ink-faint);font-size:13px;padding:0 2px;line-height:1}
+.star.on{color:var(--st-warn)}
+.wbuild{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:10px}
+.wbuild label{display:block;font:500 10.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:3px}
+.wbuild select,.wbuild input{width:100%;background:var(--bg-sunken);border:1px solid var(--line-subtle);
+  border-radius:5px;color:var(--ink-primary);font:400 12.5px var(--sans);padding:6px 8px;outline:none}
+.wbuild select:focus,.wbuild input:focus{border-color:var(--accent)}
+.prev{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-muted);margin:2px 0 10px}
+.prev b{color:var(--accent);font-variant-numeric:tabular-nums;font-size:14px}
+.btn{background:var(--accent);border:0;border-radius:5px;color:#fff;font:600 12.5px var(--sans);
+  padding:7px 14px;cursor:pointer}
+.btn:hover{background:var(--accent-hover)}
+.btn.ghost{background:none;border:1px solid var(--line-subtle);color:var(--ink-secondary)}
+.wrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-row)}
+.wrow .lb{font-weight:500}
+.wrow .pd{font-size:11px;color:var(--ink-faint);font-family:var(--mono)}
+.wrow .rt{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:11.5px;color:var(--ink-muted)}
+.badge{display:inline-flex;align-items:center;gap:4px;background:var(--accent-wash);color:var(--accent);
+  border:1px solid var(--accent);border-radius:999px;padding:1px 8px;font:600 10.5px var(--sans);
+  letter-spacing:.03em}
+.badge.sec{background:rgba(225,74,69,.14);color:var(--st-critical);border-color:var(--st-critical)}
+.inbx{padding:8px 0;border-bottom:1px solid var(--line-row);display:flex;gap:10px;align-items:flex-start}
+.inbx .bd{flex:1;min-width:0}
+.inbx .t1{font-weight:500}
+.inbx .t2{font-size:11.5px;color:var(--ink-muted);margin-top:2px}
 
 /* ── cards / insights ─────────────────────────────────────── */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px;padding:14px}
@@ -620,31 +646,125 @@ async function renderInsights(){
 async function renderWatch(){
   $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
   g.innerHTML=`<div class="card"><h3>Loading…</h3></div>`;
-  let w={}; try{ w=await (await fetch("/api/watch",{cache:"no-store"})).json(); }catch(e){}
-  const lr=w.latest||[], cl=ALL.crawl||[];
+  let w={},inb={},sec=[],ws=[];
+  try{ [w,inb,sec,ws]=await Promise.all([
+    fetch("/api/watch",{cache:"no-store"}).then(r=>r.json()),
+    fetch("/api/inbox",{cache:"no-store"}).then(r=>r.json()),
+    fetch("/api/security",{cache:"no-store"}).then(r=>r.json()),
+    fetch("/api/watches",{cache:"no-store"}).then(r=>r.json())]); }catch(e){}
+  const cl=ALL.crawl||[], lr=w.latest||[];
+  const f=ALL.facets||{};
+  const opts=(arr,ph)=>`<option value="">${ph}</option>`+(arr||[]).map(o=>`<option value="${esc(o.v)}">${esc(o.v)}${o.n?" ("+o.n.toLocaleString()+")":""}</option>`).join("");
+
   g.innerHTML=`
     <div class="card wide" style="border-left:3px solid var(--accent)">
       <div class="sub" style="letter-spacing:.08em;text-transform:uppercase;margin:0">Newest release in the corpus</div>
       <div style="font:600 22px/28px var(--sans);margin:4px 0 2px">${esc(lr[1]||"—")}
         <span style="color:var(--ink-muted);font-size:13px;font-weight:400">${esc(lr[0]||"")}</span></div>
       <div style="color:var(--ink-secondary)"><span class="mono">${esc(lr[3]||"")}</span> · ${fdate(lr[4])} · ${esc(lr[5]||"")}</div></div>
+
+    <div class="card wide"><h3>Watch something new</h3>
+      <p class="sub">Watch a device, a slice, or a rule — e.g. anything on Android 17+, or anything that ships a security patch.</p>
+      <div class="wbuild">
+        <div><label>Device</label><input id="wDev" placeholder="exact device name…" list="devList">
+          <datalist id="devList">${(ALL.devices.rows||[]).map(r=>`<option value="${esc(r[ALL.devices.columns.indexOf("name")])}">`).join("")}</datalist></div>
+        <div><label>Vendor</label><select id="wVen">${opts(f.vendor,"any vendor")}</select></div>
+        <div><label>Region</label><select id="wRgn">${opts(f.region,"any region")}</select></div>
+        <div><label>Chipset contains</label><input id="wChip" placeholder="e.g. Snapdragon 8"></div>
+        <div><label>Android ≥</label><input id="wAnd" type="number" min="1" max="30" placeholder="e.g. 17"></div>
+        <div><label>Only with security patch</label><select id="wSec"><option value="">no</option><option value="1">yes</option></select></div>
+        <div><label>Notify me on</label><select id="wNot">
+          <option value="any">any new build</option><option value="security">security patches only</option>
+          <option value="os_major">new OS major only</option></select></div>
+        <div><label>Label</label><input id="wLbl" placeholder="name this watch"></div>
+      </div>
+      <div class="prev" id="wPrev">Set a condition to preview how many builds match.</div>
+      <button class="btn" id="wAdd">＋ Add watch</button></div>
+
+    <div class="card wide"><h3>Your watches <span class="sub" style="display:inline">${ws.length}</span></h3>
+      ${ws.length? ws.map(x=>`<div class="wrow">
+          <span class="star on">★</span>
+          <div style="min-width:0"><div class="lb">${esc(x.label)}</div>
+            <div class="pd">${esc(JSON.stringify(x.predicate))} · notify: ${esc(x.notify)}</div></div>
+          <div class="rt"><span>${(inb.watches||[]).find(i=>i.watch.id===x.id)?.total_matching?.toLocaleString()||0} matching</span>
+            <button class="btn ghost" data-del="${x.id}">Remove</button></div></div>`).join("")
+        : `<div style="color:var(--ink-faint);font-size:12.5px;padding:8px 0">No watches yet — add one above. Try <b>Android ≥ 17</b> or <b>security patch = yes</b>.</div>`}</div>
+
+    <div class="card wide"><h3>Inbox
+        ${inb.new_total?`<span class="badge">${inb.new_total} new</span>`:""}
+        ${inb.security_total?`<span class="badge sec">⛨ ${inb.security_total} security</span>`:""}</h3>
+      <p class="sub">${inb.watermark?`New since you last marked seen · ${esc(inb.watermark)}`
+        :`No watermark yet — press “Mark all seen” to start tracking what’s new. (Builds ingested before now have no first-seen timestamp and are never reported as new.)`}</p>
+      ${(inb.watches||[]).filter(x=>x.items.length).map(x=>`
+        <div style="margin-bottom:12px"><div style="font:500 11px var(--sans);letter-spacing:.04em;
+          text-transform:uppercase;color:var(--ink-muted);margin-bottom:4px">${esc(x.watch.label)}</div>
+          ${x.items.map(i=>`<div class="inbx">${mg(i.vendor)}
+            <div class="bd"><div class="t1">${esc(i.device)} ${i.security_patch?`<span class="badge sec">⛨ security</span>`:""}</div>
+              <div class="t2"><span class="mono">${esc(i.version||"")}</span> · ${fdate(i.updated_at)}
+                ${i.regions&&i.regions.length?" · "+i.regions.slice(0,6).map(esc).join(" "):""}
+                ${i.n>1?` · ${i.n} builds`:""}</div></div>
+            ${i.download_url?`<a class="lnk" href="${esc(i.download_url)}" target="_blank" rel="noopener">↓ get</a>`:""}</div>`).join("")}
+        </div>`).join("") || `<div style="color:var(--ink-faint);font-size:12.5px">Nothing new for your watches.</div>`}
+      <div style="margin-top:10px"><button class="btn ghost" id="wSeen">Mark all seen</button></div></div>
+
+    <div class="card wide"><h3>⛨ Security patches</h3>
+      <p class="sub">Recent builds carrying a vendor security advisory — newest first</p>
+      <table class="mini-t"><tbody>${sec.length? sec.slice(0,20).map(r=>`<tr>
+        <td style="width:130px;white-space:nowrap">${fdate(r.updated_at)}</td>
+        <td class="tr-dev"><div class="dev">${mg(r.vendor)}<span>${esc(r.device)}</span></div></td>
+        <td style="width:28%"><span class="mono">${esc(r.version||"")}</span></td>
+        <td style="width:70px" class="rgn">${esc(r.region||"")}</td>
+        <td style="text-align:right;width:120px"><a class="lnk" href="${esc(r.security_patch)}" target="_blank" rel="noopener">⛨ advisory ↗</a></td></tr>`).join("")
+        :`<tr><td style="color:var(--ink-faint);font-size:12px">No security advisories in the corpus yet — run <span class="mono">python3 ios_security.py</span>.</td></tr>`}</tbody></table></div>
+
     <div class="card"><h3>Latest build per vendor</h3><p class="sub">Newest release we hold, by manufacturer</p>
       <table class="mini-t"><tbody>${(w.per_vendor||[]).map(r=>`<tr>
         <td style="width:96px"><div class="dev">${mg(r[0])}<span>${esc(r[0])}</span></div></td>
         <td class="tr-dev">${esc(r[1])}</td>
         <td style="text-align:right;white-space:nowrap">${fdate(r[3])}</td></tr>`).join("")}</tbody></table></div>
+
     <div class="card"><h3>Data freshness</h3><p class="sub">When each source last ran</p>
       <table class="mini-t"><tbody>${cl.length?cl.map(c=>`<tr>
         <td>${esc(c.source)}</td>
         <td style="text-align:right;white-space:nowrap"><span class="st good"><span class="g">●</span>${esc(c.ran_at)}</span></td>
         <td style="text-align:right;width:64px" class="num">${c.rows==null?"—":c.rows.toLocaleString()}</td></tr>`).join("")
-        :`<tr><td style="color:var(--ink-faint);font-size:12px">No pulls recorded yet — run <span class="mono">bash refresh.sh</span>.</td></tr>`}</tbody></table></div>
-    <div class="card wide"><h3>Recent releases</h3><p class="sub">Newest first, across every vendor</p>
-      <table class="mini-t"><tbody>${(w.recent||[]).slice(0,18).map(r=>`<tr>
-        <td style="width:130px;white-space:nowrap">${fdate(r[4])}</td>
-        <td class="tr-dev"><div class="dev">${mg(r[0])}<span>${esc(r[1])}</span></div></td>
-        <td style="width:34%"><span class="mono">${esc(r[3]||"")}</span></td>
-        <td style="text-align:right;color:var(--ink-faint);font-size:11px;width:96px">${esc(r[5]||"")}</td></tr>`).join("")}</tbody></table></div>`;
+        :`<tr><td style="color:var(--ink-faint);font-size:12px">No pulls recorded yet — run <span class="mono">bash refresh.sh</span>.</td></tr>`}</tbody></table></div>`;
+
+  // --- live preview of the predicate being built ---
+  const readPred=()=>{
+    const p={};
+    const d=$("#wDev").value.trim(); if(d)p.device=d;
+    const v=$("#wVen").value; if(v)p.vendor=v;
+    const r=$("#wRgn").value; if(r)p.region=r;
+    const c=$("#wChip").value.trim(); if(c)p.chip=c;
+    const a=$("#wAnd").value; if(a)p.android_min=a;
+    if($("#wSec").value==="1")p.security=true;
+    return p;
+  };
+  const preview=debounce(async()=>{
+    const p=readPred();
+    if(!Object.keys(p).length){$("#wPrev").innerHTML="Set a condition to preview how many builds match.";return;}
+    const q=new URLSearchParams(); for(const k in p)q.set(k,p[k]===true?"1":p[k]);
+    try{ const d=await (await fetch("/api/watch_preview?"+q)).json();
+      $("#wPrev").innerHTML=`<b>${d.count.toLocaleString()}</b> builds match right now`
+        +(d.sample&&d.sample[0]?` · newest: <span class="mono">${esc(d.sample[0].version||"")}</span> ${esc(d.sample[0].device)}`:"");
+    }catch(e){}
+  },250);
+  ["wDev","wVen","wRgn","wChip","wAnd","wSec"].forEach(id=>{
+    const el=$("#"+id); el.addEventListener("input",preview); el.addEventListener("change",preview);});
+  $("#wAdd").onclick=async()=>{
+    const p=readPred();
+    if(!Object.keys(p).length){$("#wPrev").innerHTML="Add at least one condition first.";return;}
+    const lbl=$("#wLbl").value.trim()|| (p.device||[p.vendor,p.region,p.chip,p.android_min?("Android ≥"+p.android_min):"",p.security?"security":""].filter(Boolean).join(" · "));
+    const kind=p.device?"device":(p.android_min||p.security||p.chip)?"criterion":"slice";
+    await fetch("/api/watch_add",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({label:lbl,kind,predicate:p,notify:$("#wNot").value})});
+    renderWatch();
+  };
+  $$("#grid [data-del]").forEach(b=>b.onclick=async()=>{
+    await fetch("/api/watch_del",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id:+b.dataset.del})}); renderWatch();});
+  const sb=$("#wSeen"); if(sb)sb.onclick=async()=>{await fetch("/api/seen",{method:"POST"});renderWatch();};
 }
 
 /* ── views ────────────────────────────────────────────────── */

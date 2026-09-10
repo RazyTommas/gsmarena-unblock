@@ -22,6 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from ui import PAGE
+import watches
 
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -1187,6 +1188,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps(analytics_agg()).encode(), "application/json")
         elif p == "/api/watch":
             self._send(json.dumps(watch_data()).encode(), "application/json")
+        elif p == "/api/watches":
+            self._send(json.dumps(watches.list_watches()).encode(), "application/json")
+        elif p == "/api/inbox":
+            self._send(json.dumps(watches.inbox()).encode(), "application/json")
+        elif p == "/api/security":
+            self._send(json.dumps(watches.security_feed()).encode(), "application/json")
+        elif p == "/api/watch_preview":
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            pred = {k: q[k] for k in ("device", "vendor", "region", "chip") if q.get(k)}
+            if q.get("android_min"):
+                pred["android_min"] = q["android_min"]
+            if q.get("security") == "1":
+                pred["security"] = True
+            self._send(json.dumps({"count": watches.count(pred),
+                                   "sample": watches.matches(pred, limit=5)}).encode(),
+                       "application/json")
         elif p == "/api/roms_full":
             self._send(json.dumps(all_roms()).encode(), "application/json")
         elif p == "/api/check":
@@ -1217,10 +1234,31 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def _json_body(self):
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            return json.loads(self.rfile.read(n) or b"{}")
+        except Exception:
+            return {}
+
     def do_POST(self):
+        p = urlparse(self.path).path
+        # --- watch management -------------------------------------------------
+        if p == "/api/watch_add":
+            b = self._json_body()
+            pred = b.get("predicate") or {}
+            wid = watches.add_watch(b.get("label") or "watch", b.get("kind") or "criterion",
+                                    pred, b.get("notify") or "any")
+            self._send(json.dumps({"ok": True, "id": wid}).encode(), "application/json"); return
+        if p == "/api/watch_del":
+            b = self._json_body()
+            watches.del_watch(int(b.get("id") or 0))
+            self._send(b'{"ok":true}', "application/json"); return
+        if p == "/api/seen":
+            self._send(json.dumps({"ok": True, "at": watches.mark_seen()}).encode(),
+                       "application/json"); return
         # browser-side ingest for Cloudflare-gated sources (samfw): write raw JSON
         # models to output/<source>/ so export.py can pick them up.
-        p = urlparse(self.path).path
         if p != "/ingest":
             self.send_error(404)
             return

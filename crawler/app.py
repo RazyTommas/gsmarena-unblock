@@ -21,6 +21,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+from ui import PAGE
 
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -288,7 +289,13 @@ def analytics_agg() -> dict:
         "by_android": grp("SELECT android, COUNT(*) FROM roms WHERE android!='' GROUP BY android ORDER BY 2 DESC LIMIT 20"),
         "by_month": grp("SELECT substr(updated_at,1,7) m, COUNT(*) FROM roms WHERE updated_at!='' "
                         "GROUP BY m ORDER BY m"),
+        "by_vendor": grp("SELECT vendor, COUNT(*) FROM roms WHERE vendor!='' GROUP BY vendor ORDER BY 2 DESC"),
     }
+    try:
+        out["total"] = conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0]
+        out["undated"] = conn.execute("SELECT COUNT(*) FROM roms WHERE updated_at IS NULL OR updated_at=''").fetchone()[0]
+    except sqlite3.OperationalError:
+        out["total"] = out["undated"] = 0
     conn.close()
     return out
 
@@ -318,7 +325,7 @@ def read_all() -> dict:
             "link_cols": list(LINK_COLS)}
 
 
-PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+_OLD_PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Firmware Atlas</title>
 <style>

@@ -1244,6 +1244,30 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         p = urlparse(self.path).path
         # --- watch management -------------------------------------------------
+        if p == "/api/ingest_samfw":
+            body = self._json_body()
+            tsv = body.get("tsv") or ""
+            conn = sqlite3.connect(DB_PATH)
+            n = 0
+            now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+            for line in tsv.split("\n"):
+                f = line.split("\t")
+                if len(f) < 9:
+                    continue
+                model, device, csc, ver, spl, andr, oneui, date, url = f[:9]
+                conn.execute(
+                    "INSERT INTO roms(source,device,model,codename,region,type,branch,version,"
+                    "android,size,updated_at,downloads,download_url,model_url,matched_devices,"
+                    "vendor,security_patch,ingested_at)"
+                    " VALUES('samfw-live',?,?,?,?,'stock',?,?,?,NULL,?,NULL,?,?,'','Samsung',?,?)",
+                    (device, model, model, csc, oneui, ver, andr, date, url, url, spl or None, now))
+                n += 1
+            conn.commit(); conn.close()
+            self._send(json.dumps({"ok": True, "inserted": n}).encode(), "application/json"); return
+        if p == "/api/ingest_reset":
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("DELETE FROM roms WHERE source='samfw-live'"); conn.commit(); conn.close()
+            self._send(b'{"ok":true}', "application/json"); return
         if p == "/api/watch_add":
             b = self._json_body()
             pred = b.get("predicate") or {}

@@ -94,24 +94,153 @@ def _specs_map() -> dict:
     return {d: c for d, c in rows}
 
 
+def ensure_indexes():
+    """Indexes that make server-side filter/sort/paginate fast at 50k–1M+ rows."""
+    conn = sqlite3.connect(DB_PATH)
+    for col in ("device", "region", "source", "model", "updated_at", "matched_devices"):
+        try:
+            conn.execute(f'CREATE INDEX IF NOT EXISTS ix_roms_{col} ON roms("{col}")')
+        except sqlite3.OperationalError:
+            pass
+    conn.commit(); conn.close()
+
+
+# ROMs columns are static; chipset is joined from device_specs at query time.
+ROMS_COLS = ["source", "device", "model", "region", "type", "branch", "version",
+             "android", "size", "updated_at", "security_patch", "baseband",
+             "chipset", "download_url", "model_url"]
+FACET_COLS = ["source", "region", "android", "type"]
+
+
+def _roms_columns():
+    conn = sqlite3.connect(DB_PATH)
+    have = {d[1] for d in conn.execute("PRAGMA table_info(roms)")}
+    conn.close()
+    return [c for c in ROMS_COLS if c in have or c == "chipset"]
+
+
+def facets() -> dict:
+    """Distinct facet values (+counts) for the filter bar — one GROUP BY each."""
+    conn = sqlite3.connect(DB_PATH)
+    out = {}
+    for col in FACET_COLS:
+        try:
+            out[col] = [{"v": v, "n": n} for v, n in conn.execute(
+                f'SELECT "{col}", COUNT(*) FROM roms WHERE "{col}" IS NOT NULL AND "{col}"!=\'\' '
+                f'GROUP BY "{col}" ORDER BY 2 DESC LIMIT 60')]
+        except sqlite3.OperationalError:
+            out[col] = []
+    conn.close()
+    return out
+
+
+def _roms_where(p):
+    """Build a WHERE clause + params from query params (facets, text, toggles)."""
+    where, args = [], []
+    for col in FACET_COLS:
+        vals = [v for v in p.get(col, "").split("|") if v]
+        if vals:
+            where.append(f'roms."{col}" IN ({",".join("?" for _ in vals)})'); args += vals
+    q = (p.get("q") or "").strip().lower()
+    for term in q.split():
+        where.append("(LOWER(roms.device||' '||IFNULL(roms.model,'')||' '||roms.version||' '||"
+                      "IFNULL(roms.region,'')||' '||IFNULL(roms.android,'')) LIKE ?)")
+        args.append(f"%{term}%")
+    if p.get("dated") == "1":
+        where.append("roms.updated_at IS NOT NULL AND roms.updated_at!=''")
+    return (" WHERE " + " AND ".join(where) if where else ""), args
+
+
+def query_roms(p) -> dict:
+    """Server-side filtered/sorted/paginated ROMs page, chipset joined in."""
+    cols = _roms_columns()
+    sel = ", ".join(f'roms."{c}"' if c != "chipset" else "ds.chipset AS chipset" for c in cols)
+    join = " LEFT JOIN device_specs ds ON ds.device = roms.device"
+    where, args = _roms_where(p)
+    base = f" FROM roms{join}{where}"
+    # "latest only" = newest build per device+region (by updated_at)
+    if p.get("latest") == "1":
+        base = (f" FROM roms{join} JOIN (SELECT device, region, MAX(updated_at) mu FROM roms"
+                f"{where.replace('roms.', '')} GROUP BY device, region) top "
+                f"ON roms.device=top.device AND IFNULL(roms.region,'')=IFNULL(top.region,'') "
+                f"AND roms.updated_at=top.mu")
+    sort = p.get("sort") if p.get("sort") in cols else "updated_at"
+    dirn = "ASC" if p.get("dir") == "asc" else "DESC"
+    try:
+        limit = min(int(p.get("limit", 200)), 2000)
+        offset = max(int(p.get("offset", 0)), 0)
+    except ValueError:
+        limit, offset = 200, 0
+    conn = sqlite3.connect(DB_PATH)
+    total = conn.execute(f"SELECT COUNT(*){base}", args).fetchone()[0]
+    rows = [list(r) for r in conn.execute(
+        f'SELECT {sel}{base} ORDER BY roms."{sort}" {dirn} LIMIT ? OFFSET ?', args + [limit, offset])]
+    conn.close()
+    return {"columns": cols, "rows": rows, "total": total,
+            "offset": offset, "limit": limit,
+            "defaults": [c for c in DEFAULTS["roms"] if c in cols]}
+
+
+def device_roms(device_id) -> dict:
+    """The firmware rows linked to one device (for the drawer)."""
+    cols = _roms_columns()
+    sel = ", ".join(f'roms."{c}"' if c != "chipset" else "ds.chipset AS chipset" for c in cols)
+    conn = sqlite3.connect(DB_PATH)
+    rows = [list(r) for r in conn.execute(
+        f"SELECT {sel} FROM roms LEFT JOIN device_specs ds ON ds.device=roms.device "
+        f"WHERE ','||IFNULL(roms.matched_devices,'')||',' LIKE ? ORDER BY roms.region, roms.updated_at DESC",
+        (f"%,{device_id},%",))]
+    conn.close()
+    return {"columns": cols, "rows": rows}
+
+
+def all_roms() -> dict:
+    """Full ROMs (chipset joined) — used ONLY when the Analytics tab is opened, so
+    normal table browsing never pays for it."""
+    cols = _roms_columns()
+    sel = ", ".join(f'roms."{c}"' if c != "chipset" else "ds.chipset AS chipset" for c in cols)
+    conn = sqlite3.connect(DB_PATH)
+    rows = [list(r) for r in conn.execute(
+        f"SELECT {sel} FROM roms LEFT JOIN device_specs ds ON ds.device=roms.device")]
+    conn.close()
+    return {"columns": cols, "rows": rows}
+
+
+def analytics_agg() -> dict:
+    """Small pre-aggregated series for the charts (no raw rows to the client)."""
+    conn = sqlite3.connect(DB_PATH)
+    def grp(sql):
+        try:
+            return [[v, n] for v, n in conn.execute(sql)]
+        except sqlite3.OperationalError:
+            return []
+    out = {
+        "by_source": grp("SELECT source, COUNT(*) FROM roms GROUP BY source ORDER BY 2 DESC"),
+        "by_region": grp("SELECT region, COUNT(*) FROM roms WHERE region!='' GROUP BY region ORDER BY 2 DESC LIMIT 20"),
+        "by_android": grp("SELECT android, COUNT(*) FROM roms WHERE android!='' GROUP BY android ORDER BY 2 DESC LIMIT 20"),
+        "by_month": grp("SELECT substr(updated_at,1,7) m, COUNT(*) FROM roms WHERE updated_at!='' "
+                        "GROUP BY m ORDER BY m"),
+    }
+    conn.close()
+    return out
+
+
 def read_all() -> dict:
-    d, r = _read("devices"), _read("roms")
-    # enrich the ROMs view with a chipset column joined from the spec cache by device name
-    if r["columns"] and "device" in r["columns"]:
-        sm = _specs_map()
-        di = r["columns"].index("device")
-        r["columns"].append("chipset")
-        for row in r["rows"]:
-            row.append(sm.get(row[di]) or "")
-        r["defaults"].append("chipset")
-    regions = sorted({row[r["columns"].index("region")]
-                      for row in r["rows"]} - {None, ""}) if r["columns"] else []
+    """Slim payload: full devices (small) + ROMs metadata/facets/stats — NO roms rows.
+    The ROMs view fetches pages from /api/rows instead of downloading everything."""
+    d = _read("devices")
+    conn = sqlite3.connect(DB_PATH)
+    roms_total = conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0]
+    regions = conn.execute("SELECT COUNT(DISTINCT region) FROM roms WHERE region!=''").fetchone()[0]
+    conn.close()
+    r = {"columns": _roms_columns(), "rows": [], "total": roms_total,
+         "defaults": [c for c in DEFAULTS["roms"] if c in _roms_columns()]}
     linked = sum(1 for row in d["rows"]
                  if str(row[d["columns"].index("rom_count")] or "0") not in ("0", "", "None")) \
         if "rom_count" in d["columns"] else 0
-    return {"devices": d, "roms": r,
-            "stats": {"devices": len(d["rows"]), "roms": len(r["rows"]),
-                      "linked": linked, "regions": len(regions)},
+    return {"devices": d, "roms": r, "facets": facets(),
+            "stats": {"devices": len(d["rows"]), "roms": roms_total,
+                      "linked": linked, "regions": regions},
             "link_cols": list(LINK_COLS)}
 
 
@@ -349,8 +478,33 @@ function esc(s){return String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt
 const ICON={dl:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>',
   ext:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>'};
 
-function COL(){return ALL[VIEW].columns;} function ROWS(){return ALL[VIEW].rows;}
+// ROMs are fetched from the server a page at a time (scales past the browser's limits).
+let ROMS={rows:[],total:0,offset:0,limit:200}, PAGE_SIZE=200, _romTimer=null, _romSeq=0;
+function COL(){return ALL[VIEW].columns;}
+function ROWS(){return VIEW==="roms"?ROMS.rows:ALL[VIEW].rows;}
 function idx(c){return COL().indexOf(c);}
+function romParams(){
+  const p=new URLSearchParams();
+  const q=$("#q").value.trim(); if(q)p.set("q",q);
+  for(const k of ["source","region","android","type"]) if(F[k]&&F[k].size)p.set(k,[...F[k]].join("|"));
+  if(LATEST_ONLY)p.set("latest","1");
+  if(DATED_ONLY)p.set("dated","1");
+  if(SORT.col){p.set("sort",SORT.col);p.set("dir",SORT.d>0?"asc":"desc");}
+  p.set("offset",ROMS.offset);p.set("limit",PAGE_SIZE);
+  return p.toString();
+}
+async function fetchRoms(reset){
+  if(reset)ROMS.offset=0;
+  const seq=++_romSeq;
+  try{
+    const d=await (await fetch("/api/rows?"+romParams(),{cache:"no-store"})).json();
+    if(seq!==_romSeq)return;          // a newer request superseded this one
+    ROMS={rows:d.rows,total:d.total,offset:d.offset,limit:d.limit};
+    ALL.roms.columns=d.columns;
+    render();
+  }catch(e){ $("#body").innerHTML='<tr><td>could not load rows</td></tr>'; }
+}
+function romSearch(){ if(VIEW!=="roms")return render(); clearTimeout(_romTimer); _romTimer=setTimeout(()=>fetchRoms(true),250); }
 
 function cell(col,val,row){
   if(val==null||val==="") return '<span class="dim">—</span>';
@@ -389,8 +543,11 @@ function setView(v){VIEW=v;SORT={i:-1,d:1};
   if(v!=="roms"){LATEST_ONLY=false;$("#latestBtn").classList.remove("on");DATED_ONLY=false;$("#datedBtn").classList.remove("on");}
   $("#count").style.display=isTable?"":"none";
   if(isTable){VIS=new Set(ALL[v].defaults);buildPop();}
+  SORT={i:-1,d:1,col:null};
   renderStats();
-  if(v==="analytics"){renderAnalytics();} else {render();}
+  if(v==="analytics"){renderAnalytics();}
+  else if(v==="roms"){fetchRoms(true);}
+  else {render();}
 }
 
 function buildPop(){
@@ -416,63 +573,70 @@ function buildPop(){
 }
 
 function anyFilter(){return ["vendor","source","region","android","type"].some(k=>F[k]&&F[k].size)||F.name||F.chipset||F.minBatt;}
+/* DEVICES filtered client-side (small); ROMS are already filtered/sorted/paged by the server. */
 function filtered(){
+  if(VIEW==="roms") return ROMS.rows;
   const q=$("#q").value.trim().toLowerCase();
   const t=q?q.split(/\s+/):[];
-  const A=(VIEW==="devices")?ADEV:(VIEW==="roms")?AROM:null;
-  const useF=anyFilter()&&A;
+  const useF=anyFilter()&&ADEV;
   let rows=ROWS().filter((r,i)=>{
     if(t.length){const h=r.join(" ").toLowerCase();if(!t.every(x=>h.includes(x)))return false;}
-    if(useF&&A[i]){if(VIEW==="devices"&&!filtDev(A[i]))return false;if(VIEW==="roms"&&!filtRom(A[i]))return false;}
-    if(DATED_ONLY&&VIEW==="roms"){const ui=idx("updated_at");if(!(r[ui]&&String(r[ui]).trim()))return false;}
+    if(useF&&ADEV[i]&&!filtDev(ADEV[i]))return false;
     return true;});
-  if(LATEST_ONLY&&VIEW==="roms"){
-    const di=idx("device"),ri=idx("region"),ui=idx("updated_at");
-    const best={};
-    rows.forEach(r=>{const k=(r[di]||"")+"|"+(r[ri]||""),d=r[ui]||"";
-      if(!best[k]||d>(best[k][ui]||""))best[k]=r;});
-    rows=Object.values(best);
-  }
   if(SORT.i>=0){rows=rows.slice().sort((a,b)=>{let x=a[SORT.i]??"",y=b[SORT.i]??"";
     const nx=parseFloat(String(x).replace(/[^\d.]/g,"")),ny=parseFloat(String(y).replace(/[^\d.]/g,""));
     if(!isNaN(nx)&&!isNaN(ny)&&/\d/.test(x)&&/\d/.test(y)){x=nx;y=ny;}
     return (x>y?1:x<y?-1:0)*SORT.d;});}
   return rows;
 }
-const RENDER_CAP=1200;   // keep the DOM snappy with 40k+ rows; search narrows the full set
+const RENDER_CAP=1200;
 function render(){
   const cols=COL().map((c,i)=>({c,i})).filter(o=>VIS.has(o.c));
+  const server=(VIEW==="roms");
   const all=filtered();
-  const rows=all.slice(0,RENDER_CAP);
-  $("#head").innerHTML=cols.map(o=>`<th data-i="${o.i}">${esc(o.c)}${SORT.i===o.i?(SORT.d>0?" ▲":" ▼"):""}</th>`).join("");
-  $("#head").querySelectorAll("th").forEach(th=>th.onclick=()=>{const i=+th.dataset.i;
-    SORT.d=SORT.i===i?-SORT.d:1;SORT.i=i;render();});
+  const rows=server?all:all.slice(0,RENDER_CAP);
+  const sortMark=o=>server?(SORT.col===o.c?(SORT.d>0?" ▲":" ▼"):""):(SORT.i===o.i?(SORT.d>0?" ▲":" ▼"):"");
+  $("#head").innerHTML=cols.map(o=>`<th data-i="${o.i}" data-c="${esc(o.c)}">${esc(o.c)}${sortMark(o)}</th>`).join("");
+  $("#head").querySelectorAll("th").forEach(th=>th.onclick=()=>{
+    if(server){const c=th.dataset.c;SORT.d=SORT.col===c?-SORT.d:-1;SORT.col=c;fetchRoms(true);}
+    else{const i=+th.dataset.i;SORT.d=SORT.i===i?-SORT.d:1;SORT.i=i;render();}});
   const clickable=VIEW==="devices";
   $("#body").innerHTML = rows.length ? rows.map((r,ri)=>
-    `<tr class="${clickable?"clk":""}" data-ri="${ROWS().indexOf(r)}">`+
+    `<tr class="${clickable?"clk":""}" data-ri="${ri}">`+
     cols.map(o=>`<td>${cell(o.c,r[o.i],r)}</td>`).join("")+"</tr>").join("")
     : `<tr><td colspan="${cols.length||1}"><div class="empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
         <div>No rows match “${esc($("#q").value)}”.</div></div></td></tr>`;
   if(clickable)$("#body").querySelectorAll("tr.clk").forEach(tr=>tr.onclick=()=>openDrawer(+tr.dataset.ri));
-  const capped=all.length>RENDER_CAP?`  ·  showing ${RENDER_CAP} — refine search`:"";
-  $("#count").textContent=`${all.length} of ${ROWS().length}${capped}`;
+  if(server){
+    const a=ROMS.offset+1, b=Math.min(ROMS.offset+ROMS.rows.length,ROMS.total);
+    const prev=ROMS.offset>0, next=ROMS.offset+ROMS.limit<ROMS.total;
+    $("#count").innerHTML=`<button class="pg" id="pgPrev" ${prev?"":"disabled"}>‹</button>`
+      +` ${ROMS.total?a:0}–${b} of ${ROMS.total} `
+      +`<button class="pg" id="pgNext" ${next?"":"disabled"}>›</button>`;
+    const pv=$("#pgPrev"),nx=$("#pgNext");
+    if(pv)pv.onclick=()=>{ROMS.offset=Math.max(0,ROMS.offset-ROMS.limit);fetchRoms(false);};
+    if(nx)nx.onclick=()=>{ROMS.offset+=ROMS.limit;fetchRoms(false);};
+  } else {
+    const capped=all.length>RENDER_CAP?`  ·  showing ${RENDER_CAP} — refine search`:"";
+    $("#count").textContent=`${all.length} of ${ROWS().length}${capped}`;
+  }
 }
 
 /* ---- device drawer = the join ---- */
-function openDrawer(ri){
+async function openDrawer(ri){
   const D=ALL.devices, cols=D.columns, row=D.rows[ri];
   const g=c=>{const i=cols.indexOf(c);return i<0?null:row[i];};
   const id=g("device_id"), name=g("name"), img=g("image");
   // group spec columns by "Section — Field"
   const sections={};
   cols.forEach((c,i)=>{const m=c.match(/^(.*?) — (.*)$/);if(m&&row[i]){(sections[m[1]]??=[]).push([m[2],row[i]]);}});
-  // matched roms
-  const R=ALL.roms, rc=R.columns, mi=rc.indexOf("matched_devices");
-  const mine=R.rows.filter(r=>String(r[mi]||"").split(",").includes(id));
+  // matched roms — fetched server-side by device id (roms aren't held client-side anymore)
+  let R={columns:[],rows:[]};
+  try{ R=await (await fetch("/api/device_roms?id="+encodeURIComponent(id),{cache:"no-store"})).json(); }catch(e){}
+  const rc=R.columns, mine=R.rows;
   const byRegion={};mine.forEach(r=>{const rg=r[rc.indexOf("region")]||"—";(byRegion[rg]??=[]).push(r);});
   const rg=c=>rc.indexOf(c);
-
   const src=c=>rc.indexOf("source");
   let romHtml=mine.length? Object.entries(byRegion).map(([reg,list])=>{
     const mrow=list.find(r=>/^SM-/.test(r[rg("model")]||""))||list[0];
@@ -521,10 +685,10 @@ function openDrawer(ri){
 function closeDrawer(){$("#drawer").classList.remove("show");$("#scrim").classList.remove("show");}
 
 $("#scrim").onclick=closeDrawer;
-$("#q").addEventListener("input",render);
+$("#q").addEventListener("input",romSearch);
 $("#colBtn").onclick=e=>{e.stopPropagation();$("#pop").classList.toggle("show");};
-$("#latestBtn").onclick=()=>{LATEST_ONLY=!LATEST_ONLY;$("#latestBtn").classList.toggle("on",LATEST_ONLY);render();};
-$("#datedBtn").onclick=()=>{DATED_ONLY=!DATED_ONLY;$("#datedBtn").classList.toggle("on",DATED_ONLY);render();};
+$("#latestBtn").onclick=()=>{LATEST_ONLY=!LATEST_ONLY;$("#latestBtn").classList.toggle("on",LATEST_ONLY);fetchRoms(true);};
+$("#datedBtn").onclick=()=>{DATED_ONLY=!DATED_ONLY;$("#datedBtn").classList.toggle("on",DATED_ONLY);fetchRoms(true);};
 document.addEventListener("click",e=>{if(!$("#pop").contains(e.target)&&e.target!==$("#colBtn"))$("#pop").classList.remove("show");});
 document.addEventListener("keydown",e=>{
   if(e.key==="/"&&document.activeElement!==$("#q")){e.preventDefault();$("#q").focus();}
@@ -565,14 +729,13 @@ function enrich(){
       chipset:(g("Platform — Chipset")||""),chip:chipShort(g("Platform — Chipset")),
       battery:battOf(g("Battery — Type")||g("Battery — Charging")),ram:ramOf(g("Memory — Internal")),
       android:andrOf(g("Platform — OS")),romCount:+(g("rom_count")||0)};});
-  const rc=ALL.roms.columns, ri=c=>rc.indexOf(c);
-  AROM=ALL.roms.rows.map(r=>{const g=c=>{const i=ri(c);return i<0?null:r[i];};const dev=g("device")||"";
-    return {source:g("source"),device:dev,vendor:vendorOf(dev),model:g("model"),region:g("region"),
-      type:g("type"),branch:g("branch"),android:normAndroid(g("android")),date:parseDate(g("updated_at"))};});
-  const vcount={};[...ADEV,...AROM].forEach(x=>{if(x.vendor)vcount[x.vendor]=(vcount[x.vendor]||0)+1;});
-  const vend=Object.keys(vcount).sort((a,b)=>vcount[b]-vcount[a]);  // frequent vendors get the distinct hues
+  AROM=[];  // ROMs are server-side now; not held client-side
+  const vcount={};ADEV.forEach(x=>{if(x.vendor)vcount[x.vendor]=(vcount[x.vendor]||0)+1;});
+  const vend=Object.keys(vcount).sort((a,b)=>vcount[b]-vcount[a]);
   VENDOR_COL=mapColors(vend);
-  const andr=[...new Set([...AROM,...ADEV].map(r=>r.android).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
+  const fa=ALL.facets||{};
+  const andr=[...new Set([...(fa.android||[]).map(o=>normAndroid(o.v)),
+    ...ADEV.map(r=>r.android)].filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
   ANDROID_COL=mapColors(andr);
 }
 const uniq=(arr,f)=>[...new Set(arr.map(f).filter(v=>v!=null&&v!==""))];
@@ -586,11 +749,12 @@ function filtRom(r){return (!F.vendor.size||F.vendor.has(r.vendor))&&(!F.name||r
 
 /* ---- filter bar ---- */
 function buildFilterBar(){
-  const facets=[["vendor","Vendor",uniq([...ADEV,...AROM],x=>x.vendor).sort(),k=>VENDOR_COL[k]||OTHER],
-    ["source","Source",uniq(AROM,x=>x.source).sort(),k=>SRC_COL[k]||OTHER],
-    ["region","Region",uniq(AROM,x=>x.region).sort(),k=>REGION_COL[k]||OTHER],
-    ["android","Android",uniq([...AROM,...ADEV],x=>x.android).sort((a,b)=>parseFloat(b)-parseFloat(a)),k=>ANDROID_COL[k]||OTHER],
-    ["type","FW type",uniq(AROM,x=>x.type).sort(),null]];
+  const fa=ALL.facets||{}, fv=k=>(fa[k]||[]).map(o=>o.v);
+  const facets=[["vendor","Vendor",uniq(ADEV,x=>x.vendor).sort(),k=>VENDOR_COL[k]||OTHER],
+    ["source","Source",fv("source"),k=>SRC_COL[k]||OTHER],
+    ["region","Region",fv("region"),k=>REGION_COL[k]||OTHER],
+    ["android","Android",fv("android"),k=>ANDROID_COL[k]||OTHER],
+    ["type","FW type",fv("type"),null]];
   const fb=$("#filterbar");
   fb.innerHTML=facets.map(([key,label,opts])=>`
     <div class="facet" data-key="${key}"><button><span>${label}</span><span class="cnt"></span></button>
@@ -616,7 +780,7 @@ function buildFilterBar(){
   document.addEventListener("click",()=>document.querySelectorAll(".facet.open").forEach(x=>x.classList.remove("open")));
   updateFacetCounts();
 }
-function applyFilters(){ if(VIEW==="analytics"){renderAnalytics();} else {render();} }
+function applyFilters(){ if(VIEW==="analytics"){renderAnalytics();} else if(VIEW==="roms"){fetchRoms(true);} else {render();} }
 function updateFacetCounts(){["vendor","source","region","android","type"].forEach(k=>{
   const el=$("#filterbar").querySelector(`.facet[data-key="${k}"]`);if(!el)return;
   const n=F[k].size;const b=el.querySelector("button");b.classList.toggle("active",n>0);
@@ -800,9 +964,20 @@ function buildPivotControls(host){
 }
 
 /* ---- build all charts ---- */
-function renderAnalytics(){
+async function renderAnalytics(){
   enrich();
   if(!$("#filterbar").children.length)buildFilterBar();
+  if(!AROM || !AROM.length){                     // lazy-load the full corpus once, only for analytics
+    $("#chartgrid").innerHTML='<div class="card"><h3>Loading analytics…</h3><p class="sub">fetching the full corpus once for aggregation (table browsing stays paged & fast)</p></div>';
+    try{
+      const d=await (await fetch("/api/roms_full",{cache:"no-store"})).json();
+      const rc=d.columns, ri=c=>rc.indexOf(c);
+      AROM=d.rows.map(r=>{const g=c=>{const i=ri(c);return i<0?null:r[i];};const dev=g("device")||"";
+        return {source:g("source"),device:dev,vendor:vendorOf(dev),model:g("model"),region:g("region"),
+          type:g("type"),branch:g("branch"),android:normAndroid(g("android")),date:parseDate(g("updated_at")),
+          chipset:g("chipset")||""};});
+    }catch(e){ AROM=[]; }
+  }
   const dev=ADEV.filter(filtDev), rom=AROM.filter(filtRom);
   $("#fCount") && ($("#fCount").textContent=`${dev.length} devices · ${rom.length} firmware builds`);
   const g=$("#chartgrid");g.innerHTML="";
@@ -882,6 +1057,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(PAGE.encode(), "text/html; charset=utf-8")
         elif p == "/api/all":
             self._send(json.dumps(read_all()).encode(), "application/json")
+        elif p == "/api/rows":
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            self._send(json.dumps(query_roms(q)).encode(), "application/json")
+        elif p == "/api/device_roms":
+            q = parse_qs(urlparse(self.path).query)
+            self._send(json.dumps(device_roms(q.get("id", [""])[0])).encode(), "application/json")
+        elif p == "/api/analytics":
+            self._send(json.dumps(analytics_agg()).encode(), "application/json")
+        elif p == "/api/roms_full":
+            self._send(json.dumps(all_roms()).encode(), "application/json")
         elif p == "/api/check":
             q = parse_qs(urlparse(self.path).query)
             csc = (q.get("csc", [""])[0] or "").upper()
@@ -971,6 +1156,7 @@ def main():
     DB_PATH = Path(args.data) / "devices.db"
     if not DB_PATH.exists():
         raise SystemExit(f"{DB_PATH} not found — run `python export.py` first.")
+    ensure_indexes()   # fast server-side filter/sort/paginate at scale
     lan = _lan_ip()
     print(f"[app] Firmware Atlas — bound {args.host}:{args.port}  (Ctrl-C to stop)")
     print(f"[app]   local:   http://localhost:{args.port}")

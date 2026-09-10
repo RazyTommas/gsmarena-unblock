@@ -15,6 +15,8 @@ one-off, so new sources get screened by the same rules:
   TIE       "latest" that is ambiguous, so the answer is unstable
   LINK      a link that does not deliver what its label promises
   TYPE      values that break a numeric comparison and vanish silently
+  FUZZY     over-eager fuzzy matching assigning a confidently WRONG value
+  DERIVED   a DELETE+re-INSERT ingest wiping columns derived after the last ingest
 
 Exit code = number of FAIL findings, so it composes in CI:
     python audit.py || echo "defects found"
@@ -133,6 +135,27 @@ def run(verbose=True):
             f"{len(badv)} non-numeric OS values ({', '.join(map(str,badv[:5]))}) — they vanish from "
             f"any 'Android >= n' comparison without a word",
             "python fix_data.py --clean-os")
+
+    # ---- FUZZY: one spec value spread across unrelated devices --------------
+    for r in con.execute("""SELECT chipset, COUNT(DISTINCT device) d, COUNT(*) n FROM roms
+                            WHERE chipset IS NOT NULL AND chipset!='' GROUP BY chipset
+                            ORDER BY d DESC LIMIT 1"""):
+        chip, ndev, nrows = r
+        if ndev > 40:
+            add("FAIL", "FUZZY",
+                f"one chipset ('{str(chip)[:40]}') is attached to {ndev} DIFFERENT devices — "
+                f"name matching is over-matching and assigning wrong values",
+                "tighten norm() in link_chipsets.py; never shorten a name below 3 tokens")
+
+    # ---- DERIVED: derived columns lost by a re-ingest ------------------------
+    for col, label in (("vendor", "vendor"), ("chipset", "chipset"),
+                       ("link_kind", "link_kind"), ("ingested_at", "first-seen")):
+        if col in HAVE:
+            miss = q(f"SELECT COUNT(*) FROM roms WHERE {col} IS NULL OR {col}=''")
+            if col in ("vendor", "link_kind", "ingested_at") and miss:
+                add("FAIL", "DERIVED",
+                    f"{miss:,} rows have no {label} — a DELETE+re-INSERT ingest wiped it",
+                    "python derive.py   (must run after EVERY ingest; refresh.sh does)")
 
     con.close()
 

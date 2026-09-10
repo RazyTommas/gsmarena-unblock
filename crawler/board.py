@@ -125,12 +125,17 @@ def board(chip: str = "", vendor: str = "", region: str = ""):
 def _runner(steps):
     scripts = {"ios": ("ios.py", []), "ios_security": ("ios_security.py", ["--days", "90"]),
                "iphone_specs": ("add_iphones.py", []), "samsung": ("samsung.py", []),
-               "chipsets": ("link_chipsets.py", []), "fix": ("fix_data.py", ["--all"]),
+               "chipsets": ("derive.py", []), "fix": ("fix_data.py", ["--all"]),
                "audit": ("audit.py", [])}
     with open(RUN_LOG, "w") as lg:
         lg.write(f"=== refresh started {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())} ===\n")
         lg.write(f"steps: {', '.join(steps)}\n\n"); lg.flush()
         rc = 0
+        # derived columns are wiped by any DELETE+re-INSERT ingest, so always
+        # re-derive at the end regardless of which steps were picked.
+        if any(s in ("ios", "samsung", "ios_security", "iphone_specs") for s in steps) \
+                and "chipsets" not in steps:
+            steps = list(steps) + ["chipsets"]
         for s in steps:
             if s not in scripts:
                 continue

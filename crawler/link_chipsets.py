@@ -14,13 +14,24 @@ import re, sqlite3
 from common import DB_PATH, log_run
 
 def norm(s):
+    """Normalise a device name for matching.
+
+    CAREFUL: the trailing-token strip exists for source codenames that FOLLOW a
+    complete name ("Tecno Spark 30 KL6" -> "tecno spark 30"). It must never eat the
+    model itself ("Samsung Galaxy A07" -> "samsung galaxy" would make every A-series
+    device match the same spec row and get a confidently WRONG chipset). So it only
+    fires when >=3 tokens survive.
+    """
     s = (s or "").lower()
     s = re.sub(r"\(.*?\)", " ", s)
     s = s.split("/")[0]
     s = re.sub(r"\b(5g|4g|lte|dual|sim)\b", " ", s)
-    s = re.sub(r"\s+[a-z]{1,2}\d[a-z0-9]{0,2}\s*$", " ", s)
     s = re.sub(r"[^a-z0-9]+", " ", s)
-    return " ".join(s.split())
+    parts = s.split()
+    # strip a trailing codename ONLY if the name still has >=3 real tokens after it
+    if len(parts) >= 4 and re.fullmatch(r"[a-z]{1,2}\d[a-z0-9]{0,2}", parts[-1]):
+        parts = parts[:-1]
+    return " ".join(parts)
 
 def main():
     con = sqlite3.connect(DB_PATH)
@@ -44,8 +55,9 @@ def main():
                                 "WHERE chipset IS NULL OR chipset=''").fetchall():
         k = norm(dev); c = lut.get(k)
         if not c:
+            # shorten only while >=3 tokens remain: "samsung galaxy" is not an identity
             parts = k.split()
-            while len(parts) > 2 and not c:
+            while len(parts) > 3 and not c:
                 parts = parts[:-1]; c = lut.get(" ".join(parts))
         if c:
             con.execute("UPDATE roms SET chipset=? WHERE rowid=?", (c, rid)); filled += 1

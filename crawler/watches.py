@@ -75,7 +75,7 @@ def _where(pred):
     if pred.get("region"):
         w.append("r.region = ?"); a.append(pred["region"])
     if pred.get("chip"):
-        w.append("LOWER(IFNULL(ds.chipset,'')) LIKE ?"); a.append(f"%{pred['chip'].lower()}%")
+        w.append("LOWER(IFNULL(r.chipset,'')) LIKE ?"); a.append(f"%{pred['chip'].lower()}%")
     if pred.get("android_min") not in (None, ""):
         # android is stored as text; CAST so "17" > "9" compares numerically
         w.append("CAST(NULLIF(r.android,'') AS REAL) >= ?"); a.append(float(pred["android_min"]))
@@ -88,8 +88,8 @@ def matches(pred, limit=25, since=None):
     """Newest builds matching a predicate. `since` filters on first-seen/release."""
     sql, args = _where(pred)
     q = (f"SELECT r.source,r.vendor,r.device,r.model,r.region,r.version,r.android,"
-         f"r.updated_at,r.security_patch,r.download_url,r.ingested_at,ds.chipset "
-         f"FROM roms r LEFT JOIN device_specs ds ON ds.device=r.device WHERE {sql}")
+         f"r.updated_at,r.security_patch,r.download_url,r.ingested_at,r.chipset "
+         f"FROM roms r WHERE {sql}")
     if since:
         q += " AND IFNULL(r.ingested_at, r.updated_at) > ?"; args = args + [since]
     q += " ORDER BY IFNULL(r.ingested_at, r.updated_at) DESC LIMIT ?"
@@ -102,8 +102,7 @@ def matches(pred, limit=25, since=None):
 def count(pred):
     sql, args = _where(pred)
     con = _conn()
-    n = con.execute(f"SELECT COUNT(*) FROM roms r LEFT JOIN device_specs ds "
-                    f"ON ds.device=r.device WHERE {sql}", args).fetchone()[0]
+    n = con.execute(f"SELECT COUNT(*) FROM roms r WHERE {sql}", args).fetchone()[0]
     con.close()
     return n
 

@@ -163,8 +163,8 @@ def facets() -> dict:
     # exact-chipset facet (joined from device_specs) — for "filter by the exact chip"
     try:
         out["chip"] = [{"v": v, "n": n} for v, n in conn.execute(
-            "SELECT ds.chipset, COUNT(*) FROM roms JOIN device_specs ds ON ds.device=roms.device "
-            "WHERE ds.chipset IS NOT NULL AND ds.chipset!='' GROUP BY ds.chipset ORDER BY 2 DESC LIMIT 120")]
+            "SELECT chipset, COUNT(*) FROM roms WHERE chipset IS NOT NULL AND chipset!='' "
+            "GROUP BY chipset ORDER BY 2 DESC LIMIT 200")]
     except sqlite3.OperationalError:
         out["chip"] = []
     conn.close()
@@ -186,10 +186,10 @@ def _roms_where(p):
     if p.get("name"):
         where.append("LOWER(roms.device) LIKE ?"); args.append(f"%{p['name'].lower()}%")
     if p.get("chipset"):
-        where.append("LOWER(IFNULL(ds.chipset,'')) LIKE ?"); args.append(f"%{p['chipset'].lower()}%")
+        where.append("LOWER(IFNULL(roms.chipset,'')) LIKE ?"); args.append(f"%{p['chipset'].lower()}%")
     chips = [v for v in p.get("chip", "").split("|") if v]   # exact-chipset facet
     if chips:
-        where.append(f"ds.chipset IN ({','.join('?' for _ in chips)})"); args += chips
+        where.append(f"roms.chipset IN ({','.join('?' for _ in chips)})"); args += chips
     if p.get("from"):
         where.append("roms.updated_at>=?"); args.append(p["from"])
     if p.get("to"):
@@ -202,7 +202,7 @@ def _roms_where(p):
 def query_roms(p) -> dict:
     """Server-side filtered/sorted/paginated ROMs page, chipset joined in."""
     cols = _roms_columns()
-    sel = ", ".join(f'roms."{c}"' if c != "chipset" else "ds.chipset AS chipset" for c in cols)
+    sel = ", ".join(f'roms."{c}"' for c in cols)
     join = " LEFT JOIN device_specs ds ON ds.device = roms.device"
     where, args = _roms_where(p)
     base = f" FROM roms{join}{where}"
@@ -235,7 +235,7 @@ def query_roms(p) -> dict:
 def device_roms(device_id) -> dict:
     """The firmware rows linked to one device (for the drawer)."""
     cols = _roms_columns()
-    sel = ", ".join(f'roms."{c}"' if c != "chipset" else "ds.chipset AS chipset" for c in cols)
+    sel = ", ".join(f'roms."{c}"' for c in cols)
     conn = sqlite3.connect(DB_PATH)
     rows = [list(r) for r in conn.execute(
         f"SELECT {sel} FROM roms LEFT JOIN device_specs ds ON ds.device=roms.device "
@@ -249,7 +249,7 @@ def all_roms() -> dict:
     """Full ROMs (chipset joined) — used ONLY when the Analytics tab is opened, so
     normal table browsing never pays for it."""
     cols = _roms_columns()
-    sel = ", ".join(f'roms."{c}"' if c != "chipset" else "ds.chipset AS chipset" for c in cols)
+    sel = ", ".join(f'roms."{c}"' for c in cols)
     conn = sqlite3.connect(DB_PATH)
     rows = [list(r) for r in conn.execute(
         f"SELECT {sel} FROM roms LEFT JOIN device_specs ds ON ds.device=roms.device")]

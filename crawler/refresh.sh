@@ -15,5 +15,6 @@ echo "[$(ts)] refresh start"
 "$PY" check_updates.py --only-updates 2>/dev/null | head -20
 "$PY" samsung.py && echo "[$(ts)] Samsung A/S lineup refreshed" || echo "[$(ts)] Samsung lineup FAILED"
 # 3) chipset enrichment continues where it left off (resumable, best-effort)
+"$PY" link_chipsets.py && echo "[$(ts)] chipsets linked"
 "$PY" enrich_specs.py --vendors samsung tecno xiaomi --timeout 12 >/dev/null 2>&1 &
 echo "[$(ts)] refresh done (chipset enrichment continues in background)"

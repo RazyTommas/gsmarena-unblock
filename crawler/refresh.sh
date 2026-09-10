@@ -13,6 +13,7 @@ echo "[$(ts)] refresh start"
 "$PY" ios_security.py --days 90 && echo "[$(ts)] iOS security (last 90d) tagged" || echo "[$(ts)] iOS security FAILED"
 # 2) Samsung 'new versions in line' check (writes nothing to corpus; logs pending)
 "$PY" check_updates.py --only-updates 2>/dev/null | head -20
+"$PY" samsung.py && echo "[$(ts)] Samsung A/S lineup refreshed" || echo "[$(ts)] Samsung lineup FAILED"
 # 3) chipset enrichment continues where it left off (resumable, best-effort)
 "$PY" enrich_specs.py --vendors samsung tecno xiaomi --timeout 12 >/dev/null 2>&1 &
 echo "[$(ts)] refresh done (chipset enrichment continues in background)"

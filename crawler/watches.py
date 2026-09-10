@@ -77,10 +77,15 @@ def _where(pred):
     if pred.get("chip"):
         w.append("LOWER(IFNULL(r.chipset,'')) LIKE ?"); a.append(f"%{pred['chip'].lower()}%")
     if pred.get("android_min") not in (None, ""):
-        # android is stored as text; CAST so "17" > "9" compares numerically
-        w.append("CAST(NULLIF(r.android,'') AS REAL) >= ?"); a.append(float(pred["android_min"]))
+        # android_num is NULL for unparseable values, so they are excluded EXPLICITLY
+        # rather than silently comparing as 0. A bad input is ignored, never a 500.
+        try:
+            a_min = float(pred["android_min"])
+            w.append("r.android_num IS NOT NULL AND r.android_num >= ?"); a.append(a_min)
+        except (TypeError, ValueError):
+            pass
     if pred.get("security"):
-        w.append("r.security_patch IS NOT NULL AND r.security_patch != ''")
+        w.append("(r.security_url IS NOT NULL AND r.security_url!='') OR (r.security_level IS NOT NULL AND r.security_level!='')")
     return (" AND ".join(w) if w else "1=1"), a
 
 
@@ -88,7 +93,7 @@ def matches(pred, limit=25, since=None):
     """Newest builds matching a predicate. `since` filters on first-seen/release."""
     sql, args = _where(pred)
     q = (f"SELECT r.source,r.vendor,r.device,r.model,r.region,r.version,r.android,"
-         f"r.updated_at,r.security_patch,r.download_url,r.ingested_at,r.chipset "
+         f"r.updated_at,r.security_patch,r.security_level,r.security_url,r.link_kind,r.download_url,r.ingested_at,r.chipset "
          f"FROM roms r WHERE {sql}")
     if since:
         q += " AND IFNULL(r.ingested_at, r.updated_at) > ?"; args = args + [since]

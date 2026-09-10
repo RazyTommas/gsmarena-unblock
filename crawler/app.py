@@ -137,7 +137,7 @@ def ensure_indexes():
 
 # ROMs columns are static; chipset is joined from device_specs at query time.
 ROMS_COLS = ["source", "vendor", "device", "model", "region", "type", "branch", "version",
-             "android", "size", "updated_at", "security_patch", "baseband",
+             "android", "size", "updated_at", "security_level", "security_url", "link_kind", "baseband",
              "chipset", "download_url", "model_url"]
 FACET_COLS = ["vendor", "source", "region", "android", "type"]
 
@@ -214,6 +214,11 @@ def query_roms(p) -> dict:
                 f" FROM roms{join}{where} GROUP BY roms.device, roms.region) top "
                 f"ON roms.device=top.dv AND IFNULL(roms.region,'')=IFNULL(top.rg,'') "
                 f"AND roms.updated_at=top.mu")
+        # 1,810 groups share the newest date; without a deterministic tie-break the
+        # "latest" row changes between runs. Break on version DESC, then rowid DESC.
+        sort_tie = ' , roms."version" DESC, roms.rowid DESC'
+    else:
+        sort_tie = ""
         # only the subquery has the WHERE placeholders; outer filters via the join
     sort = p.get("sort") if p.get("sort") in cols else "updated_at"
     dirn = "ASC" if p.get("dir") == "asc" else "DESC"
@@ -225,7 +230,8 @@ def query_roms(p) -> dict:
     conn = sqlite3.connect(DB_PATH)
     total = conn.execute(f"SELECT COUNT(*){base}", qargs).fetchone()[0]
     rows = [list(r) for r in conn.execute(
-        f'SELECT {sel}{base} ORDER BY roms."{sort}" {dirn} LIMIT ? OFFSET ?', qargs + [limit, offset])]
+        f'SELECT {sel}{base} ORDER BY roms."{sort}" {dirn}{sort_tie} LIMIT ? OFFSET ?',
+        qargs + [limit, offset])]
     conn.close()
     return {"columns": cols, "rows": rows, "total": total,
             "offset": offset, "limit": limit,
@@ -319,7 +325,15 @@ def read_all() -> dict:
     linked = sum(1 for row in d["rows"]
                  if str(row[d["columns"].index("rom_count")] or "0") not in ("0", "", "None")) \
         if "rom_count" in d["columns"] else 0
-    return {"devices": d, "roms": r, "facets": facets(), "crawl": crawl,
+    conn2 = sqlite3.connect(DB_PATH)
+    try:
+        cov = {c: conn2.execute(f"SELECT COUNT(*) FROM roms WHERE {c} IS NOT NULL AND {c}!=''").fetchone()[0]
+               for c in ("chipset", "android", "region")}
+        cov["total"] = roms_total
+    except sqlite3.OperationalError:
+        cov = {}
+    conn2.close()
+    return {"devices": d, "roms": r, "facets": facets(), "crawl": crawl, "coverage": cov,
             "stats": {"devices": len(d["rows"]), "roms": roms_total,
                       "linked": linked, "regions": regions,
                       "last_refresh": crawl[0]["ran_at"] if crawl else None},

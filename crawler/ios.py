@@ -16,7 +16,7 @@ Stdlib only.
 """
 from __future__ import annotations
 import argparse, sqlite3, time, urllib.request
-from common import DB_PATH as DB, http_get
+from common import DB_PATH as DB, http_get, log_run
 
 API = "https://api.ipsw.me/v4"
 
@@ -74,6 +74,7 @@ def main():
     con.commit()
     tot = con.execute("SELECT COUNT(*) FROM roms WHERE source='ipsw.me'").fetchone()[0]
     print(f"DONE: {dev_done} Apple devices, {tot} iOS builds ingested", flush=True)
+    log_run("ipsw.me", tot)
     con.close()
 
 

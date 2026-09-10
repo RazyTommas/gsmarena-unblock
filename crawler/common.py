@@ -61,3 +61,18 @@ def pda_month(pda):
     """'Aug 2026' from a PDA build, or '' if undecodable."""
     d = decode_pda(pda)
     return f"{_MONTHS[d[1]]} {d[0]}" if d else ""
+
+
+# --- crawl/pull run log (so the UI can show when data was last refreshed) ----
+def log_run(source, rows=None):
+    """Record that an ingester/crawler for `source` just ran. Best-effort."""
+    import sqlite3
+    from datetime import datetime, timezone
+    try:
+        con = sqlite3.connect(DB_PATH)
+        con.execute("CREATE TABLE IF NOT EXISTS crawl_log(source TEXT PRIMARY KEY, ran_at TEXT, rows INTEGER)")
+        con.execute("INSERT OR REPLACE INTO crawl_log(source, ran_at, rows) VALUES(?,?,?)",
+                    (source, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), rows))
+        con.commit(); con.close()
+    except Exception:
+        pass

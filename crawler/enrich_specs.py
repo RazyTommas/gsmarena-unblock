@@ -21,7 +21,7 @@ import argparse, re, sqlite3, sys, time
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from common import DB_PATH as DB, http_get
+from common import DB_PATH as DB, http_get, log_run
 sys.path.insert(0, str(Path(__file__).with_name("vendor")))
 from wayback_fallback import wayback_fallback  # noqa: E402
 from selectolax.parser import HTMLParser        # noqa: E402
@@ -162,6 +162,7 @@ def main():
     con.commit()
     tot = con.execute("SELECT COUNT(*) FROM device_specs WHERE chipset IS NOT NULL AND chipset!=''").fetchone()[0]
     print(f"DONE this run: hit={hit} miss={miss} | device_specs with chipset now: {tot}", flush=True)
+    log_run("chipset-enrich", tot)
     con.close()
 
 

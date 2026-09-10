@@ -158,6 +158,13 @@ def facets() -> dict:
                 f'GROUP BY "{col}" ORDER BY 2 DESC LIMIT 60')]
         except sqlite3.OperationalError:
             out[col] = []
+    # exact-chipset facet (joined from device_specs) — for "filter by the exact chip"
+    try:
+        out["chip"] = [{"v": v, "n": n} for v, n in conn.execute(
+            "SELECT ds.chipset, COUNT(*) FROM roms JOIN device_specs ds ON ds.device=roms.device "
+            "WHERE ds.chipset IS NOT NULL AND ds.chipset!='' GROUP BY ds.chipset ORDER BY 2 DESC LIMIT 120")]
+    except sqlite3.OperationalError:
+        out["chip"] = []
     conn.close()
     return out
 
@@ -178,6 +185,9 @@ def _roms_where(p):
         where.append("LOWER(roms.device) LIKE ?"); args.append(f"%{p['name'].lower()}%")
     if p.get("chipset"):
         where.append("LOWER(IFNULL(ds.chipset,'')) LIKE ?"); args.append(f"%{p['chipset'].lower()}%")
+    chips = [v for v in p.get("chip", "").split("|") if v]   # exact-chipset facet
+    if chips:
+        where.append(f"ds.chipset IN ({','.join('?' for _ in chips)})"); args += chips
     if p.get("from"):
         where.append("roms.updated_at>=?"); args.append(p["from"])
     if p.get("to"):
@@ -290,15 +300,21 @@ def read_all() -> dict:
     conn = sqlite3.connect(DB_PATH)
     roms_total = conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0]
     regions = conn.execute("SELECT COUNT(DISTINCT region) FROM roms WHERE region!=''").fetchone()[0]
+    try:
+        crawl = [{"source": s, "ran_at": r, "rows": n} for s, r, n in conn.execute(
+            "SELECT source, ran_at, rows FROM crawl_log ORDER BY ran_at DESC")]
+    except sqlite3.OperationalError:
+        crawl = []
     conn.close()
     r = {"columns": _roms_columns(), "rows": [], "total": roms_total,
          "defaults": [c for c in DEFAULTS["roms"] if c in _roms_columns()]}
     linked = sum(1 for row in d["rows"]
                  if str(row[d["columns"].index("rom_count")] or "0") not in ("0", "", "None")) \
         if "rom_count" in d["columns"] else 0
-    return {"devices": d, "roms": r, "facets": facets(),
+    return {"devices": d, "roms": r, "facets": facets(), "crawl": crawl,
             "stats": {"devices": len(d["rows"]), "roms": roms_total,
-                      "linked": linked, "regions": regions},
+                      "linked": linked, "regions": regions,
+                      "last_refresh": crawl[0]["ran_at"] if crawl else None},
             "link_cols": list(LINK_COLS)}
 
 
@@ -548,7 +564,7 @@ function idx(c){return COL().indexOf(c);}
 function romParams(){
   const p=new URLSearchParams();
   const q=$("#q").value.trim(); if(q)p.set("q",q);
-  for(const k of ["vendor","source","region","android","type"]) if(F[k]&&F[k].size)p.set(k,[...F[k]].join("|"));
+  for(const k of ["vendor","source","region","android","type","chip"]) if(F[k]&&F[k].size)p.set(k,[...F[k]].join("|"));
   if(F.name)p.set("name",F.name);
   if(F.chipset)p.set("chipset",F.chipset);
   if(F.from)p.set("from",F.from);
@@ -592,8 +608,8 @@ function cell(col,val,row){
 function renderStats(){
   const s=ALL.stats;
   $("#stats").innerHTML=[["devices",s.devices],["ROM builds",s.roms],
-    ["linked",s.linked],["regions",s.regions]]
-    .map(([l,v])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+    ["linked",s.linked],["regions",s.regions],["last pull",s.last_refresh||"—"]]
+    .map(([l,v])=>`<div class="stat"><b style="${l==='last pull'?'font-size:13px;font-weight:600':''}">${v}</b><span>${l}</span></div>`).join("");
   $("#seg").innerHTML=[["devices","Devices",s.devices],["roms","ROMs",s.roms],["watch","Watch","🔔"],["analytics","Insights","📊"]]
     .map(([k,l,n])=>`<button data-v="${k}" class="${k===VIEW?"on":""}">${l}<span class="n">${n}</span></button>`).join("");
   $("#seg").querySelectorAll("button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
@@ -632,6 +648,12 @@ async function renderWatch(){
   h+=`<div class="card wide"><h3>Recent releases</h3><div class="tablewrap"><table><thead><tr><th>Released</th><th>Vendor</th><th>Device</th><th>Version</th><th>Source</th></tr></thead><tbody>`;
   for(const r of (w.recent||[]))h+=`<tr><td class="dim">${esc(r[4])}</td><td>${esc(r[0])}</td><td class="name">${esc(r[1])}</td><td style="font-family:ui-monospace,monospace;font-size:12px">${esc(r[3]||"")}</td><td><span class="pill" style="color:${scol(r[5])};border-color:${scol(r[5])}55;background:${scol(r[5])}18">${esc(r[5])}</span></td></tr>`;
   h+=`</tbody></table></div></div>`;
+  // data freshness — when each source's pull/crawl last ran
+  const cl=(ALL&&ALL.crawl)||[];
+  h+=`<div class="card"><h3>Data freshness — last pull per source</h3><div class="tablewrap"><table><thead><tr><th>Source</th><th>Last ran</th><th>Rows</th></tr></thead><tbody>`;
+  if(cl.length) for(const r of cl) h+=`<tr><td>${esc(r.source)}</td><td class="dim">${esc(r.ran_at)}</td><td class="dim">${r.rows==null?"—":r.rows}</td></tr>`;
+  else h+=`<tr><td colspan="3" class="dim">No pulls recorded yet — run <code>bash refresh.sh</code> (or the cron) and it'll show here.</td></tr>`;
+  h+=`</tbody></table></div></div>`;
   g.innerHTML=h;
 }
 
@@ -657,7 +679,7 @@ function buildPop(){
   $("#cDef").onclick=()=>bulk(()=>VIS=new Set(ALL[VIEW].defaults));
 }
 
-function anyFilter(){return ["vendor","source","region","android","type"].some(k=>F[k]&&F[k].size)||F.name||F.chipset||F.minBatt;}
+function anyFilter(){return ["vendor","source","region","android","type","chip"].some(k=>F[k]&&F[k].size)||F.name||F.chipset||F.minBatt;}
 /* DEVICES filtered client-side (small); ROMS are already filtered/sorted/paged by the server. */
 function filtered(){
   if(VIEW==="roms") return ROMS.rows;
@@ -786,7 +808,7 @@ const OTHER="#7c8db0";
 const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,
   jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11};
 let ADEV=null, AROM=null, VENDOR_COL={}, ANDROID_COL={};
-const F={vendor:new Set(),source:new Set(),region:new Set(),android:new Set(),type:new Set(),name:"",chipset:"",minBatt:0,from:"",to:""};
+const F={vendor:new Set(),source:new Set(),region:new Set(),android:new Set(),type:new Set(),chip:new Set(),name:"",chipset:"",minBatt:0,from:"",to:""};
 
 const VENDOR_ALIAS={mi:"Xiaomi",mix:"Xiaomi",redmi:"Redmi",poco:"Poco",pocophone:"Poco"};
 function vendorOf(n){n=(n||"").trim();const w=(n.split(/\s+/)[0]||"").toLowerCase();
@@ -839,7 +861,8 @@ function buildFilterBar(){
     ["source","Source",fv("source"),k=>SRC_COL[k]||OTHER],
     ["region","Region",fv("region"),k=>REGION_COL[k]||OTHER],
     ["android","Android",fv("android"),k=>ANDROID_COL[k]||OTHER],
-    ["type","FW type",fv("type"),null]];
+    ["type","FW type",fv("type"),null],
+    ["chip","Chipset",fv("chip"),null]];
   const fb=$("#filterbar");
   fb.innerHTML=facets.map(([key,label,opts])=>`
     <div class="facet" data-key="${key}"><button><span>${label}</span><span class="cnt"></span></button>
@@ -864,14 +887,14 @@ function buildFilterBar(){
   $("#fBatt").oninput=e=>{F.minBatt=+e.target.value||0;applyFilters();};
   $("#fFrom").onchange=e=>{F.from=e.target.value;applyFilters();};
   $("#fTo").onchange=e=>{F.to=e.target.value;applyFilters();};
-  $("#fClear").onclick=()=>{["vendor","source","region","android","type"].forEach(k=>F[k].clear());F.name=F.chipset="";F.minBatt=0;F.from=F.to="";
+  $("#fClear").onclick=()=>{["vendor","source","region","android","type","chip"].forEach(k=>F[k].clear());F.name=F.chipset="";F.minBatt=0;F.from=F.to="";
     ["fName","fChip","fBatt","fFrom","fTo"].forEach(id=>{const el=$("#"+id);if(el)el.value="";});
     fb.querySelectorAll(".opt.on").forEach(o=>{o.classList.remove("on");o.querySelector(".box").textContent="";});updateFacetCounts();applyFilters();};
   document.addEventListener("click",()=>document.querySelectorAll(".facet.open").forEach(x=>x.classList.remove("open")));
   updateFacetCounts();
 }
 function applyFilters(){ if(VIEW==="analytics"){renderAnalytics();} else if(VIEW==="roms"){fetchRoms(true);} else {render();} }
-function updateFacetCounts(){["vendor","source","region","android","type"].forEach(k=>{
+function updateFacetCounts(){["vendor","source","region","android","type","chip"].forEach(k=>{
   const el=$("#filterbar").querySelector(`.facet[data-key="${k}"]`);if(!el)return;
   const n=F[k].size;const b=el.querySelector("button");b.classList.toggle("active",n>0);
   el.querySelector(".cnt").innerHTML=n?`<span class="badge">${n}</span>`:"";});}

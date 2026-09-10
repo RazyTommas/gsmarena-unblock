@@ -16,7 +16,7 @@ Idempotent; safe to run on the refresh schedule. Stdlib + common.py.
 from __future__ import annotations
 import argparse, re, sqlite3, time
 from datetime import datetime, timedelta, timezone
-from common import DB_PATH as DB, http_get
+from common import DB_PATH as DB, http_get, log_run
 
 APPLEDB = "https://api.appledb.dev/ios/iOS;{build}.json"
 
@@ -64,6 +64,7 @@ def main():
     n = con.execute("SELECT COUNT(*) FROM roms WHERE security_patch IS NOT NULL AND security_patch!=''").fetchone()[0]
     print(f"DONE: {filled}/{len(builds)} recent builds have a security page; {n} rows tagged; "
           f"{bb} device-build baseband versions set", flush=True)
+    log_run("ios-security", n)
     con.close()
 
 

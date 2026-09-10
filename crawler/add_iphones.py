@@ -13,7 +13,7 @@ for the ROMs view. Values left blank where not confidently known (never invented
 """
 from __future__ import annotations
 import re, sqlite3, time
-from common import DB_PATH as DB
+from common import DB_PATH as DB, log_run
 
 # base model -> (chipset, display size, battery mAh, announced YYYY-MM)
 SPECS = {
@@ -213,6 +213,7 @@ def main():
                         " VALUES(?,?,?,?,?,?)", (name, "apple", chip, "iOS", "ok", time.strftime("%Y-%m-%d %H:%M")))
     con.commit()
     print(f"DONE: {added} iPhones with specs, {miss} without (name not in map)", flush=True)
+    log_run("ios-specs", added)
     for r in con.execute("SELECT name,\"Platform — Chipset\",\"Display — Size\",\"Battery — Type\",\"Launch — Announced\" "
                          "FROM devices WHERE device_id LIKE 'ip%' AND \"Platform — Chipset\"!='' LIMIT 6"):
         print("  ", r)

@@ -18,7 +18,7 @@ version history + direct downloads use the samfw browser-ingest instead.
 """
 from __future__ import annotations
 import argparse, sqlite3, re, time
-from common import DB_PATH as DB, http_get, pda_month
+from common import DB_PATH as DB, http_get, pda_month, log_run
 
 MANIFEST = "https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
 
@@ -104,6 +104,7 @@ def main():
             print(f"  {i}/{len(models)} models, {ins} builds", flush=True)
     tot = con.execute("SELECT COUNT(*) FROM roms WHERE source='fota-cloud'").fetchone()[0]
     print(f"DONE: {found}/{len(models)} models had builds; {tot} region-builds ingested", flush=True)
+    log_run("fota-cloud", tot)
     if tot == 0:
         print("  (0 results — if you're on the build sandbox this is the 403 WAF block; "
               "run this on your own machine.)", flush=True)

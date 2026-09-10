@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from ui import PAGE
 import watches
+import board
 
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -1202,6 +1203,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps(analytics_agg()).encode(), "application/json")
         elif p == "/api/watch":
             self._send(json.dumps(watch_data()).encode(), "application/json")
+        elif p == "/api/board":
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            self._send(json.dumps(board.board(q.get("chip",""), q.get("vendor",""),
+                                              q.get("region",""))).encode(), "application/json")
+        elif p == "/api/refresh_status":
+            self._send(json.dumps(board.refresh_status()).encode(), "application/json")
         elif p == "/api/watches":
             self._send(json.dumps(watches.list_watches()).encode(), "application/json")
         elif p == "/api/inbox":
@@ -1282,6 +1289,12 @@ class Handler(BaseHTTPRequestHandler):
             conn = sqlite3.connect(DB_PATH)
             conn.execute("DELETE FROM roms WHERE source='samfw-live'"); conn.commit(); conn.close()
             self._send(b'{"ok":true}', "application/json"); return
+        if p == "/api/refresh_now":
+            b = self._json_body()
+            self._send(json.dumps(board.start_refresh(b.get("steps"))).encode(), "application/json"); return
+        if p == "/api/config":
+            b = self._json_body()
+            self._send(json.dumps(board.set_config(b)).encode(), "application/json"); return
         if p == "/api/watch_add":
             b = self._json_body()
             pred = b.get("predicate") or {}
@@ -1355,6 +1368,7 @@ def main():
     if not DB_PATH.exists():
         raise SystemExit(f"{DB_PATH} not found — run `python export.py` first.")
     ensure_indexes()   # fast server-side filter/sort/paginate at scale
+    board.start_scheduler()   # in-app 'every X hours' (configurable from the Updates tab)
     lan = _lan_ip()
     print(f"[app] Firmware Atlas — bound {args.host}:{args.port}  (Ctrl-C to stop)")
     print(f"[app]   local:   http://localhost:{args.port}")

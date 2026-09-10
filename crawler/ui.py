@@ -184,6 +184,8 @@ tbody tr.clk{cursor:pointer}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
 .mini-t td:last-child{padding-right:0}
 .tr-dev{color:var(--ink-secondary);overflow:hidden;text-overflow:ellipsis}
+.covnote{padding:6px 14px;font-size:11.5px;color:var(--ink-muted);background:var(--bg-sunken);
+  border-bottom:1px solid var(--line-subtle);display:flex;gap:8px;align-items:center}
 .star{background:none;border:0;cursor:pointer;color:var(--ink-faint);font-size:13px;padding:0 2px;line-height:1}
 .star.on{color:var(--st-warn)}
 .wbuild{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:10px}
@@ -387,8 +389,8 @@ const refetch=debounce(()=>fetchRows(true),220);
 /* ── chrome ───────────────────────────────────────────────── */
 function renderNav(){
   const s=ALL.stats;
-  $("#nav").innerHTML=[["products","Devices",s.devices],["roms","Releases",s.roms],
-    ["watch","Watch",""],["insights","Insights",""]]
+  $("#nav").innerHTML=[["board","Dashboard",""],["products","Devices",s.devices],
+    ["roms","Releases",s.roms],["watch","Watch",""],["updates","Updates",""],["insights","Insights",""]]
     .map(([k,l,n])=>`<button data-v="${k}" class="${k===VIEW?"on":""}">${l}${n!==""?`<span class="n">${n.toLocaleString()}</span>`:""}</button>`).join("");
   $$("#nav button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
   const c=(ALL.crawl||[])[0];
@@ -439,7 +441,7 @@ function activeChips(){
   return out;
 }
 function renderTools(){
-  if(VIEW==="watch"||VIEW==="insights"){ $("#tools").innerHTML=""; return; }
+  if(["watch","insights","board","updates"].includes(VIEW)){ $("#tools").innerHTML=""; return; }
   const isRel=VIEW==="roms", chips=activeChips();
   $("#tools").innerHTML=
     (isRel?`<div class="seg"><button data-g="1" class="${LATEST?"on":""}">Latest per device</button>
@@ -457,7 +459,21 @@ function renderTools(){
   const c=$("#clr"); if(c)c.onclick=()=>{
     ["vendor","source","region","android","type","chip"].forEach(k=>F[k].clear());
     F.name=F.from=F.to=""; renderRail();renderTools();fetchRows(true);};
+  renderCovNote();
   renderCount();
+}
+function renderCovNote(){
+  const c=(ALL&&ALL.coverage)||{}; if(!c.total)return;
+  const notes=[];
+  if(F.chip.size&&c.chipset!=null&&c.chipset<c.total)
+    notes.push(`${(c.total-c.chipset).toLocaleString()} builds have no chipset on record and are excluded`);
+  if(F.android.size&&c.android!=null&&c.android<c.total)
+    notes.push(`${(c.total-c.android).toLocaleString()} builds have no OS on record and are excluded`);
+  let el=document.getElementById("covnote");
+  if(!notes.length){ if(el)el.remove(); return; }
+  if(!el){ el=document.createElement("div"); el.id="covnote"; el.className="covnote";
+    $("#tools").insertAdjacentElement("afterend",el); }
+  el.innerHTML=`<span class="st unk"><span class="g">—</span>note</span> ${notes.join(" · ")}`;
 }
 function renderCount(){
   const el=$("#cnt"); if(!el)return;
@@ -478,6 +494,8 @@ const REL_COLS=[["","st",34],["device","Device",0],["model","Model",0],["version
 function render(){
   if(VIEW==="insights"){renderInsights();return;}
   if(VIEW==="watch"){renderWatch();return;}
+  if(VIEW==="board"){renderBoard();return;}
+  if(VIEW==="updates"){renderUpdates();return;}
   $("#grid").style.display="none"; $(".wrap table").style.display="";
   VIEW==="roms"?renderReleases():renderDevices();
   renderCount();
@@ -512,7 +530,10 @@ function renderReleases(){
       <td class="n">${esc(r[ix("android")]||"—")}</td>
       <td>${fdate(d)}</td>
       <td class="n">${fsize(r[ix("size")])}</td>
-      <td>${r[ix("download_url")]?`<a class="lnk" href="${esc(r[ix("download_url")])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↓ get</a>`:""}</td></tr>`;
+      <td>${(()=>{const u=r[ix("download_url")]; if(!u)return "";
+        const k=ix("link_kind")>=0?r[ix("link_kind")]:"";
+        const lbl=k==="page"?"↗ page":k==="file"?"↓ file":"↓ get";
+        return `<a class="lnk" href="${esc(u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(k||"link")}">${lbl}</a>`;})()}</td></tr>`;
   });
   $("#body").innerHTML=html;
   $$("#body tr.clk").forEach(tr=>tr.onclick=()=>selectRow(+tr.dataset.i));
@@ -767,10 +788,135 @@ async function renderWatch(){
   const sb=$("#wSeen"); if(sb)sb.onclick=async()=>{await fetch("/api/seen",{method:"POST"});renderWatch();};
 }
 
+
+/* ── Dashboard: only what I watch ─────────────────────────── */
+let BF={chip:"",vendor:"",region:""};
+async function renderBoard(){
+  $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
+  g.innerHTML=`<div class="card"><h3>Loading…</h3></div>`;
+  const qs=new URLSearchParams(); for(const k in BF) if(BF[k])qs.set(k,BF[k]);
+  let b={}; try{ b=await (await fetch("/api/board?"+qs,{cache:"no-store"})).json(); }catch(e){}
+  const c=b.counts||{}, f=ALL.facets||{};
+  const opt=(arr,cur,ph)=>`<option value="">${ph}</option>`+(arr||[]).map(o=>
+    `<option value="${esc(o.v!==undefined?o.v:o)}" ${((o.v!==undefined?o.v:o)===cur)?"selected":""}>${esc(o.v!==undefined?o.v:o)}</option>`).join("");
+  g.innerHTML=`
+    <div class="card wide"><h3>My dashboard</h3>
+      <p class="sub">Scoped to your watches${b.watermark?"":" · no watermark yet — press “Mark all seen” on the Watch tab to start tracking what’s new"}</p>
+      <div class="wbuild" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+        <div><label>Chipset</label><select id="bChip">${opt(b.chips,BF.chip,"any chipset")}</select></div>
+        <div><label>Vendor</label><select id="bVen">${opt(f.vendor,BF.vendor,"any vendor")}</select></div>
+        <div><label>Region</label><select id="bRgn">${opt(f.region,BF.region,"any region")}</select></div>
+      </div>
+      <div class="kpis" style="display:flex;gap:12px;margin-top:4px">
+        <div class="tile" style="flex:1"><div class="v">${(c.devices||0).toLocaleString()}</div><div class="l">watched devices</div></div>
+        <div class="tile" style="flex:1"><div class="v" style="color:var(--st-critical)">${(c.security||0).toLocaleString()}</div><div class="l">⛨ security items</div></div>
+        <div class="tile" style="flex:1"><div class="v" style="color:var(--accent)">${(c.fresh||0).toLocaleString()}</div><div class="l">new since last seen</div></div>
+      </div></div>
+
+    <div class="card wide"><h3>New firmware on my devices</h3>
+      <p class="sub">Appeared since your watermark</p>
+      ${(b.fresh||[]).length? `<table class="mini-t"><tbody>${b.fresh.map(r=>`<tr>
+          <td style="width:120px;white-space:nowrap">${fdate(r.updated_at)}</td>
+          <td class="tr-dev"><div class="dev">${mg(r.vendor)}<span>${esc(r.device)}</span></div></td>
+          <td style="width:30%"><span class="mono">${esc(r.version||"")}</span></td>
+          <td style="width:64px" class="rgn">${esc(r.region||"")}</td></tr>`).join("")}</tbody></table>`
+        : `<div style="color:var(--ink-faint);font-size:12.5px">Nothing new since your watermark${b.watermark?` (${esc(b.watermark)})`:""}.</div>`}</div>
+
+    <div class="card wide"><h3>⛨ Security patches — my devices${BF.chip?` · ${esc(BF.chip)}`:""}</h3>
+      <p class="sub">Only devices matching your watches${BF.chip||BF.vendor||BF.region?", narrowed by your filter":""}</p>
+      ${(b.security||[]).length? `<table class="mini-t"><tbody>${b.security.map(r=>`<tr>
+          <td style="width:118px;white-space:nowrap">${fdate(r.updated_at)}</td>
+          <td class="tr-dev"><div class="dev">${mg(r.vendor)}<span>${esc(r.device)}</span></div></td>
+          <td style="width:24%"><span class="mono">${esc(r.version||"")}</span></td>
+          <td style="width:64px" class="rgn">${esc(r.region||"")}</td>
+          <td style="width:120px">${r.security_level?`<span class="badge sec">⛨ ${esc(r.security_level)}</span>`:""}</td>
+          <td style="text-align:right;width:110px">${r.security_url?`<a class="lnk" href="${esc(r.security_url)}" target="_blank" rel="noopener">advisory ↗</a>`:""}</td></tr>`).join("")}</tbody></table>`
+        : `<div style="color:var(--ink-faint);font-size:12.5px">No security patches for the current selection.</div>`}</div>
+
+    <div class="card wide"><h3>My devices — latest ROM each</h3>
+      <p class="sub">${(c.devices||0).toLocaleString()} devices from your watches, newest release first</p>
+      <table class="mini-t"><tbody>${(b.devices||[]).map(r=>`<tr>
+        <td class="tr-dev" style="width:26%"><div class="dev">${mg(r.vendor)}<span>${esc(r.device)}</span></div></td>
+        <td style="width:96px"><span class="mono">${esc(r.model||"")}</span></td>
+        <td style="width:26%"><span class="mono">${esc(r.version||"")}</span></td>
+        <td style="width:56px" class="rgn">${esc(r.region||"")}</td>
+        <td style="width:48px" class="num">${esc(r.android||"")}</td>
+        <td style="width:118px;white-space:nowrap">${fdate(r.updated_at)}</td>
+        <td style="text-align:right;color:var(--ink-faint);font-size:11px">${esc(r.chipset||"")}</td></tr>`).join("")}</tbody></table></div>`;
+  $("#bChip").onchange=e=>{BF.chip=e.target.value;renderBoard();};
+  $("#bVen").onchange=e=>{BF.vendor=e.target.value;renderBoard();};
+  $("#bRgn").onchange=e=>{BF.region=e.target.value;renderBoard();};
+}
+
+/* ── Updates: schedule + run, from the web ────────────────── */
+let _upTimer=null;
+async function renderUpdates(){
+  $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
+  let st={}; try{ st=await (await fetch("/api/refresh_status",{cache:"no-store"})).json(); }catch(e){}
+  const cfg=st.config||{}, steps=(cfg.sources||"").split(",").filter(Boolean);
+  const ALLSTEPS=[["ios","Apple firmware"],["ios_security","Apple security advisories"],
+    ["iphone_specs","iPhone specs"],["samsung","Samsung A/S manifest"],
+    ["chipsets","Link chipsets"],["fix","Repair data defects"],["audit","Audit"]];
+  g.innerHTML=`
+    <div class="card wide"><h3>Update schedule</h3>
+      <p class="sub">Configured here — no cron editing needed. The app runs it in the background.</p>
+      <div class="wbuild" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+        <div><label>Run automatically</label><select id="uAuto">
+          <option value="0" ${cfg.auto!=="1"?"selected":""}>off (manual only)</option>
+          <option value="1" ${cfg.auto==="1"?"selected":""}>on</option></select></div>
+        <div><label>Every</label><select id="uInt">
+          ${[1,2,3,4,6,8,12,24].map(h=>`<option value="${h}" ${String(cfg.interval_hours)===String(h)?"selected":""}>${h} hour${h>1?"s":""}</option>`).join("")}
+        </select></div>
+      </div>
+      <div style="margin:10px 0 6px"><label style="font:500 10.5px var(--sans);letter-spacing:.04em;
+        text-transform:uppercase;color:var(--ink-muted)">Which steps to run</label></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        ${ALLSTEPS.map(([k,l])=>`<label class="tgl" style="display:inline-flex;gap:6px;align-items:center;
+          background:var(--bg-sunken);border:1px solid ${steps.includes(k)?"var(--accent)":"var(--line-subtle)"};
+          border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="ustep" value="${k}" ${steps.includes(k)?"checked":""}
+            style="accent-color:var(--accent)"> ${esc(l)}</label>`).join("")}</div>
+      <button class="btn" id="uSave">Save schedule</button>
+      <button class="btn ghost" id="uRun" ${st.running?"disabled":""} style="margin-left:8px">
+        ${st.running?"● Running…":"▶ Run update now"}</button>
+      <span id="uMsg" style="margin-left:10px;font-size:12px;color:var(--ink-muted)"></span></div>
+
+    <div class="card wide"><h3>Run status</h3>
+      <p class="sub">${st.running?`<span class="st good"><span class="g">●</span>running</span> since ${esc(st.started||"")}`
+        : st.finished?`last run finished ${esc(st.finished)} · exit ${st.rc}`:"never run from the web yet"}</p>
+      <pre style="background:var(--bg-canvas);border:1px solid var(--line-subtle);border-radius:6px;
+        padding:10px 12px;max-height:280px;overflow:auto;font:400 11.5px/17px var(--mono);
+        color:var(--ink-secondary);white-space:pre-wrap;margin:0">${esc(st.log||"(no log yet — press Run update now)")}</pre></div>
+
+    <div class="card wide"><h3>Source freshness</h3>
+      <p class="sub">When each ingester last completed</p>
+      <table class="mini-t"><tbody>${(st.crawl||[]).length?(st.crawl||[]).map(c=>`<tr>
+        <td>${esc(c.source)}</td>
+        <td style="text-align:right;white-space:nowrap"><span class="st good"><span class="g">●</span>${esc(c.ran_at)}</span></td>
+        <td style="text-align:right;width:70px" class="num">${c.rows==null?"—":Number(c.rows).toLocaleString()}</td></tr>`).join("")
+        :`<tr><td style="color:var(--ink-faint);font-size:12px">No runs recorded yet.</td></tr>`}</tbody></table></div>`;
+
+  $("#uSave").onclick=async()=>{
+    const chosen=[...document.querySelectorAll(".ustep:checked")].map(x=>x.value).join(",");
+    await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({auto:$("#uAuto").value,interval_hours:$("#uInt").value,sources:chosen})});
+    $("#uMsg").textContent="saved"; setTimeout(()=>renderUpdates(),700);
+  };
+  $("#uRun").onclick=async()=>{
+    const chosen=[...document.querySelectorAll(".ustep:checked")].map(x=>x.value);
+    const r=await (await fetch("/api/refresh_now",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({steps:chosen})})).json();
+    $("#uMsg").textContent=r.ok?"started":(r.error||"could not start");
+    renderUpdates();
+  };
+  clearTimeout(_upTimer);
+  if(st.running) _upTimer=setTimeout(()=>{ if(VIEW==="updates") renderUpdates(); },3000);
+}
+
 /* ── views ────────────────────────────────────────────────── */
 function setView(v){
   VIEW=v; SEL=-1; closeDrawer();
-  $("#rail").classList.toggle("hide",v==="watch"||v==="insights");
+  $("#rail").classList.toggle("hide",["watch","insights","board","updates"].includes(v));
   SORT=v==="roms"?{col:"updated_at",d:-1}:SORT;
   renderNav(); renderTools();
   if(v==="roms")fetchRows(true); else render();

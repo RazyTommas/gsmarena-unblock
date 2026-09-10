@@ -4,14 +4,19 @@ A local, self-contained system that gathers device firmware (Android + iPhone) i
 one SQLite corpus and serves two zero-dependency web apps to explore and monitor it.
 No login, no lab infra — just Python 3 stdlib (+ `selectolax` for HTML parsing).
 
-## The two apps
+## One app, one port
 
-| App | Run | URL | What it is |
-|-----|-----|-----|-----------|
-| **Firmware Atlas** | `python3 app.py` | http://localhost:8765 | Search / filter / choose columns; Devices + ROMs + Analytics; per-device drawer with firmware, specs, and a live "check for newer" |
-| **Firmware Watch** | `python3 fw_dashboard.py` | http://localhost:8900 | Self-refreshing dashboard: latest release, "new versions in line", per-device history, ★ watch-list, pop-on-new-release |
+`python3 app.py` → **http://localhost:8765** (or `bash START-ALL.sh`). A single
+zero-dependency service with four tabs, all on the shared server-side API:
 
-Run both at once with `bash START-ALL.sh`.
+- **Devices** — spec'd devices (Android + iPhone); click one for the drawer (firmware, specs, live "check for newer").
+- **ROMs** — every firmware build, **server-side** filtered/sorted/paginated (200/page). Filters: vendor · source · region · Android · FW-type · device name · chipset · **date range** · Latest-only · Dated-only.
+- **Watch** — cross-vendor dashboard: newest release, latest build per vendor, recent releases.
+- **Insights** — aggregate charts + pivot.
+
+Architecture note: filtering/sorting/paging run as SQL on the server (indexed SQLite), so the
+browser only ever holds one page — it stays fast whether the corpus is 50k or millions of rows.
+(`fw_dashboard.py` is the retired standalone zone-watch; the Watch tab replaces it.)
 
 ## Data sources (all no-login)
 

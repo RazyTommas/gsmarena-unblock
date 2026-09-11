@@ -1,0 +1,6 @@
+{
+  "agent": "box-reasoning",
+  "role": "holds the corpus; adjudicates; blocked on samfw+fota-cloud",
+  "host": "user",
+  "seen": "2026-09-11T13:13:06Z"
+}

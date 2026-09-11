@@ -12,5 +12,5 @@
   ],
   "control": "example.com is fetched first and last; if it fails nothing else is a finding",
   "deliver": "probe.json + result.json, pushed automatically by relay.py run",
-  "expect": "samfw.com and fota-cloud should be 'ok' here. They are 403 on the asking box. gsmarena and Qualcomm already work there, so those are regression controls."
+  "expect": "samfw.com and fota-cloud should be 'ok' here; they are 403 on the asking box. gsmarena and Qualcomm are regression controls \u2014 BOTH already work on the asking box (qualcomm globalsearch returns 101 bulletins there; an earlier note in this file said it 500s, which was stale). So a 200 from Qualcomm here is NOT new access."
 }

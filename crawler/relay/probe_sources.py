@@ -153,7 +153,7 @@ def main():
               shell_probe="https://docs.qualcomm.com/bundle/publicresource/GetCollection/"
                           "this-path-was-never-real-xyz",
               note="returns a collectionId on the other box"),
-        check("qualcomm globalsearch (500s on the other box)",
+        check("qualcomm globalsearch",
               "https://docs.qualcomm.com/bundle/publicresource/globalsearch",
               method="POST", headers={"Content-Type": "text/plain"},
               data=json.dumps({
@@ -164,7 +164,7 @@ def main():
                   "IsProductContext": False, "IsTranslation": False, "urlState": "",
                   "dcnEntitlement": False, "specState": ""}).encode(),
               sentinel="dcn", min_bytes=50,
-              note="Content-Type must be EXACTLY text/plain; charset -> 415, json -> 500"),
+              note="works on BOTH boxes (101 bulletins). Content-Type must be EXACTLY text/plain"),
     ]
 
     print("\n--- sources that work on the other box (regression controls) ---")
@@ -221,17 +221,37 @@ def main():
     ok = [c for c in checks if c["verdict"] == "ok" and not c["source"].startswith("CONTROL")]
     bad = [c for c in checks if c["verdict"] not in ("ok",)
            and not c["source"].startswith("CONTROL")]
-    # The headline the other box needs: which of the BLOCKED-THERE sources work HERE.
-    unlocked = [c["source"] for c in ok if c["source"].split()[0] in
-                ("samfw.com", "fota-cloud", "gsmarena", "qualcomm")]
-    note = (f"{len(ok)} reachable, {len(bad)} not. "
-            f"Unlocked by this IP: {unlocked or 'NONE'}")
+
+    # WHY THE OUTCOME IS NOT "did the probe run".
+    # The first version returned outcome='ok' whenever the script completed, so a probe
+    # whose entire content was "every source this box exists to unlock is blocked"
+    # reported ok — and anything reading outcome alone saw a green success. That is the
+    # count-versus-outcome confusion this relay's README warns about, arriving from the
+    # other direction. collector@field caught it on the first real run.
+    # So the outcome answers the question the task ASKED: did this network unlock
+    # anything the asking box cannot already reach?
+    UNLOCK_TARGETS = ("samfw.com", "fota-cloud")
+    unlocked = sorted({c["source"] for c in ok
+                       if c["source"].split()[0] in UNLOCK_TARGETS})
+    blocked_targets = sorted({c["source"] for c in bad
+                              if c["source"].split()[0] in UNLOCK_TARGETS})
+    if not control_ok:
+        outcome = "error"
+        headline = "CONTROL FAILED — discard every number in this file"
+    elif unlocked:
+        outcome = "ok"
+        headline = f"UNLOCKED by this network: {', '.join(unlocked)}"
+    else:
+        outcome = "blocked"
+        headline = (f"nothing unlocked. The sources this box exists for are blocked "
+                    f"here too: {', '.join(blocked_targets) or '(none tested)'}")
+    note = f"{headline} — {len(ok)} of {len(ok)+len(bad)} checks reachable."
     (outdir / "result.json").write_text(json.dumps(
-        {"outcome": "ok" if control_ok else "error",
-         "note": note if control_ok else "CONTROL FAILED — discard these numbers",
+        {"outcome": outcome, "headline": headline, "note": note,
          "control_ok": control_ok,
          "counts": {"reachable": len(ok), "unreachable": len(bad),
                     "unlocked_here": len(unlocked)},
+         "probe_completed": True,
          "files": ["probe.json"]}, indent=2))
     print(f"\n{note}")
     return 0 if control_ok else 1

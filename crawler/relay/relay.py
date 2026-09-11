@@ -103,7 +103,7 @@ def sync():
         return False
     try:
         sh("git", "fetch", "origin", "--quiet")
-        sh("git", "pull", "--rebase", "--quiet", "origin", branch())
+        sh("git", "pull", "--rebase", "--autostash", "--quiet", "origin", branch())
         return True
     except RuntimeError as e:
         first = e.args[0].splitlines()
@@ -121,6 +121,7 @@ def branch():
 def push(paths, message, tries=4):
     """Commit ONLY the given relay paths and push, rebasing on contention. Scoped to
     relay/ so this can never sweep up unrelated working-tree changes."""
+    require_git_identity()
     rel = [str(Path(p).resolve().relative_to(REPO)) for p in paths]
     sh("git", "add", "--", *rel)
     if not sh("git", "diff", "--cached", "--name-only"):
@@ -134,7 +135,7 @@ def push(paths, message, tries=4):
         except RuntimeError:
             print(f"  push rejected, rebasing (attempt {i+1}/{tries})")
             try:
-                sh("git", "pull", "--rebase", "--quiet", "origin", branch())
+                sh("git", "pull", "--rebase", "--autostash", "--quiet", "origin", branch())
             except RuntimeError as e:
                 print(f"  ! rebase failed: {e.args[0].splitlines()[0]}", file=sys.stderr)
                 return False
@@ -142,6 +143,21 @@ def push(paths, message, tries=4):
     print("  ! could not push after retries — the commit is local, run `git push` by hand",
           file=sys.stderr)
     return False
+
+
+def require_git_identity():
+    """Fail BEFORE any write. relay.py register wrote and git-added the agent files
+    and then crashed at the commit when git had no author identity — the files landed
+    and the bookkeeping did not. Same partial-failure shape msg-remote had; reported by
+    collector@field, who hit both."""
+    if sh("git", "config", "user.name", check=False) and \
+       sh("git", "config", "user.email", check=False):
+        return
+    print("git has no author identity here, so the commit recording this would fail\n"
+          "  AFTER the files were already written. Set it first:\n"
+          f"    git -C {REPO} config user.name  \"<agent or box name>\"\n"
+          f"    git -C {REPO} config user.email \"<anything@local>\"", file=sys.stderr)
+    sys.exit(2)
 
 
 def load(p):

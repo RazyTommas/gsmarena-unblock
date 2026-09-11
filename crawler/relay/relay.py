@@ -115,7 +115,19 @@ def sync():
 
 
 def branch():
-    return sh("git", "rev-parse", "--abbrev-ref", "HEAD") or "main"
+    """Never an empty string. An empty branch arg does not mean "no branch" to git —
+    it vanishes from argv and `git pull origin main` becomes `git pull origin`, which
+    rebases onto every remote branch and fails with "Cannot rebase onto multiple
+    branches". `--show-current` returns empty on a detached HEAD, which happens
+    transiently while another process rebases this tree."""
+    for cmd in (("git", "branch", "--show-current"),
+                ("git", "rev-parse", "--abbrev-ref", "HEAD")):
+        b = sh(*cmd, check=False).strip()
+        if b and b != "HEAD":
+            return b
+    print("no current branch here (detached HEAD or a rebase in progress) — refusing "
+          "rather than guessing; run `git status` and finish or abort it.", file=sys.stderr)
+    sys.exit(2)
 
 
 def push(paths, message, tries=4):

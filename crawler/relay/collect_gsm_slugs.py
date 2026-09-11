@@ -44,7 +44,12 @@ def get(url, timeout=30):
 
 DEV_RE = re.compile(r'<a href="([a-z0-9_\-]+-\d+\.php)"[^>]*>.*?<strong><span>(.*?)</span>',
                     re.S | re.I)
-BRAND_RE = re.compile(r'<a href="([a-z0-9_\-]+-phones-\d+\.php)">\s*([^<]+?)\s*<br', re.I)
+# The brand name is the anchor text and nothing follows it. The first version
+# expected a trailing <br>, which does not exist in the real markup, so makers.php3
+# parsed as zero brands and the run reported 'empty' from a page that had 100+ of
+# them. Written blind, shipped to another box, and only then discovered — which is
+# what tests/test_gsm_parse.py now prevents.
+BRAND_RE = re.compile(r'<a href="([a-z0-9_\-]+-phones-\d+\.php)"\s*>([^<]{2,40})</a>', re.I)
 
 
 def devices_on(html):

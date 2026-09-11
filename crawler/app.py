@@ -24,6 +24,7 @@ from urllib.parse import urlparse, parse_qs
 from ui import PAGE
 import watches
 import board
+import vuln
 
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -262,6 +263,50 @@ def all_roms() -> dict:
         f"SELECT {sel} FROM roms LEFT JOIN device_specs ds ON ds.device=roms.device")]
     conn.close()
     return {"columns": cols, "rows": rows}
+
+
+def vuln_data(q) -> dict:
+    """Chipset-vulnerability exposure per build, plus the honest coverage accounting.
+
+    The coverage block is not decoration. A verdict exists only where we know BOTH the
+    chipset and the Security Patch Level, and that is the minority of the corpus — so
+    the UI must be able to say "this silence is a gap in our data", never let a reader
+    infer "no findings = safe".
+    """
+    con = sqlite3.connect(DB_PATH)
+    chip, vend = q.get("chip", ""), q.get("vendor", "")
+    only_open = q.get("open") == "1"
+    dev = q.get("device", "")
+    out = {"rows": [], "detail": [], "filter": {"chip": chip, "vendor": vend,
+                                                "open": only_open, "device": dev}}
+    try:
+        out["rows"] = vuln.summary(con, chip=chip, vendor=vend, only_open=only_open)[:300]
+        if dev:
+            out["detail"] = vuln.for_device(con, dev)[:400]
+        st = dict(con.execute("SELECT status, COUNT(*) FROM device_vuln GROUP BY status"))
+        tot_dev = con.execute("SELECT COUNT(DISTINCT device) FROM roms").fetchone()[0]
+        with_chip = con.execute("SELECT COUNT(DISTINCT device) FROM roms "
+                                "WHERE IFNULL(chipset,'')!=''").fetchone()[0]
+        with_both = con.execute("SELECT COUNT(DISTINCT device) FROM roms WHERE "
+                                "IFNULL(chipset,'')!='' AND IFNULL(security_level,'')!=''"
+                                ).fetchone()[0]
+        judged = con.execute("SELECT COUNT(DISTINCT device) FROM device_vuln").fetchone()[0]
+        apple = con.execute("SELECT COUNT(DISTINCT device) FROM roms "
+                            "WHERE vendor='Apple'").fetchone()[0]
+        cves = con.execute("SELECT COUNT(DISTINCT cve) FROM chipset_cve").fetchone()[0]
+        adj = con.execute("SELECT COUNT(DISTINCT c.cve) FROM chipset_cve c "
+                          "JOIN cve_spl s ON s.cve=c.cve AND s.spl_tier=5").fetchone()[0]
+        out["status"] = st
+        out["coverage"] = {"devices": tot_dev, "with_chipset": with_chip,
+                           "with_chipset_and_spl": with_both, "judged": judged,
+                           "apple": apple, "chipset_cves": cves, "adjudicable_cves": adj}
+        out["chips"] = [r[0] for r in con.execute(
+            "SELECT DISTINCT chipset FROM device_vuln ORDER BY 1")]
+    except sqlite3.OperationalError as e:
+        out["error"] = (f"{e} — run: python3 chipset_cves.py && python3 osv_spl.py "
+                        f"&& python3 vuln.py --build")
+    con.close()
+    return out
 
 
 def watch_data() -> dict:
@@ -1207,6 +1252,9 @@ class Handler(BaseHTTPRequestHandler):
             q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
             self._send(json.dumps(board.board(q.get("chip",""), q.get("vendor",""),
                                               q.get("region",""))).encode(), "application/json")
+        elif p == "/api/vuln":
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            self._send(json.dumps(vuln_data(q)).encode(), "application/json")
         elif p == "/api/refresh_status":
             self._send(json.dumps(board.refresh_status()).encode(), "application/json")
         elif p == "/api/watches":

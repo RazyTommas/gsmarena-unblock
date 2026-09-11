@@ -6,3 +6,14 @@ bi/data/
 .venv/
 __pycache__/
 *.pyc
+
+# data/ is ignored because it holds the multi-MB corpus (devices.db, *.csv).
+# These xref files are the opposite: ~25 KB of reference data that chipset_map.py
+# REQUIRES. Without them the part<->marketing bridge is empty, and MediaTek — whose
+# advisories are part-number-only while its spec strings are marketing-only — cannot
+# be joined to a CVE at all. A fresh clone must get them.
+!data/mt_wiki_xref.json
+!data/qc_wiki_xref.json
+!data/gsm_xref.json
+!data/cpufetch_map.json
+!data/mt_parts.json

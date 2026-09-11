@@ -179,6 +179,20 @@ tbody tr.clk{cursor:pointer}
 .lnk{color:var(--accent);text-decoration:none;font-size:11.5px}
 .lnk:hover{color:var(--accent-hover);text-decoration:underline}
 .spark{display:inline-block;vertical-align:middle}
+.vt{width:100%;border-collapse:collapse;font-size:12.5px}
+.vt th{text-align:left;font:600 11px var(--sans);color:var(--ink-faint);text-transform:uppercase;
+  letter-spacing:.04em;padding:0 10px 5px 0;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.vt td{padding:6px 10px 6px 0;border-bottom:1px solid var(--line-row);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.vt th.num,.vt td.num{text-align:right;padding-right:14px}
+.vt tbody tr.vrow{cursor:pointer}
+.vt tbody tr.vrow:hover{background:var(--bg-hover)}
+.v-ok{color:var(--st-good)} .v-bad{color:var(--st-critical)}
+.v-warn{color:var(--st-warn)} .v-dim{color:var(--ink-faint)}
+.bar .track i.vbar.v-ok{background:var(--st-good)}
+.bar .track i.vbar.v-bad{background:var(--st-critical)}
+.bar .track i.vbar.v-warn{background:var(--st-warn)}
+.bar .track i.vbar.v-dim{background:var(--ink-faint)}
 .mini-t{width:100%;border-collapse:collapse;table-layout:fixed}
 .mini-t td{padding:6px 8px 6px 0;border-bottom:1px solid var(--line-row);height:auto;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
@@ -390,7 +404,8 @@ const refetch=debounce(()=>fetchRows(true),220);
 function renderNav(){
   const s=ALL.stats;
   $("#nav").innerHTML=[["board","Dashboard",""],["products","Devices",s.devices],
-    ["roms","Releases",s.roms],["watch","Watch",""],["updates","Updates",""],["insights","Insights",""]]
+    ["roms","Releases",s.roms],["exposure","Exposure",""],["watch","Watch",""],
+    ["updates","Updates",""],["insights","Insights",""]]
     .map(([k,l,n])=>`<button data-v="${k}" class="${k===VIEW?"on":""}">${l}${n!==""?`<span class="n">${n.toLocaleString()}</span>`:""}</button>`).join("");
   $$("#nav button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
   const c=(ALL.crawl||[])[0];
@@ -425,11 +440,11 @@ function renderRail(){
          <input type="date" id="ffrom" value="${esc(F.from)}"><span>→</span><input type="date" id="fto" value="${esc(F.to)}"></div></div>`;
   $$("#rail .opt").forEach(el=>el.onclick=()=>{
     const k=el.dataset.k,v=el.dataset.v;
-    F[k].has(v)?F[k].delete(v):F[k].add(v); renderRail(); renderTools(); fetchRows(true);});
+    F[k].has(v)?F[k].delete(v):F[k].add(v); renderRail(); renderTools(); refilter();});
   $$("#rail .more").forEach(b=>b.onclick=()=>{SHOWALL[b.dataset.more]=!SHOWALL[b.dataset.more];renderRail();});
   $("#fname").oninput=e=>{F.name=e.target.value.trim();renderTools();refetch();};
-  $("#ffrom").onchange=e=>{F.from=e.target.value;renderTools();fetchRows(true);};
-  $("#fto").onchange=e=>{F.to=e.target.value;renderTools();fetchRows(true);};
+  $("#ffrom").onchange=e=>{F.from=e.target.value;renderTools();refilter();};
+  $("#fto").onchange=e=>{F.to=e.target.value;renderTools();refilter();};
 }
 function activeChips(){
   const out=[];
@@ -450,17 +465,23 @@ function renderTools(){
     + `<div class="chips">${chips.map(([k,v])=>`<span class="chip"><b>${esc(k)}</b>${esc(v)}<button data-x="${esc(k)}" data-xv="${esc(v)}">✕</button></span>`).join("")}
         ${chips.length?`<button class="more" id="clr">Clear all</button>`:""}</div>`
     + `<div class="count" id="cnt"></div>`;
-  $$("#tools .seg button").forEach(b=>b.onclick=()=>{LATEST=b.dataset.g==="1";renderTools();fetchRows(true);});
-  const dt=$("#dated"); if(dt)dt.onclick=()=>{DATED=!DATED;renderTools();fetchRows(true);};
+  $$("#tools .seg button").forEach(b=>b.onclick=()=>{LATEST=b.dataset.g==="1";renderTools();refilter();});
+  const dt=$("#dated"); if(dt)dt.onclick=()=>{DATED=!DATED;renderTools();refilter();};
   $$("#tools .chip button").forEach(b=>b.onclick=()=>{
     const k=b.dataset.x,v=b.dataset.xv;
     if(F[k] instanceof Set)F[k].delete(v); else F[k]="";
-    renderRail();renderTools();fetchRows(true);});
+    renderRail();renderTools();refilter();});
   const c=$("#clr"); if(c)c.onclick=()=>{
     ["vendor","source","region","android","type","chip"].forEach(k=>F[k].clear());
-    F.name=F.from=F.to=""; renderRail();renderTools();fetchRows(true);};
+    F.name=F.from=F.to=""; renderRail();renderTools();refilter();};
   renderCovNote();
   renderCount();
+}
+// Filters changed. fetchRows() only refreshes the releases TABLE; the card views
+// each own their fetch, so a hard-coded fetchRows() here leaves them stale while
+// the chips above them say otherwise. Dispatch by view, in one place.
+function refilter(){
+  if(VIEW==="roms"||VIEW==="products")fetchRows(true); else render();
 }
 function renderCovNote(){
   const c=(ALL&&ALL.coverage)||{}; if(!c.total)return;
@@ -492,6 +513,7 @@ function renderCount(){
 const REL_COLS=[["","st",34],["device","Device",0],["model","Model",0],["version","Version",0],
   ["region","Rgn",0],["android","OS",0],["updated_at","Released",0],["size","Size",0],["",""]];
 function render(){
+  if(VIEW==="exposure"){renderExposure();return;}
   if(VIEW==="insights"){renderInsights();return;}
   if(VIEW==="watch"){renderWatch();return;}
   if(VIEW==="board"){renderBoard();return;}
@@ -640,6 +662,117 @@ function svgBars(data,w,h,fmtX){
   return `<svg class="mini" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${g}${bars}
     <line class="basel" x1="${pl}" y1="${pt+ih}" x2="${w-pr}" y2="${pt+ih}"/>${lbl}</svg>`;
 }
+
+// ── Exposure: chipset security advisories joined to the build a device runs ──
+// Four states, because two would lie. The join is CVE-ID-based via the Android
+// bulletin (OSV), never a date comparison — Android lags the chipset vendor by
+// 0-172 days (median 36), so "SPL month > CVE month" proves nothing.
+const VSTATE={
+  "open":            {g:"●", l:"Open",            c:"v-bad",  d:"A fix shipped at a patch level newer than this build"},
+  "claimed-fixed":   {g:"✓", l:"Claimed fixed",   c:"v-ok",   d:"The vendor declares this level includes the fix (a compliance claim, not a measurement)"},
+  "unadjudicable-tier01":{g:"◐", l:"Level can't say", c:"v-warn", d:"This build reports a —01 patch level; every chipset fix ships at —05"},
+  "unadjudicable-not-in-bulletin":{g:"◌", l:"No patch level", c:"v-warn", d:"Vendor-published CVE that never entered an Android bulletin — no patch level speaks to it"},
+  "unknown-no-spl":  {g:"·", l:"No patch level on build", c:"v-dim", d:"This build carries no Security Patch Level"}
+};
+async function renderExposure(){
+  $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
+  g.innerHTML=`<div class="card"><h3>Loading…</h3></div>`;
+  const chip=[...F.chip][0]||"", vend=[...F.vendor][0]||"";
+  let d={};
+  try{ d=await (await fetch(`/api/vuln?chip=${encodeURIComponent(chip)}&vendor=${encodeURIComponent(vend)}${EXP_OPEN?"&open=1":""}`,{cache:"no-store"})).json(); }catch(e){}
+  if(d.error){ g.innerHTML=`<div class="card wide"><h3>Not built yet</h3><p class="sub">${esc(d.error)}</p></div>`; return; }
+  const st=d.status||{}, cv=d.coverage||{};
+  const tot=Object.values(st).reduce((a,b)=>a+b,0)||0;
+  const pct=n=>tot?((n/tot)*100).toFixed(0)+"%":"—";
+
+  // The coverage card comes FIRST and deliberately reads as a limit, not a score.
+  // A reader must not mistake "few findings" for "few problems".
+  const cover=`<div class="card wide"><h3>What this view can and cannot see</h3>
+    <p class="sub">A verdict needs BOTH a known chipset and a Security Patch Level. Most of the corpus has neither.</p>
+    <div class="bars">
+      ${[["devices tracked",cv.devices],["…with a known chipset",cv.with_chipset],
+         ["…and a patch level too",cv.with_chipset_and_spl],["devices with any verdict",cv.judged]]
+        .map(([t,n])=>`<div class="bar"><span class="t">${t}</span><span class="track">
+        <i style="width:${((n||0)/(cv.devices||1)*100).toFixed(1)}%"></i></span>
+        <span class="v">${(n||0).toLocaleString()}</span></div>`).join("")}
+    </div>
+    <p class="sub" style="margin-top:8px">
+      ${(cv.adjudicable_cves||0).toLocaleString()} of ${(cv.chipset_cves||0).toLocaleString()} chipset CVEs
+      have an Android patch level at all — the other ${((cv.chipset_cves||0)-(cv.adjudicable_cves||0)).toLocaleString()}
+      are vendor-published and never entered a bulletin, so no patch level can adjudicate them.
+      Apple is excluded entirely (${cv.apple||0} devices): Apple advisories never name a chip —
+      0 SoC mentions across 2,456 entries — so there is no chipset join to make.</p>
+    <p class="sub">Even <b>Claimed fixed</b> is the manufacturer's declaration about the <i>system</i>
+      partition. Chipset fixes land in <i>vendor</i>/<i>boot</i>, which carry their own patch levels
+      that firmware metadata does not publish. Reading an image with google/vanir is the only way
+      to turn these into measurements.</p></div>`;
+
+  const legend=`<div class="card wide"><h3>Verdict mix</h3><p class="sub">${tot.toLocaleString()} device-CVE verdicts</p>
+    <div class="bars">${Object.entries(VSTATE).map(([k,v])=>`<div class="bar">
+      <span class="t"><b class="${v.c}">${v.g}</b> ${v.l}</span><span class="track">
+      <i class="vbar ${v.c}" style="width:${tot?((st[k]||0)/tot*100).toFixed(1):0}%"></i></span>
+      <span class="v">${(st[k]||0).toLocaleString()} ${pct(st[k]||0)}</span></div>
+      <div class="sub" style="margin:-2px 0 6px 0">${v.d}</div>`).join("")}</div></div>`;
+
+  // One build usually ships to many regions with an identical verdict. Showing it
+  // once per region is nine rows for one fact; collapse on the fields that actually
+  // differ and list the regions instead.
+  const byBuild=new Map();
+  for(const r of (d.rows||[])){
+    const k=[r.device,r.version,r.spl,r.open_n,r.fixed_n,r.unknown_n].join("|");
+    if(byBuild.has(k)) byBuild.get(k).regions.push(r.region);
+    else byBuild.set(k,{...r,regions:[r.region]});
+  }
+  const rows=[...byBuild.values()];
+  const table=`<div class="card wide"><h3>Per build</h3>
+    <p class="sub">Latest build per device · ${rows.length} builds (regions with an identical verdict are folded)
+      · <label style="cursor:pointer"><input type="checkbox" id="expopen" ${EXP_OPEN?"checked":""}> only builds with an open CVE</label></p>
+    <div style="overflow-x:auto"><table class="vt"><thead><tr>
+      <th>Device</th><th>Rgn</th><th>Build</th><th>Chipset</th><th>Patch level</th>
+      <th class="num">Open</th><th class="num">Claimed fixed</th><th class="num">Can't say</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr class="vrow" data-dev="${esc(r.device)}">
+      <td>${esc(r.device)}</td><td class="rgn" title="${esc((r.regions||[]).join(", "))}">${
+        r.regions&&r.regions.length>1?`${esc(r.regions[0])} +${r.regions.length-1}`:esc(r.region||"")}</td>
+      <td class="mono">${esc(r.version||"")}</td>
+      <td class="sub">${esc((r.chipset||"").slice(0,42))}</td>
+      <td class="mono">${esc(r.spl||"··")}${String(r.spl||"").endsWith("-01")?` <span class="v-warn" title="a —01 level cannot adjudicate a chipset CVE">◐</span>`:""}</td>
+      <td class="num${r.open_n?" v-bad":""}"><b>${r.open_n||0}</b>${r.crit_n?` <span class="v-bad">${r.crit_n} crit</span>`:""}</td>
+      <td class="num v-ok">${r.fixed_n||0}</td>
+      <td class="num v-warn">${r.unknown_n||0}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="sub">Click a row for the per-CVE verdicts and how each chipset was matched.</p></div>`;
+
+  g.innerHTML=cover+legend+table+`<div id="vdetail"></div>`;
+  const cb=$("#expopen"); if(cb) cb.onchange=()=>{EXP_OPEN=cb.checked;renderExposure();};
+  $$(".vrow").forEach(tr=>tr.onclick=()=>showVulnDetail(tr.dataset.dev));
+}
+let EXP_OPEN=false;
+async function showVulnDetail(dev){
+  const host=$("#vdetail"); if(!host) return;
+  host.innerHTML=`<div class="card wide"><h3>${esc(dev)}</h3><p class="sub">Loading…</p></div>`;
+  let d={}; try{ d=await (await fetch(`/api/vuln?device=${encodeURIComponent(dev)}`,{cache:"no-store"})).json(); }catch(e){}
+  const rs=(d.detail||[]);
+  host.innerHTML=`<div class="card wide"><h3>${esc(dev)} · ${rs.length} chipset-CVE verdicts</h3>
+    <p class="sub">Ordered worst-first. <b>Matched via</b> is the provenance of the chipset match —
+      a bridged marketing name is a weaker claim than a part number printed in the spec sheet.</p>
+    <div style="overflow-x:auto"><table class="vt"><thead><tr>
+      <th>Verdict</th><th>CVE</th><th>Sev</th><th class="num">CVSS</th>
+      <th>Fixed at level</th><th>Build level</th><th>Regions</th>
+      <th>Matched via</th><th>Part</th></tr></thead><tbody>
+    ${rs.slice(0,250).map(r=>{const v=VSTATE[r.status]||{g:"?",l:r.status,c:"v-dim"};return `<tr>
+      <td><b class="${v.c}">${v.g}</b> ${v.l}</td>
+      <td class="mono"><a href="${esc(r.url||"#")}" target="_blank" rel="noopener">${esc(r.cve)}</a></td>
+      <td>${esc(r.severity||"··")}</td><td class="num">${r.score==null?"··":r.score}</td>
+      <td class="mono">${esc(r.fix_month||"— none —")}</td>
+      <td class="mono">${esc(r.spl||"··")}</td>
+      <td class="rgn" title="${esc((r.regions||[]).join(", "))}">${
+        (r.regions||[]).length>1?`${esc(r.regions[0])} +${r.regions.length-1}`:esc((r.regions||[])[0]||"")}</td>
+      <td class="sub">${esc(r.match_via||"")}</td>
+      <td class="mono">${esc(r.matched_part||"")}</td></tr>`}).join("")}
+    </tbody></table></div></div>`;
+  host.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
 async function renderInsights(){
   $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
   g.innerHTML=`<div class="card"><h3>Loading…</h3></div>`;
@@ -916,6 +1049,9 @@ async function renderUpdates(){
 /* ── views ────────────────────────────────────────────────── */
 function setView(v){
   VIEW=v; SEL=-1; closeDrawer();
+  // Deep-linkable views: a colleague can be sent straight to #exposure, and the
+  // back button behaves. Also what makes a view reachable without a click.
+  if(location.hash.slice(1)!==v) history.replaceState(null,"","#"+v);
   $("#rail").classList.toggle("hide",["watch","insights","board","updates"].includes(v));
   SORT=v==="roms"?{col:"updated_at",d:-1}:SORT;
   renderNav(); renderTools();
@@ -989,6 +1125,10 @@ if(localStorage.getItem("fa_theme"))document.documentElement.setAttribute("data-
 
 /* ── boot ─────────────────────────────────────────────────── */
 fetch("/api/all").then(r=>r.json()).then(d=>{
-  ALL=d; renderNav(); renderScale(); renderRail(); renderTools(); render();
+  ALL=d;
+  const h=(location.hash||"").slice(1);
+  if(["board","products","roms","exposure","watch","updates","insights"].includes(h))VIEW=h;
+  renderNav(); renderScale(); renderRail(); renderTools();
+  if(VIEW==="roms")fetchRows(true); else render();
 });
 </script></body></html>"""

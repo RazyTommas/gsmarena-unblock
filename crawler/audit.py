@@ -17,6 +17,16 @@ one-off, so new sources get screened by the same rules:
   TYPE      values that break a numeric comparison and vanish silently
   FUZZY     over-eager fuzzy matching assigning a confidently WRONG value
   DERIVED   a DELETE+re-INSERT ingest wiping columns derived after the last ingest
+  ALIAS     one chip catalogued under several names that are not cross-linked, so a
+            lookup on the printed name under-reports and the emptiness reads as safety
+  TIER      an Android -01 patch level used to adjudicate a chipset CVE, which it
+            provably cannot do (chipset fixes ship only at -05)
+  PHANTOM   a CVE attributed to a device via silicon that is not its application
+            processor (a PMIC/Wi-Fi/wearable part), inventing exposure
+  ADJUDGE   a verdict table that offers only fixed/open, hiding the majority case:
+            vendor CVEs that never entered a bulletin, which nothing can adjudicate
+  PROVENANCE a bridged/fuzzy match presented with the same confidence as a part
+            number printed in the vendor spec sheet
 
 Exit code = number of FAIL findings, so it composes in CI:
     python audit.py || echo "defects found"
@@ -156,6 +166,84 @@ def run(verbose=True):
                 add("FAIL", "DERIVED",
                     f"{miss:,} rows have no {label} — a DELETE+re-INSERT ingest wiped it",
                     "python derive.py   (must run after EVERY ingest; refresh.sh does)")
+
+    # ---- ALIAS / TIER / PHANTOM / ADJUDGE: the exposure join -----------------
+    # Every check below first asserts its own scope is NON-EMPTY. A check that runs
+    # against zero rows passes vacuously, which is how a broken join looks healthy.
+    tbls = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if {"device_vuln", "chipset_cve", "cve_spl"} <= tbls:
+        nv = q("SELECT COUNT(*) FROM device_vuln")
+        if nv == 0:
+            add("FAIL", "ADJUDGE", "device_vuln is empty — no chipset CVE reaches any build",
+                "python3 vuln.py --build   (needs chipset_cves.py and osv_spl.py first)")
+        else:
+            # ALIAS: a part with near-zero CVEs whose bin-variant sibling has many is
+            # the signature of alias fragmentation, not of a safe chip.
+            cnt = dict(con.execute(
+                "SELECT part, COUNT(DISTINCT cve) FROM chipset_cve GROUP BY part"))
+            thin = []
+            for p, n in cnt.items():
+                # a sibling differing only by a 1-char bin suffix is the same silicon
+                sib = max(((q2, m) for q2, m in cnt.items()
+                           if q2 != p and q2.startswith(p) and len(q2) == len(p) + 1),
+                          key=lambda x: x[1], default=None)
+                if sib and n * 10 < sib[1]:
+                    thin.append((p, n, sib[0], sib[1]))
+            thin.sort(key=lambda t: t[3] - t[1], reverse=True)
+            # TIER: a -01 level can never adjudicate a chipset CVE. Zero by construction,
+            # so this asserts the construction, and the scope is proven non-empty first.
+            n01 = q("SELECT COUNT(*) FROM device_vuln WHERE spl LIKE '%-01'")
+            if n01 == 0:
+                add("INFO", "TIER", "no build in device_vuln reports a -01 patch level, "
+                    "so the -01 guard is currently untested by real data")
+            else:
+                bad01 = q("SELECT COUNT(*) FROM device_vuln "
+                          "WHERE spl LIKE '%-01' AND status='claimed-fixed'")
+                add("FAIL" if bad01 else "PASS", "TIER",
+                    f"{bad01:,} of {n01:,} verdicts on a -01 patch level claim 'fixed' — "
+                    f"a -01 level covers AOSP platform only; every chipset fix ships at -05"
+                    if bad01 else
+                    f"{n01:,} verdicts sit on a -01 patch level and none claims 'fixed'",
+                    "vuln.py: dev_tier==1 -> unadjudicable-tier01")
+            # PHANTOM: exposure attributed through non-AP silicon.
+            from vuln import classify_cpe
+            ph = [p for (p,) in con.execute("SELECT DISTINCT matched_part FROM device_vuln")
+                  if classify_cpe(p) != "ap"]
+            add("FAIL" if ph else "PASS", "PHANTOM",
+                f"{len(ph)} matched parts are not application processors "
+                f"(e.g. {ph[:3]}) — a PMIC or Wi-Fi CVE is not the phone's AP exposure"
+                if ph else
+                f"all {q('SELECT COUNT(DISTINCT matched_part) FROM device_vuln')} matched "
+                f"parts classify as application processors",
+                "vuln.build() filters on classify_cpe(part)=='ap'")
+            # ADJUDGE: the third state must exist and be visible, because it is the
+            # MAJORITY. A two-state UI would imply 'not fixed' for all of these.
+            states = dict(con.execute("SELECT status, COUNT(*) FROM device_vuln GROUP BY status"))
+            una = sum(v for k, v in states.items() if k.startswith("unadjudicable"))
+            if una == 0:
+                add("FAIL", "ADJUDGE",
+                    "every verdict is fixed/open — no unadjudicable state present, yet "
+                    "only a quarter of chipset CVEs ever enter an Android bulletin",
+                    "vuln.py must emit unadjudicable-not-in-bulletin / -tier01")
+            else:
+                add("INFO", "ADJUDGE",
+                    f"{una:,} of {nv:,} verdicts ({100*una//nv}%) cannot be adjudicated by "
+                    f"any patch level — this is the majority case and the UI must say so, "
+                    f"not default it to 'open' or 'fixed'")
+            # PROVENANCE: a bridged marketing name is a weaker claim than a printed part.
+            via = dict(con.execute("SELECT match_via, COUNT(*) FROM device_vuln "
+                                   "GROUP BY match_via ORDER BY 2 DESC"))
+            weak = sum(v for k, v in via.items() if k.startswith("bridge") or k == "marketing-cpe")
+            if weak:
+                add("INFO", "PROVENANCE",
+                    f"{weak:,} of {nv:,} verdicts rest on a marketing-name match rather "
+                    f"than a part number printed in the spec sheet — one marketing name "
+                    f"can span several parts, so these are weaker claims",
+                    "device_vuln.match_via carries this; the UI shows it per row")
+    else:
+        add("INFO", "ADJUDGE", "exposure tables absent — chipset CVEs are not joined to "
+            "firmware yet", "python3 chipset_cves.py && python3 osv_spl.py && "
+            "python3 vuln.py --build")
 
     con.close()
 

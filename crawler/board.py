@@ -23,7 +23,7 @@ _state = {"running": False, "started": None, "finished": None, "rc": None, "pid"
 _lock = threading.Lock()
 
 DEFAULTS = {"interval_hours": 4, "auto": "0",
-            "sources": "ios,ios_security,samsung,chipsets,audit",
+            "sources": "ios,ios_security,samsung,chipsets,chipset_cves,patch_levels,exposure,audit",
             "notify_security_only": "0"}
 
 
@@ -126,6 +126,9 @@ def _runner(steps):
     scripts = {"ios": ("ios.py", []), "ios_security": ("ios_security.py", ["--days", "90"]),
                "iphone_specs": ("add_iphones.py", []), "samsung": ("samsung.py", []),
                "chipsets": ("derive.py", []), "fix": ("fix_data.py", ["--all"]),
+               "chipset_cves": ("chipset_cves.py", ["--since", "2024-01-01"]),
+               "patch_levels": ("osv_spl.py", []),
+               "exposure": ("vuln.py", ["--build"]),
                "audit": ("audit.py", [])}
     with open(RUN_LOG, "w") as lg:
         lg.write(f"=== refresh started {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())} ===\n")
@@ -136,6 +139,11 @@ def _runner(steps):
         if any(s in ("ios", "samsung", "ios_security", "iphone_specs") for s in steps) \
                 and "chipsets" not in steps:
             steps = list(steps) + ["chipsets"]
+        # device_vuln is derived from roms.chipset + roms.security_level + the CVE
+        # tables. Any ingest invalidates it, so re-join last, always.
+        if any(s in ("ios", "samsung", "chipsets", "chipset_cves", "patch_levels",
+                     "iphone_specs", "fix") for s in steps) and "exposure" not in steps:
+            steps = list(steps) + ["exposure"]
         for s in steps:
             if s not in scripts:
                 continue

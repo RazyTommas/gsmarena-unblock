@@ -27,6 +27,8 @@ one-off, so new sources get screened by the same rules:
             vendor CVEs that never entered a bulletin, which nothing can adjudicate
   PROVENANCE a bridged/fuzzy match presented with the same confidence as a part
             number printed in the vendor spec sheet
+  DESTRUCTIVE a refresh-by-replace ingester that deletes before it fetches, so a
+            blocked fetch erases the corpus and still logs a successful run
 
 Exit code = number of FAIL findings, so it composes in CI:
     python audit.py || echo "defects found"
@@ -244,6 +246,34 @@ def run(verbose=True):
         add("INFO", "ADJUDGE", "exposure tables absent — chipset CVEs are not joined to "
             "firmware yet", "python3 chipset_cves.py && python3 osv_spl.py && "
             "python3 vuln.py --build")
+
+    # ---- DESTRUCTIVE: a run that destroyed data and reported success -----------
+    # samsung.py committed 'DELETE FROM roms WHERE source=fota-cloud' BEFORE fetching.
+    # On a WAF-blocked box every scheduled refresh wiped the rows and logged
+    # ('fota-cloud', <now>, 0) — an erasure rendered as a green run. The guard is
+    # common.replace_rows(); this asserts no source is in that state now.
+    try:
+        cl = list(con.execute("SELECT source, ran_at, rows, "
+                              "IFNULL(outcome,'(none)') FROM crawl_log"))
+    except sqlite3.OperationalError:
+        cl = []
+    if not cl:
+        add("INFO", "DESTRUCTIVE", "crawl_log is empty — no ingest has reported a run, "
+            "so this check has nothing to test")
+    else:
+        ghosts = []
+        for src, ran, n, out in cl:
+            live = q("SELECT COUNT(*) FROM roms WHERE source=?", src)
+            if live == 0 and (n or 0) == 0 and out in ("(none)", "ok"):
+                ghosts.append((src, ran, out))
+        add("FAIL" if ghosts else "PASS", "DESTRUCTIVE",
+            f"{len(ghosts)} source(s) logged a run with 0 rows and hold 0 rows, without "
+            f"an outcome saying why: {[g[0] for g in ghosts][:4]} — indistinguishable from "
+            f"a fetch that destroyed the corpus"
+            if ghosts else
+            f"all {len(cl)} logged runs either hold rows or carry an explicit outcome "
+            f"(blocked/refused/empty)",
+            "ingesters must use common.replace_rows() and log_run(..., outcome=...)")
 
     con.close()
 

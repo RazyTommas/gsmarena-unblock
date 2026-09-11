@@ -23,7 +23,7 @@ _state = {"running": False, "started": None, "finished": None, "rc": None, "pid"
 _lock = threading.Lock()
 
 DEFAULTS = {"interval_hours": 4, "auto": "0",
-            "sources": "ios,ios_security,samsung,chipsets,chipset_cves,patch_levels,exposure,audit",
+            "sources": "ios,ios_security,samsung,chipsets,chipset_cves,patch_levels,exposure,platform,audit",
             "notify_security_only": "0"}
 
 
@@ -129,6 +129,7 @@ def _runner(steps):
                "chipset_cves": ("chipset_cves.py", ["--since", "2024-01-01"]),
                "patch_levels": ("osv_spl.py", []),
                "exposure": ("vuln.py", ["--build"]),
+               "platform": ("platform_vuln.py", ["--build"]),
                "audit": ("audit.py", [])}
     with open(RUN_LOG, "w") as lg:
         lg.write(f"=== refresh started {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())} ===\n")
@@ -144,6 +145,11 @@ def _runner(steps):
         if any(s in ("ios", "samsung", "chipsets", "chipset_cves", "patch_levels",
                      "iphone_specs", "fix") for s in steps) and "exposure" not in steps:
             steps = list(steps) + ["exposure"]
+        # The platform lane depends only on roms.security_level + cve_spl, so it is
+        # invalidated by any firmware ingest or an OSV refresh — not by chipset work.
+        if any(s in ("ios", "samsung", "patch_levels", "fix") for s in steps) \
+                and "platform" not in steps:
+            steps = list(steps) + ["platform"]
         for s in steps:
             if s not in scripts:
                 continue

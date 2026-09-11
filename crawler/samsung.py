@@ -18,7 +18,7 @@ version history + direct downloads use the samfw browser-ingest instead.
 """
 from __future__ import annotations
 import argparse, sqlite3, re, time
-from common import DB_PATH as DB, http_get, pda_month, log_run
+from common import replace_rows, DB_PATH as DB, http_get, pda_month, log_run
 
 MANIFEST = "https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
 
@@ -74,13 +74,33 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csc", nargs="+", default=CSCS_DEFAULT)
     ap.add_argument("--models", nargs="+", help="limit to these model codes")
+    ap.add_argument("--force", action="store_true",
+                    help="replace even if the fetch returned far fewer rows than are stored "
+                         "(use only when the upstream shrink is real)")
     args = ap.parse_args()
     models = {k: MODELS[k] for k in (args.models or MODELS) if k in MODELS}
+    if args.models and not models:
+        # A --models filter that matches nothing used to run to completion and print
+        # DONE: zero fetched, zero stored, exit 0. An empty selection is an unanswerable
+        # question, not a negative answer — refuse it so it can never be read as "the
+        # upstream had nothing".
+        unknown = [m for m in args.models if m not in MODELS]
+        print(f"REFUSED: none of {unknown} is a known model code. "
+              f"{len(MODELS)} are known, e.g. {list(MODELS)[:4]}", flush=True)
+        log_run("fota-cloud",
+                sqlite3.connect(DB).execute(
+                    "SELECT COUNT(*) FROM roms WHERE source='fota-cloud'").fetchone()[0],
+                outcome="refused", note=f"unknown model codes: {unknown}")
+        return 2
 
     con = sqlite3.connect(DB)
-    con.execute("DELETE FROM roms WHERE source='fota-cloud'")  # refresh cleanly
-    con.commit()
-    ins = found = blocked = 0
+    # Fetch FIRST, into memory. The previous version deleted and committed here, before
+    # a single request went out — so on any box where the WAF blocks us (this build
+    # sandbox does) every scheduled refresh destroyed the corpus and then logged a
+    # successful run with 0 rows. Collect, then replace atomically, then only if the
+    # result is plausible.
+    rows = []
+    found = 0
     for i, (code, name) in enumerate(sorted(models.items()), 1):
         got = 0
         for csc in args.csc:
@@ -89,25 +109,49 @@ def main():
             if b is None:
                 continue
             got += 1
-            con.execute(
-                "INSERT INTO roms(source,device,model,codename,region,type,branch,version,"
-                "android,size,updated_at,downloads,download_url,model_url,matched_devices)"
-                " VALUES('fota-cloud',?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (f"Samsung {name}", code, code, csc, "stock", "", b, None, None,
-                 pda_month(b), None, f"https://www.samfw.com/firmware/{code}",
-                 f"https://www.samfw.com/firmware/{code}", ""))
-            ins += 1
+            rows.append((f"Samsung {name}", code, code, csc, "stock", "", b, None, None,
+                         pda_month(b), None, f"https://www.samfw.com/firmware/{code}",
+                         f"https://www.samfw.com/firmware/{code}", ""))
         if got:
             found += 1
-        con.commit()
         if i % 10 == 0:
-            print(f"  {i}/{len(models)} models, {ins} builds", flush=True)
+            print(f"  {i}/{len(models)} models, {len(rows)} builds", flush=True)
+
+    ins_sql = ("INSERT INTO roms(source,device,model,codename,region,type,branch,version,"
+               "android,size,updated_at,downloads,download_url,model_url,matched_devices)"
+               " VALUES('fota-cloud',?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    n, outcome = replace_rows(con, "roms", "source='fota-cloud'", (), rows, ins_sql,
+                              source="fota-cloud", force=args.force)
     tot = con.execute("SELECT COUNT(*) FROM roms WHERE source='fota-cloud'").fetchone()[0]
-    print(f"DONE: {found}/{len(models)} models had builds; {tot} region-builds ingested", flush=True)
-    log_run("fota-cloud", tot)
-    if tot == 0:
-        print("  (0 results — if you're on the build sandbox this is the 403 WAF block; "
-              "run this on your own machine.)", flush=True)
+
+    if outcome == "ok":
+        print(f"DONE: {found}/{len(models)} models had builds; {tot} region-builds ingested",
+              flush=True)
+        log_run("fota-cloud", tot, outcome="ok")
+    elif outcome == "blocked":
+        note = (f"fetched 0 builds; kept the {tot} existing rows rather than destroying them. "
+                f"This is the 403 WAF block — run on your own machine.")
+        print(f"REFUSED TO REPLACE: {note}", flush=True)
+        log_run("fota-cloud", tot, outcome="blocked", note=note)
+    elif outcome == "refused":
+        note = (f"fetched only {len(rows)} builds against {tot} stored (below the 50% floor); "
+                f"kept the existing rows. Upstream layout change or a partial block. "
+                f"Re-run with --force if the shrink is real.")
+        print(f"REFUSED TO REPLACE: {note}", flush=True)
+        log_run("fota-cloud", tot, outcome="refused", note=note)
+    elif found == 0 and models:
+        # Nothing stored AND nothing fetched. replace_rows cannot tell these apart —
+        # with an empty corpus there is nothing to protect, so it reports 'empty'. But
+        # zero models responding across every CSC is the signature of the block, not of
+        # an empty upstream, and a source that is permanently blocked must not read as
+        # "upstream has nothing" forever.
+        note = (f"0 of {len(models)} models returned a build across {len(args.csc)} CSCs — "
+                f"that is the 403 WAF block, not an empty upstream. Run on your own machine.")
+        print(f"BLOCKED: {note}", flush=True)
+        log_run("fota-cloud", tot, outcome="blocked", note=note)
+    else:
+        print(f"DONE: {tot} region-builds (corpus was empty before this run)", flush=True)
+        log_run("fota-cloud", tot, outcome=outcome)
     con.close()
 
 

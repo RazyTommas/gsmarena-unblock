@@ -37,6 +37,18 @@ THE RULES A RESULT MUST FOLLOW (learned the hard way, see DESIGN doc)
     An empty result is only evidence when a non-empty result was possible.
   * never commit a credential. Say where it lives, never what it is.
 
+IT IS `msg`, BUT THE BUS IS GIT
+The verbs mirror ~/work/git/msg deliberately (send / inbox / read / reply / agents),
+and the on-disk format is identical — markdown with YAML frontmatter under
+msg/inbox/<agent>/ — so `ls` and `cat` work and nobody has to learn a second thing.
+
+One honest difference. `msg read` is atomic: it MOVES the file on one filesystem, so
+a shared mailbox hands each message to exactly one agent. Git has no equivalent. Two
+boxes can both read while offline and both pushes succeed, because they touch
+different paths. So a claim here is ADVISORY, not exclusive. With two agents that is
+fine; past a handful it would need a real lock, and pretending otherwise is how you
+get two agents doing the same job and neither noticing.
+
     python3 relay.py next              # what should I work on?
     python3 relay.py run <id>          # claim, execute, submit  (the usual path)
     python3 relay.py status            # what is open / claimed / done
@@ -70,14 +82,36 @@ def now():
 
 
 def sync():
-    """Pull other people's messages. Rebase, because our commits are append-only
-    files that can always replay cleanly on top of theirs."""
+    """Pull other people's messages. Rebase, because our commits are append-only files
+    that always replay cleanly on top of theirs.
+
+    A rebase refuses outright if the working tree is dirty, and `git` reports that as a
+    bare exit 128. Left as-is the agent sees "pull failed" and has no idea why or what
+    to do — correct behaviour with no forward path. So name the offending files and the
+    fix, and carry on with local state rather than dying: a stale read is recoverable,
+    a crashed collector mid-harvest is not."""
+    dirty = [l for l in sh("git", "status", "--porcelain", check=False).splitlines()
+             if l.strip()]
+    if dirty:
+        print(f"  ! working tree has {len(dirty)} uncommitted change(s); skipping the "
+              f"pull so nothing of yours is touched. Reading local state.", file=sys.stderr)
+        for l in dirty[:5]:
+            print(f"      {l}", file=sys.stderr)
+        if len(dirty) > 5:
+            print(f"      ... and {len(dirty)-5} more", file=sys.stderr)
+        print("      fix: commit them, or `git stash`, then re-run.", file=sys.stderr)
+        return False
     try:
         sh("git", "fetch", "origin", "--quiet")
         sh("git", "pull", "--rebase", "--quiet", "origin", branch())
+        return True
     except RuntimeError as e:
-        print(f"  ! pull failed ({e.args[0].splitlines()[0]}) — working from local state",
+        first = e.args[0].splitlines()
+        detail = next((l for l in first if l.strip() and "->" not in l), first[0])
+        print(f"  ! pull failed: {detail.strip()}", file=sys.stderr)
+        print("      working from local state — results you push may need a manual rebase.",
               file=sys.stderr)
+        return False
 
 
 def branch():
@@ -292,6 +326,152 @@ def cmd_pull(a):
     return 0
 
 
+
+# ── the msg-compatible side: free-form mail, same format, git as the bus ──────
+MSG = HERE / "msg"
+MBOX, MARCH, AGENTS = MSG / "inbox", MSG / "archive", MSG / "agents"
+
+
+def _slug(s):
+    return re.sub(r"[^A-Za-z0-9_.-]", "-", str(s))
+
+
+def _msg_id():
+    return time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f"-{os.getpid() % 1000:03d}"
+
+
+def cmd_register(a):
+    """Announce yourself. Optional for receiving, but it is how the other box knows
+    you exist and what you are doing — and it is what makes a mistyped recipient get
+    caught instead of silently creating a dead mailbox nobody ever reads."""
+    sync()
+    AGENTS.mkdir(parents=True, exist_ok=True)
+    (MBOX / _slug(AGENT)).mkdir(parents=True, exist_ok=True)
+    p = AGENTS / f"{_slug(AGENT)}.json"
+    p.write_text(json.dumps({"agent": AGENT, "role": a.role or "",
+                             "host": os.uname().nodename, "seen": now()}, indent=2))
+    keep = MBOX / _slug(AGENT) / ".keep"
+    keep.write_text("")
+    push([p, keep], f"relay: register {AGENT}")
+    n = len(list((MBOX / _slug(AGENT)).glob("*.md")))
+    print(f"registered {AGENT}" + (f" — {n} message(s) waiting" if n else " — no mail"))
+    return 0
+
+
+def cmd_agents(a):
+    sync()
+    rows = []
+    for p in sorted(AGENTS.glob("*.json")):
+        d = load(p) or {}
+        box = MBOX / _slug(d.get("agent", ""))
+        rows.append((d.get("agent", "?"), d.get("seen", "?"), d.get("role", ""),
+                     len(list(box.glob("*.md"))) if box.exists() else 0))
+    # a mailbox with no registration is exactly the dead-letter case worth surfacing
+    known = {r[0] for r in rows}
+    for box in sorted(MBOX.glob("*")):
+        if box.is_dir() and box.name not in {_slug(k) for k in known}:
+            rows.append((box.name + "  (never registered)", "-", "", 
+                         len(list(box.glob("*.md")))))
+    if not rows:
+        print("no agents registered yet")
+        return 0
+    for name, seen, role, unread in rows:
+        flag = f"  {unread} unread" if unread else ""
+        print(f"  {name:28} last seen {seen}{flag}")
+        if role:
+            print(f"      {role}")
+    return 0
+
+
+def cmd_send(a):
+    sync()
+    to = _slug(a.to)
+    box = MBOX / to
+    registered = (AGENTS / f"{to}.json").exists() or box.exists()
+    if not registered and not a.force:
+        # Delivering to a mailbox nobody owns is how messages die silently. Refuse,
+        # and show who does exist, rather than creating a dead letter box.
+        who = [p.stem for p in AGENTS.glob("*.json")] or ["(nobody registered yet)"]
+        print(f"refusing to create a mailbox for unknown agent {a.to!r}.")
+        print(f"known: {', '.join(who)}   — use --force if the name is right")
+        return 1
+    box.mkdir(parents=True, exist_ok=True)
+    mid = _msg_id()
+    p = box / f"{mid}-from-{_slug(AGENT)}.md"
+    body = a.message
+    if a.file:
+        body = (body + "\n\n" if body else "") + Path(a.file).read_text()
+    p.write_text(f"---\nid: {mid}\nfrom: {AGENT}\nto: {a.to}\n"
+                 f"sent: {now()}\nsubject: {a.subject}\n"
+                 + (f"re: {a.re}\n" if a.re else "") + "---\n\n" + (body or "") + "\n")
+    push([p], f"relay: msg {AGENT} -> {a.to}: {a.subject[:50]}")
+    print(f"sent {mid} to {a.to}")
+    return 0
+
+
+def cmd_reply(a):
+    src = None
+    for d in (MBOX, MARCH):
+        for p in d.rglob(f"{a.id}*.md"):
+            src = p; break
+        if src:
+            break
+    if not src:
+        print(f"no message {a.id}"); return 1
+    head = src.read_text().split("---")[1] if "---" in src.read_text() else ""
+    frm = next((l.split(":", 1)[1].strip() for l in head.splitlines()
+                if l.startswith("from:")), None)
+    subj = next((l.split(":", 1)[1].strip() for l in head.splitlines()
+                 if l.startswith("subject:")), "")
+    if not frm:
+        print("could not read the sender from that message"); return 1
+    return cmd_send(argparse.Namespace(to=frm, subject=f"Re: {subj}", message=a.message,
+                                       file=None, re=a.id, force=True))
+
+
+def _my_box():
+    return MBOX / _slug(AGENT)
+
+
+def cmd_inbox(a):
+    sync()
+    box = _my_box()
+    ms = sorted(box.glob("*.md")) if box.exists() else []
+    if not ms:
+        print(f"no mail for {AGENT}")
+        return 0
+    print(f"{len(ms)} message(s) for {AGENT}:")
+    for p in ms:
+        t = p.read_text()
+        head = t.split("---")[1] if "---" in t else ""
+        g = lambda k: next((l.split(":", 1)[1].strip() for l in head.splitlines()
+                            if l.startswith(k + ":")), "?")
+        print(f"  {g('id'):22} from {g('from'):20} {g('subject')[:60]}")
+    return 0
+
+
+def cmd_read(a):
+    """Print the oldest unread and archive it. NOTE: over git this is not an atomic
+    claim — see the module docstring. It is a receipt, not a lock."""
+    sync()
+    box = _my_box()
+    ms = sorted(box.glob("*.md")) if box.exists() else []
+    if a.id:
+        ms = [p for p in ms if p.name.startswith(a.id)]
+    if not ms:
+        print(f"no mail for {AGENT}")
+        return 1
+    p = ms[0]
+    print(p.read_text())
+    if a.peek:
+        return 0
+    dest = MARCH / _slug(AGENT)
+    dest.mkdir(parents=True, exist_ok=True)
+    p.rename(dest / p.name)
+    push([p, dest / p.name], f"relay: {AGENT} read {p.name}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -314,6 +494,26 @@ def main():
                    help="did the task's control request succeed?")
     s.add_argument("--files", nargs="*")
     s.set_defaults(fn=cmd_submit)
+
+    g = sub.add_parser("register"); g.add_argument("-r", "--role", default="")
+    g.set_defaults(fn=cmd_register)
+    sub.add_parser("agents").set_defaults(fn=cmd_agents)
+    sub.add_parser("inbox").set_defaults(fn=cmd_inbox)
+
+    rd = sub.add_parser("read"); rd.add_argument("id", nargs="?")
+    rd.add_argument("--peek", action="store_true", help="print without archiving")
+    rd.set_defaults(fn=cmd_read)
+
+    sd = sub.add_parser("send"); sd.add_argument("to")
+    sd.add_argument("-s", "--subject", required=True)
+    sd.add_argument("-m", "--message", default="")
+    sd.add_argument("--file", help="append a file as the body")
+    sd.add_argument("--re", help="id this is a reply to")
+    sd.add_argument("--force", action="store_true", help="send to an unregistered name")
+    sd.set_defaults(fn=cmd_send)
+
+    rp = sub.add_parser("reply"); rp.add_argument("id")
+    rp.add_argument("-m", "--message", required=True); rp.set_defaults(fn=cmd_reply)
 
     n = sub.add_parser("new"); n.add_argument("id"); n.add_argument("--title", required=True)
     n.add_argument("--why", default=""); n.add_argument("--script")

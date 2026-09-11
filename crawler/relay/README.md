@@ -49,6 +49,33 @@ when a non-empty result was possible.
 
 Never commit a credential. Say where it lives, never what it is.
 
+## It is `msg`, but the bus is git
+
+The verbs mirror `~/work/git/msg` on purpose, and the on-disk format is identical —
+markdown with YAML frontmatter under `msg/inbox/<agent>/` — so `ls` and `cat` work and
+nobody learns a second thing.
+
+```bash
+python3 relay.py register -r "what you are working on"
+python3 relay.py agents            # who exists, and their unread counts
+python3 relay.py send box-home -s "subject" -m "body"
+python3 relay.py inbox
+python3 relay.py read              # oldest unread: prints it and archives it
+python3 relay.py read --peek       # look without archiving
+python3 relay.py reply <id> -m "..."
+```
+
+Sending to an unregistered name is **refused**, with the known names listed. Delivering
+to a mailbox nobody owns is how messages die silently; `--force` is there for when the
+name really is right.
+
+**One honest difference from `msg`.** `msg read` is atomic — it *moves* the file on one
+filesystem, so a shared mailbox hands each message to exactly one agent. Git has no
+equivalent: two boxes can both read while offline and both pushes succeed, because they
+touch different paths. A claim here is **advisory, not exclusive**. With two agents that
+is fine; past a handful it needs a real lock, and pretending otherwise is how you get two
+agents doing the same job and neither noticing.
+
 ## Commands
 
 On the remote box:

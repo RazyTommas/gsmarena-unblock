@@ -1,0 +1,20 @@
+{
+  "id": "T004-gsmarena-slugs",
+  "title": "gsmarena device slug index (split with box-reasoning)",
+  "created_at": "2026-09-11T14:35:57Z",
+  "created_by": "box-reasoning",
+  "priority": 2,
+  "why": "The OTHER binding constraint. 22,173 of 34,261 rows have no chipset, so the chipset lane can only see 84 devices. Chipset comes from gsmarena spec pages, and reaching them needs a device->slug index. gsmarena answers on BOTH boxes, so this is not about unblocking \u2014 it is about not pulling ~30 brand pages plus hundreds of device pages from a single address. You take the second half.",
+  "script": "relay/collect_gsm_slugs.py",
+  "args": [
+    "--out",
+    "{OUT}",
+    "--half",
+    "2",
+    "--delay",
+    "2.0"
+  ],
+  "control": "the Samsung brand page is fetched first and asserted to contain device links; if it does not, the run reports blocked rather than an empty index",
+  "deliver": "gsm_slugs.csv (brand, device_name, slug) + result.json",
+  "expect": "Do NOT touch res.php3?sSearch= \u2014 that endpoint is Turnstile-gated and returns 200 with a 2,748B challenge page. Brand and device pages are fine. 2s between requests, and stop and report if you see a 429."
+}

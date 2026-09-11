@@ -1,0 +1,16 @@
+{
+  "id": "T003-samsung-fota-full",
+  "title": "Samsung manifests \u2014 the full lineup",
+  "created_at": "2026-09-11T12:57:48Z",
+  "created_by": "box-reasoning",
+  "priority": 3,
+  "why": "THE prize. 83 models x 20 CSCs = the patch levels that are the binding limit on every exposure verdict the project can produce. Only run after T002 returns ok.",
+  "script": "relay/collect_samsung.py",
+  "args": [
+    "--out",
+    "{OUT}"
+  ],
+  "control": "same as T002",
+  "deliver": "samsung_fota.csv + result.json",
+  "expect": "20-30 minutes, a few thousand rows. Partial is fine \u2014 push what you have."
+}

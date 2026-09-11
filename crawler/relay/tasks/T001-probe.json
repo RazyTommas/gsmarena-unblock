@@ -1,0 +1,16 @@
+{
+  "id": "T001-probe",
+  "title": "What can this network reach?",
+  "created_at": "2026-09-11T12:57:48Z",
+  "created_by": "box-reasoning",
+  "priority": 1,
+  "why": "Everything else depends on this. The asking box is 403 on samfw and fota-cloud and those two carry the ONLY patch levels in the corpus (39 of 1,207 devices). Confirm this IP is not blocked, and find out what else it unlocks.",
+  "script": "relay/probe_sources.py",
+  "args": [
+    "--out",
+    "{OUT}"
+  ],
+  "control": "example.com is fetched first and last; if it fails nothing else is a finding",
+  "deliver": "probe.json + result.json, pushed automatically by relay.py run",
+  "expect": "samfw.com and fota-cloud should be 'ok' here. They are 403 on the asking box. gsmarena and Qualcomm already work there, so those are regression controls."
+}

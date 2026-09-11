@@ -1,0 +1,28 @@
+{
+  "id": "T002-samsung-fota",
+  "title": "Samsung manifests \u2014 a small slice first",
+  "created_at": "2026-09-11T12:57:48Z",
+  "created_by": "box-reasoning",
+  "priority": 2,
+  "why": "Proves the collector works end to end on a few models before spending an hour on the full lineup. 5 models x 5 CSCs, about a minute.",
+  "script": "relay/collect_samsung.py",
+  "args": [
+    "--out",
+    "{OUT}",
+    "--csc",
+    "ILO",
+    "MID",
+    "XSG",
+    "EGY",
+    "INS",
+    "--models",
+    "SM-A055F",
+    "SM-A155F",
+    "SM-A356B",
+    "SM-S928B",
+    "SM-S938B"
+  ],
+  "control": "SM-A055F/ILO is fetched first; a 403 there reports 'blocked', never 'empty'",
+  "deliver": "samsung_fota.csv + result.json",
+  "expect": "tens of builds. If the control 403s, STOP and report \u2014 do not run T003."
+}

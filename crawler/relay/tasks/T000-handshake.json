@@ -1,0 +1,11 @@
+{
+  "id": "T000-handshake",
+  "title": "Handshake \u2014 prove the relay works both ways",
+  "created_at": "2026-09-11T12:59:04Z",
+  "created_by": "box-reasoning",
+  "why": "Verify the far end before spending an hour on a real harvest. Costs nothing.",
+  "script": null,
+  "args": [],
+  "control": "",
+  "deliver": "just run: python3 relay.py submit T000-handshake --outcome ok --control 1 --note 'reporting in from <where>'"
+}

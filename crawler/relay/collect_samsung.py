@@ -55,19 +55,38 @@ def fetch(url, timeout=20):
 
 
 def parse(xml):
-    """The manifest carries the current build and, on most models, the one before it.
-    Returns a list of (kind, pda, csc_ver, build) — never a bare string, because
-    'latest' and 'previous' are different rows and collapsing them loses history."""
-    out = []
-    for tag, kind in (("latest", "latest"), ("upgrade", "upgrade")):
-        for m in re.finditer(rf"<{tag}[^>]*>([^<]+)</{tag}>", xml):
-            v = m.group(1).strip()
-            if v:
-                out.append((kind, v))
-    for m in re.finditer(r"<value>([^<]+)</value>", xml):
-        v = m.group(1).strip()
-        if v and v not in [x[1] for x in out]:
-            out.append(("value", v))
+    """The manifest carries the current build and the upgrade history behind it.
+    Returns [(kind, version)] — never a bare string, because 'latest' and the older
+    builds are different rows and collapsing them loses the history that tells you a
+    device FELL BEHIND rather than merely where it is now.
+
+    TESTED AGAINST A FIXTURE, NOT A REAL RESPONSE. Every network we have tried is
+    blocked, so this parser has never seen live fota-cloud output. collector@field
+    flagged that the risk was unchanged after their run, and the fixture test that
+    flag prompted immediately found a real bug: `<value>` carries attributes in the
+    real format (`<value rcount="1" fwsize="...">`), and the original regex required
+    a bare tag — so the entire upgrade history parsed as nothing, silently. The
+    `latest` element carried attributes too (`<latest o="14">`) and only worked by
+    luck of a different pattern. Run tests/test_fota_parse.py; and when a real
+    response is finally captured, ADD IT as a fixture rather than trusting this."""
+    out, seen = [], set()
+
+    def add(kind, v):
+        v = (v or "").strip()
+        if v and v not in seen:
+            seen.add(v)
+            out.append((kind, v))
+
+    for m in re.finditer(r"<latest[^>]*>([^<]+)</latest>", xml):
+        add("latest", m.group(1))
+    # <upgrade> wraps nested <value> elements, so it is never matched as a leaf.
+    up = re.search(r"<upgrade[^>]*>(.*?)</upgrade>", xml, re.S)
+    if up:
+        for m in re.finditer(r"<value[^>]*>([^<]+)</value>", up.group(1)):
+            add("upgrade", m.group(1))
+    # any remaining <value> outside an <upgrade> block
+    for m in re.finditer(r"<value[^>]*>([^<]+)</value>", xml):
+        add("value", m.group(1))
     return out
 
 

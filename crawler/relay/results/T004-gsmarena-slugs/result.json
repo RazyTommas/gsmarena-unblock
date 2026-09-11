@@ -1,0 +1,10 @@
+{
+  "outcome": "empty",
+  "note": "makers.php3 returned HTTP 200 with no brands",
+  "control_ok": true,
+  "counts": {},
+  "files": [],
+  "agent": "box-field",
+  "finished_at": "2026-09-11T14:38:30Z",
+  "id": "T004-gsmarena-slugs"
+}

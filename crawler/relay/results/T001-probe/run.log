@@ -1,0 +1,29 @@
+CONTROL: ok (200, 559B)
+
+--- the blocked-here sources (the reason this box exists) ---
+
+--- Qualcomm: the SPA that answers everything ---
+
+--- sources that work on the other box (regression controls) ---
+  [  ok  ] CONTROL example.com                      200      559B 
+  [BLOCKED] samfw.com (device page)                  403     5643B 
+  [BLOCKED] fota-cloud (Samsung manifest)            403      440B 
+  [  ok  ] gsmarena brand page                      200    36413B 
+  [  ok  ] gsmarena device page                     200    40608B 
+  [ SMALL] gsmarena SEARCH (known-gated)            200     2748B 2748B is below the 8000B floor for real content
+  [  ok  ] qualcomm GetCollection                   200      129B 
+  [  ok  ] qualcomm globalsearch (500s on the other box)   200     9856B 
+  [  ok  ] OSV Android index                        200      661B 
+  [  ok  ] NVD 2.0                                  200    38060B 
+  [  ok  ] MediaTek bulletin                        200   133461B 
+  [  ok  ] Samsung SMR (whole year)                 200   133802B 
+  [  ok  ] Xiaomi trust (the 19-month silence)      200     2990B 
+  [  ok  ] Xiaomi EOS (liveness control)            200    32573B 
+  [  ok  ] Apple advisory index                     200   310424B 
+  [ EMPTY] Apple RSS (known false green)            200      598B 200 with zero '<item' — a false green
+  [  ok  ] AppleDB                                  200    82448B 
+  [  ok  ] CISA KEV                                 200  1714060B 
+  [  ok  ] mifirm.net                               200   283660B 
+  [  ok  ] CONTROL example.com (post)               200      559B 
+
+14 reachable, 4 not. Unlocked by this IP: ['gsmarena brand page', 'gsmarena device page', 'qualcomm GetCollection', 'qualcomm globalsearch (500s on the other box)']

@@ -1,0 +1,16 @@
+{
+  "outcome": "ok",
+  "note": "14 reachable, 4 not. Unlocked by this IP: ['gsmarena brand page', 'gsmarena device page', 'qualcomm GetCollection', 'qualcomm globalsearch (500s on the other box)']",
+  "control_ok": true,
+  "counts": {
+    "reachable": 14,
+    "unreachable": 4,
+    "unlocked_here": 4
+  },
+  "files": [
+    "probe.json"
+  ],
+  "agent": "box-field",
+  "finished_at": "2026-09-11T13:53:46Z",
+  "id": "T001-probe"
+}

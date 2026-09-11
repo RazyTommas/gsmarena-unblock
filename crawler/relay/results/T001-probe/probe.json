@@ -1,0 +1,211 @@
+{
+  "probed_at": "2026-09-11T13:53:46Z",
+  "control_ok": true,
+  "checks": [
+    {
+      "source": "CONTROL example.com",
+      "url": "https://example.com",
+      "status": 200,
+      "bytes": 559,
+      "ms": 166,
+      "error": null,
+      "note": "if this fails, no number below is a finding",
+      "verdict": "ok"
+    },
+    {
+      "source": "samfw.com (device page)",
+      "url": "https://samfw.com/firmware/SM-A045F",
+      "status": 403,
+      "bytes": 5643,
+      "ms": 6466,
+      "error": null,
+      "note": "Samsung firmware + security patch level",
+      "verdict": "blocked"
+    },
+    {
+      "source": "fota-cloud (Samsung manifest)",
+      "url": "https://fota-cloud-dn.ospserver.net/firmware/ILO/SM-A045F/version.xml",
+      "status": 403,
+      "bytes": 440,
+      "ms": 348,
+      "error": null,
+      "note": "the manifest samsung.py reads; blocked by WAF on the other box",
+      "verdict": "blocked"
+    },
+    {
+      "source": "gsmarena brand page",
+      "url": "https://www.gsmarena.com/samsung-phones-9.php",
+      "status": 200,
+      "bytes": 36413,
+      "ms": 618,
+      "error": null,
+      "note": "device slug index -> chipset coverage",
+      "verdict": "ok"
+    },
+    {
+      "source": "gsmarena device page",
+      "url": "https://www.gsmarena.com/samsung_galaxy_a06-13191.php",
+      "status": 200,
+      "bytes": 40608,
+      "ms": 655,
+      "error": null,
+      "note": "the spec fields we enrich from",
+      "verdict": "ok"
+    },
+    {
+      "source": "gsmarena SEARCH (known-gated)",
+      "url": "https://www.gsmarena.com/res.php3?sSearch=galaxy+a06",
+      "status": 200,
+      "bytes": 2748,
+      "ms": 300,
+      "error": null,
+      "note": "expected to fail even here \u2014 Turnstile. A PASS is real news.",
+      "verdict": "too-small",
+      "detail": "2748B is below the 8000B floor for real content"
+    },
+    {
+      "source": "qualcomm GetCollection",
+      "url": "https://docs.qualcomm.com/bundle/publicresource/GetCollection/securitybulletin",
+      "status": 200,
+      "bytes": 129,
+      "ms": 2336,
+      "error": null,
+      "note": "returns a collectionId on the other box",
+      "shell_probe_status": 200,
+      "shell_probe_bytes": 67,
+      "verdict": "ok"
+    },
+    {
+      "source": "qualcomm globalsearch (500s on the other box)",
+      "url": "https://docs.qualcomm.com/bundle/publicresource/globalsearch",
+      "status": 200,
+      "bytes": 9856,
+      "ms": 1415,
+      "error": null,
+      "note": "Content-Type must be EXACTLY text/plain; charset -> 415, json -> 500",
+      "verdict": "ok"
+    },
+    {
+      "source": "OSV Android index",
+      "url": "https://api.osv.dev/v1/vulns/ASB-A-528209857",
+      "status": 200,
+      "bytes": 661,
+      "ms": 694,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "NVD 2.0",
+      "url": "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2025-21479",
+      "status": 200,
+      "bytes": 38060,
+      "ms": 971,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "MediaTek bulletin",
+      "url": "https://www.mediatek.com/product-security-bulletin/september-2026",
+      "status": 200,
+      "bytes": 133461,
+      "ms": 1769,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "Samsung SMR (whole year)",
+      "url": "https://security.samsungmobile.com/securityUpdate.smsb?year=2026",
+      "status": 200,
+      "bytes": 133802,
+      "ms": 6893,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "Xiaomi trust (the 19-month silence)",
+      "url": "https://trust.mi.com/bff/security-update-detail/synctime/202412",
+      "status": 200,
+      "bytes": 2990,
+      "ms": 4972,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "Xiaomi EOS (liveness control)",
+      "url": "https://trust.mi.com/bff/eos-products/phones?type=Xiaomi-Redmi-POCO",
+      "status": 200,
+      "bytes": 32573,
+      "ms": 1719,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "Apple advisory index",
+      "url": "https://support.apple.com/en-us/100100",
+      "status": 200,
+      "bytes": 310424,
+      "ms": 364,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "Apple RSS (known false green)",
+      "url": "https://support.apple.com/rss/security.rss",
+      "status": 200,
+      "bytes": 598,
+      "ms": 2298,
+      "error": null,
+      "note": "expected empty-but-200; a real item count here would be news",
+      "records": 0,
+      "verdict": "empty-but-200",
+      "detail": "200 with zero '<item' \u2014 a false green"
+    },
+    {
+      "source": "AppleDB",
+      "url": "https://api.appledb.dev/ios/iOS;22H374.json",
+      "status": 200,
+      "bytes": 82448,
+      "ms": 2310,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "CISA KEV",
+      "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+      "status": 200,
+      "bytes": 1714060,
+      "ms": 3449,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "mifirm.net",
+      "url": "https://mifirm.net/",
+      "status": 200,
+      "bytes": 283660,
+      "ms": 3660,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    },
+    {
+      "source": "CONTROL example.com (post)",
+      "url": "https://example.com",
+      "status": 200,
+      "bytes": 559,
+      "ms": 145,
+      "error": null,
+      "note": "",
+      "verdict": "ok"
+    }
+  ]
+}

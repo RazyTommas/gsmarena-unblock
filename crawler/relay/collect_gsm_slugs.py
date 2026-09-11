@@ -44,12 +44,25 @@ def get(url, timeout=30):
 
 DEV_RE = re.compile(r'<a href="([a-z0-9_\-]+-\d+\.php)"[^>]*>.*?<strong><span>(.*?)</span>',
                     re.S | re.I)
-# The brand name is the anchor text and nothing follows it. The first version
-# expected a trailing <br>, which does not exist in the real markup, so makers.php3
-# parsed as zero brands and the run reported 'empty' from a page that had 100+ of
-# them. Written blind, shipped to another box, and only then discovered — which is
-# what tests/test_gsm_parse.py now prevents.
-BRAND_RE = re.compile(r'<a href="([a-z0-9_\-]+-phones-\d+\.php)"\s*>([^<]{2,40})</a>', re.I)
+# makers.php3 carries brand links in TWO markups and only one is the catalogue:
+#
+#   nav dropdown, QUOTED, 36 entries — a "popular brands" menu:
+#       <li><a href="samsung-phones-9.php">Samsung</a></li>
+#   brand table, UNQUOTED, 125 entries — what we actually want:
+#       <td><a href=acer-phones-59.php>Acer<br><span>117 devices</span></a></td>
+#
+# The first version required a trailing <br> (right) and quoted attributes (wrong), so
+# it matched nothing. The "fix" dropped the <br> and KEPT the quotes, so it matched the
+# nav menu — 36 brands, a number plausible enough that I verified the COUNT without
+# checking WHAT was counted, and declared it correct while missing 90 brands.
+# Caught by collector@field, who declined to re-run because a successful-looking pass
+# with thousands of rows would have left no reason to doubt it.
+BRAND_RE = re.compile(r'<a href=([a-z0-9_\-]+-phones-\d+\.php)>([^<]{1,40})<br', re.I)
+
+# A count alone cannot tell the catalogue from the menu, so the floor does. gsmarena has
+# carried 100+ brands for years; anything far below that means the regex found a
+# different element, not that the catalogue shrank.
+MIN_BRANDS = 80
 
 
 def devices_on(html):
@@ -90,10 +103,18 @@ def main():
 
     st, html = get(MAKERS)
     brands = BRAND_RE.findall(html)
-    if not brands:
+    if len(brands) < MIN_BRANDS:
+        note = (f"makers.php3 returned HTTP {st} and {len(brands)} brands, below the "
+                f"{MIN_BRANDS} floor. That is a PARSER error, not an empty catalogue: "
+                f"the page carries a 36-entry nav dropdown alongside the ~125-entry "
+                f"brand table, and a regex that drifts onto the menu returns a "
+                f"plausible-looking number. Refusing rather than collecting a "
+                f"confidently partial index.")
+        print(f"REFUSED: {note}")
         (outdir / "result.json").write_text(json.dumps(
-            {"outcome": "empty", "note": f"makers.php3 returned HTTP {st} with no brands",
-             "control_ok": True, "counts": {}, "files": []}, indent=2))
+            {"outcome": "refused", "note": note, "control_ok": True,
+             "counts": {"brands_parsed": len(brands), "floor": MIN_BRANDS},
+             "files": []}, indent=2))
         return 1
     brands = sorted(set(brands))
     mine = brands[a.half - 1::2]          # interleave, so neither box gets only big brands

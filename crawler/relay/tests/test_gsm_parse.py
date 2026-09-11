@@ -17,10 +17,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from collect_gsm_slugs import BRAND_RE, devices_on
 
-MAKERS = ('<a href="samsung-phones-9.php">Samsung</a></li>'
-          '<li><a href="apple-phones-48.php">Apple</a></li>'
-          '<li><a href="xiaomi-phones-80.php">Xiaomi</a></li>'
-          '<li><a href="google-phones-107.php">Google</a></li>')
+# BOTH markups, exactly as the live page carries them. The nav entries exist to prove
+# the parser ignores them: matching the menu returns a plausible count and silently
+# drops 90 brands, which is worse than returning zero.
+MAKERS_NAV = ('<li><a href="samsung-phones-9.php">Samsung</a></li>'
+              '<li><a href="apple-phones-48.php">Apple</a></li>')
+MAKERS_TABLE = ('<td><a href=acer-phones-59.php>Acer<br><span>117 devices</span></a></td>'
+                '<td><a href=alcatel-phones-5.php>alcatel<br><span>424 devices</span></a></td>'
+                '<td><a href=samsung-phones-9.php>Samsung<br><span>1465 devices</span></a></td>')
+MAKERS = MAKERS_NAV + MAKERS_TABLE
 
 BRAND_PAGE = ('<div class="makers"><ul>'
               '<li><a href="samsung_galaxy_a07-13698.php">'
@@ -31,13 +36,16 @@ BRAND_PAGE = ('<div class="makers"><ul>'
 
 
 class TestGsmParse(unittest.TestCase):
-    def test_brands_parse(self):
-        """The bug this file exists for."""
+    def test_parses_the_table_not_the_nav(self):
+        """The second bug, and the worse one: the nav menu yields a plausible count."""
         b = BRAND_RE.findall(MAKERS)
-        self.assertEqual(len(b), 4, f"expected 4 brands, got {len(b)} -- a regex written "
-                                    f"against imagined markup returns zero, and zero "
-                                    f"reads as 'the catalogue is empty'")
-        self.assertEqual(b[0], ("samsung-phones-9.php", "Samsung"))
+        self.assertEqual(len(b), 3, f"expected the 3 TABLE entries, got {len(b)}")
+        self.assertEqual(b[0], ("acer-phones-59.php", "Acer"))
+
+    def test_nav_alone_yields_nothing(self):
+        """A regex that drifts onto the dropdown must return zero, not 36."""
+        self.assertEqual(BRAND_RE.findall(MAKERS_NAV), [],
+                         "the quoted nav dropdown is not the catalogue")
 
     def test_devices_parse(self):
         d = devices_on(BRAND_PAGE)

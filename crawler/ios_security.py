@@ -58,6 +58,12 @@ def main():
           + ("" if args.all else f" (since {cutoff}; use --all for the full corpus)"),
           flush=True)
 
+    con.executescript("""
+    CREATE TABLE IF NOT EXISTS apple_baseband(
+      build TEXT, identifier TEXT, baseband TEXT, fetched_at TEXT,
+      PRIMARY KEY (build, identifier));
+    CREATE INDEX IF NOT EXISTS ix_ab_build ON apple_baseband(build);
+    """)
     filled = bb = 0
     for build in sorted(builds):
         d = http_get(APPLEDB.format(build=build), as_json=True) or {}
@@ -66,9 +72,17 @@ def main():
             con.execute("UPDATE roms SET security_patch=? WHERE source='ipsw.me' AND version LIKE ?",
                         (url, f"%({build})"))
             filled += 1
-        # baseband (modem) firmware version, keyed by device identifier for this build
+        # baseband (modem) firmware version, keyed by device identifier for this build.
+        # Written to its OWN table as well as to roms. roms is replaced wholesale by
+        # every ipsw.me re-ingest, so a value that lives only there is destroyed on the
+        # next scheduled refresh -- 4,381 rows were, at 09:58, silently. An externally
+        # fetched value is not derivable from the corpus, so it cannot be recomputed by
+        # derive.py unless derive.py has somewhere to read it FROM. This is that place.
         for ident, ver in (d.get("basebandVersions") or {}).items():
             if ver:
+                con.execute("INSERT OR REPLACE INTO apple_baseband VALUES(?,?,?,?)",
+                            (build, ident, ver,
+                             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
                 con.execute("UPDATE roms SET baseband=? WHERE source='ipsw.me' AND model=? AND version LIKE ?",
                             (ver, ident, f"%({build})"))
                 bb += 1

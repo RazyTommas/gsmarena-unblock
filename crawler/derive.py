@@ -91,7 +91,48 @@ def main():
     log("link_kind · android_num · region_kind · ingested_at re-derived")
     con.close()
 
-    # 7. chipset (its own module — normalised-name matching)
+    # 7. baseband — restored from the tables that own it.
+    #
+    # This column kept vanishing and the cause was not the fetch, it was the storage.
+    # ios.py and samsung.py both refresh by replacing every row for their source, so
+    # any column enriched AFTERWARDS is destroyed on the next scheduled run. vendor
+    # and chipset survive because derive.py recomputes them from the corpus; baseband
+    # cannot be recomputed, because it was never IN the corpus -- it came from
+    # AppleDB and from Samsung's OTA manifest.
+    #
+    # So the fetched values live in apple_baseband and samsung_modem, and this restores
+    # roms.baseband from them after every ingest. An externally fetched value needs a
+    # home of its own, or "derived columns are never done once" does not apply to it
+    # and it simply dies.
+    con = sqlite3.connect(DB_PATH)
+    restored = 0
+    for tbl, sql in (
+        ("apple_baseband",
+         """UPDATE roms SET baseband = (
+              SELECT a.baseband FROM apple_baseband a
+              WHERE roms.version LIKE '%('||a.build||')' AND roms.model = a.identifier)
+            WHERE IFNULL(baseband,'')='' AND EXISTS (
+              SELECT 1 FROM apple_baseband a
+              WHERE roms.version LIKE '%('||a.build||')' AND roms.model = a.identifier)"""),
+        ("samsung_modem",
+         """UPDATE roms SET baseband = (
+              SELECT m.cp FROM samsung_modem m
+              WHERE m.ap = roms.version AND IFNULL(m.cp,'')!='')
+            WHERE IFNULL(baseband,'')='' AND EXISTS (
+              SELECT 1 FROM samsung_modem m
+              WHERE m.ap = roms.version AND IFNULL(m.cp,'')!='')"""),
+    ):
+        try:
+            con.execute(sql)
+            restored += con.execute("SELECT changes()").fetchone()[0]
+        except sqlite3.OperationalError:
+            pass          # table not created yet on a fresh corpus
+    con.commit()
+    n = con.execute("SELECT COUNT(*) FROM roms WHERE IFNULL(baseband,'')!=''").fetchone()[0]
+    log(f"baseband restored on {restored:,} rows ({n:,} total) from apple_baseband + samsung_modem")
+    con.close()
+
+    # 8. chipset (its own module — normalised-name matching)
     try:
         import link_chipsets
         link_chipsets.main()

@@ -66,6 +66,32 @@ def tier_of(spl: str):
     return None
 
 
+def spl_precision(spl: str):
+    """'date' (YYYY-MM-DD) or 'month' (YYYY-MM), or None if it is neither.
+
+    Six of the nine non-Samsung vendors that publish a patch level publish only the
+    MONTH. Three ways to model that and only one is honest:
+
+      * demand a full date  -> every one of them fails, several hundred devices lost
+      * pad '2026-08' to '2026-08-01' -> invents a day the vendor never stated, and
+        from then on it is indistinguishable from a real -01 level. That is worse
+        than losing the data, because it silently asserts the TIER as well: a padded
+        -01 would claim the build cannot adjudicate chipset CVEs, which the vendor
+        never said.
+      * store the precision and let the comparison respect it. <- this
+
+    A month-precision level still adjudicates plenty: if a fix shipped at 2026-07-05
+    and the device reports 2026-08, August is later than July whichever day it means.
+    It is only ambiguous WITHIN the same month, where -01 and -05 differ. So month
+    precision is sound across month boundaries and unadjudicable inside one."""
+    s = (spl or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        return "date"
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        return "month"
+    return None
+
+
 def _months_between(a: str, b: str) -> int:
     """Whole months from a to b, both 'YYYY-MM…'. Negative when a is later."""
     try:
@@ -140,7 +166,18 @@ def build(con=None, verbose=True, relevance_months=RELEVANCE_MONTHS):
             if not in_win:
                 out_of_window += 1; skipped += 1
                 continue
-            if dtier is None:
+            prec = spl_precision(spl)
+            if prec == "month":
+                # Sound across months, ambiguous within one: we cannot tell whether
+                # the vendor means -01 or -05, and for a same-month fix that is
+                # exactly the distinction that decides the verdict.
+                if spl[:7] > fix_spl[:7]:
+                    st = "claimed-fixed"
+                elif spl[:7] < fix_spl[:7]:
+                    st = "open"
+                else:
+                    st = "unadjudicable-month-precision"
+            elif dtier is None:
                 st = "unknown-untiered-spl"
             elif dtier < ctier:
                 # e.g. a -01 build against a kernel/chipset (-05) CVE. This is the

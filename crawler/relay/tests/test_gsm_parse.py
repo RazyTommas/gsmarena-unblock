@@ -40,7 +40,16 @@ class TestGsmParse(unittest.TestCase):
         """The second bug, and the worse one: the nav menu yields a plausible count."""
         b = BRAND_RE.findall(MAKERS)
         self.assertEqual(len(b), 3, f"expected the 3 TABLE entries, got {len(b)}")
-        self.assertEqual(b[0], ("acer-phones-59.php", "Acer"))
+        self.assertEqual(b[0], ("acer-phones-59.php", "Acer", "117"))
+
+    def test_declared_device_count_is_captured(self):
+        """gsmarena prints each brand's device count. It is the completeness oracle
+        that would have caught the 55% truncation, so losing it is a real defect --
+        and it was lost once already to '<br' matching only three characters and
+        leaving the '>' before <span>."""
+        b = BRAND_RE.findall(MAKERS)
+        self.assertEqual([x[2] for x in b], ["117", "424", "1465"])
+        self.assertTrue(all(x[2].isdigit() for x in b))
 
     def test_nav_alone_yields_nothing(self):
         """A regex that drifts onto the dropdown must return zero, not 36."""

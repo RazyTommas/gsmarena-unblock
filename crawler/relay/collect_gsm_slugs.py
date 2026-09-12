@@ -57,7 +57,16 @@ DEV_RE = re.compile(r'<a href="([a-z0-9_\-]+-\d+\.php)"[^>]*>.*?<strong><span>(.
 # checking WHAT was counted, and declared it correct while missing 90 brands.
 # Caught by collector@field, who declined to re-run because a successful-looking pass
 # with thousands of rows would have left no reason to doubt it.
-BRAND_RE = re.compile(r'<a href=([a-z0-9_\-]+-phones-\d+\.php)>([^<]{1,40})<br', re.I)
+BRAND_RE = re.compile(r'<a href=([a-z0-9_\-]+-phones-\d+\.php)>([^<]{1,40})<br\s*/?>'
+                      r'\s*<span>\s*(\d+)\s+devices?\s*</span>', re.I)
+
+# gsmarena PRINTS each brand's device count next to the link. That is a
+# completeness oracle handed to us for free, and not using it is what let the
+# previous run report outcome=ok while missing 55% of its own half: --max-pages 4
+# cut every brand over ~200 devices, and nothing in the result said so. Silent
+# truncation reads as "covered everything".
+# collector@field caught it because Honor and vivo both stopped at exactly 110 —
+# two unrelated brands landing on the same number is not a catalogue fact.
 
 # A count alone cannot tell the catalogue from the menu, so the floor does. gsmarena has
 # carried 100+ brands for years; anything far below that means the regex found a
@@ -81,8 +90,12 @@ def main():
     ap.add_argument("--half", type=int, choices=[1, 2], default=1,
                     help="which half of the brand list this box takes")
     ap.add_argument("--delay", type=float, default=2.0)
-    ap.add_argument("--max-pages", type=int, default=4,
-                    help="pages per brand; brands paginate and the tail is old devices")
+    ap.add_argument("--max-pages", type=int, default=40,
+                    help="safety bound only. Brands paginate at ~50/page and the largest "
+                         "is ~670 devices, so 40 pages cannot truncate a real brand — it "
+                         "exists to stop a pagination loop, not to cap collection.")
+    ap.add_argument("--min-completeness", type=float, default=0.95,
+                    help="refuse the run if collected/declared falls below this")
     a = ap.parse_args()
     outdir = Path(a.out); outdir.mkdir(parents=True, exist_ok=True)
 
@@ -121,8 +134,10 @@ def main():
     print(f"{len(brands)} brands total; this box takes {len(mine)} (half {a.half})")
     time.sleep(a.delay)
 
-    rows, seen, http = [], set(), {}
-    for i, (slug, brand) in enumerate(mine, 1):
+    rows, seen, http, per_brand = [], set(), {}, []
+    for i, (slug, brand, declared) in enumerate(mine, 1):
+        declared = int(declared)
+        before = len(rows)
         page, url = 1, BASE + slug
         while page <= a.max_pages:
             st, html = get(url)
@@ -148,6 +163,10 @@ def main():
             if not found or not nxt:
                 break
             url, page = BASE + nxt.group(1), page + 1
+        got = len(rows) - before
+        per_brand.append({"brand": brand.strip(), "declared": declared, "collected": got})
+        if got < declared:
+            print(f"  ! {brand.strip()}: {got} of {declared} declared", flush=True)
         if i % 5 == 0:
             print(f"  {i}/{len(mine)} brands · {len(rows):,} devices", flush=True)
 
@@ -156,13 +175,40 @@ def main():
         with open(csv_path, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             w.writeheader(); w.writerows(rows)
-    note = (f"{len(rows):,} device slugs across {len(mine)} brands (half {a.half}). "
-            f"HTTP mix: {http}. Control passed, so an empty brand is a real absence.")
+    declared_total = sum(b["declared"] for b in per_brand)
+    short = [b for b in per_brand if b["collected"] < b["declared"]]
+    completeness = (len(rows) / declared_total) if declared_total else 0.0
+    with open(outdir / "completeness.json", "w") as f:
+        json.dump({"declared_total": declared_total, "collected_total": len(rows),
+                   "completeness": round(completeness, 4), "short_brands": short}, f, indent=2)
+
+    if completeness < a.min_completeness:
+        worst = sorted(short, key=lambda b: b["declared"] - b["collected"], reverse=True)[:5]
+        note = (f"REFUSED: collected {len(rows):,} of {declared_total:,} declared "
+                f"({completeness:.0%}). gsmarena states each brand's device count and "
+                f"{len(short)} brands came up short — worst: "
+                + ", ".join(f"{b['brand']} {b['collected']}/{b['declared']}" for b in worst)
+                + ". A partial index that reports ok is worse than no index, because the "
+                  "devices it silently omits look like devices gsmarena does not have.")
+        print(f"\n{note}")
+        (outdir / "result.json").write_text(json.dumps(
+            {"outcome": "refused", "note": note, "control_ok": True,
+             "counts": {"devices": len(rows), "declared": declared_total,
+                        "completeness": round(completeness, 4),
+                        "short_brands": len(short)},
+             "files": ["gsm_slugs.csv", "completeness.json"] if rows else []}, indent=2))
+        return 1
+
+    note = (f"{len(rows):,} of {declared_total:,} declared device slugs "
+            f"({completeness:.0%}) across {len(mine)} brands (half {a.half}). "
+            f"HTTP mix: {http}. Control passed and completeness checked against "
+            f"gsmarena's own per-brand counts.")
     print(f"\n{note}")
     (outdir / "result.json").write_text(json.dumps(
         {"outcome": "ok" if rows else "empty", "note": note, "control_ok": True,
-         "counts": {"devices": len(rows), "brands": len(mine)},
-         "files": ["gsm_slugs.csv"] if rows else []}, indent=2))
+         "counts": {"devices": len(rows), "declared": declared_total,
+                    "completeness": round(completeness, 4), "brands": len(mine)},
+         "files": ["gsm_slugs.csv", "completeness.json"] if rows else []}, indent=2))
     return 0
 
 

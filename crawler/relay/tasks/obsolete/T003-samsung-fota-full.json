@@ -12,5 +12,7 @@
   ],
   "control": "same as T002",
   "deliver": "samsung_fota.csv + result.json",
-  "expect": "20-30 minutes, a few thousand rows. Partial is fine \u2014 push what you have."
+  "expect": "20-30 minutes, a few thousand rows. Partial is fine \u2014 push what you have.",
+  "obsolete": true,
+  "obsolete_reason": "same as T002. Running it would spend 30 minutes collecting 403s."
 }

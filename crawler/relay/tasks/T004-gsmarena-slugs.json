@@ -16,5 +16,5 @@
   ],
   "control": "the Samsung brand page is fetched first and asserted to contain device links; if it does not, the run reports blocked rather than an empty index",
   "deliver": "gsm_slugs.csv (brand, device_name, slug) + result.json",
-  "expect": "Do NOT touch res.php3?sSearch= \u2014 that endpoint is Turnstile-gated and returns 200 with a 2,748B challenge page. Brand and device pages are fine. 2s between requests, and stop and report if you see a 429."
+  "expect": "RE-RUN REQUIRED with --force. The first attempt returned outcome=empty because MY parser was broken twice: it first required quoted href attributes (matched nothing), then matched the 36-entry nav dropdown instead of the 125-entry brand table. Both fixed, fixtures added, and a MIN_BRANDS floor of 80 now REFUSES a plausible-looking partial index. Do NOT touch res.php3?sSearch= \u2014 Turnstile-gated, 200 with a 2,748B challenge page. 2s delay, stop and report on any 429."
 }

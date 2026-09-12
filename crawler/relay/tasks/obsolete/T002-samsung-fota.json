@@ -24,5 +24,7 @@
   ],
   "control": "SM-A055F/ILO is fetched first; a 403 there reports 'blocked', never 'empty'",
   "deliver": "samsung_fota.csv + result.json",
-  "expect": "tens of builds. If the control 403s, STOP and report \u2014 do not run T003."
+  "expect": "tens of builds. If the control 403s, STOP and report \u2014 do not run T003.",
+  "obsolete": true,
+  "obsolete_reason": "fota-cloud is Akamai-blocked on BOTH boxes (403, verified with controls passing either side). Superseded by samsung_aspl.py, which gets the same column plus full history from doc.samsungmobile.com \u2014 unblocked, first-party, and already collected 15,738 build-patch rows."
 }

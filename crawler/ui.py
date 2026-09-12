@@ -187,6 +187,8 @@ tbody tr.clk{cursor:pointer}
 .vt th.num,.vt td.num{text-align:right;padding-right:14px}
 .vt tbody tr.vrow{cursor:pointer}
 .vt tbody tr.vrow:hover{background:var(--bg-hover)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:12px}
+.big{font:600 27px/1.1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .v-ok{color:var(--st-good)} .v-bad{color:var(--st-critical)}
 .v-warn{color:var(--st-warn)} .v-dim{color:var(--ink-faint)}
 .bar .track i.vbar.v-ok{background:var(--st-good)}
@@ -717,6 +719,49 @@ async function renderExposure(){
   // One build usually ships to many regions with an identical verdict. Showing it
   // once per region is nine rows for one fact; collapse on the fields that actually
   // differ and list the regions instead.
+  // ── Android platform lane + the fleet's patch-level spread ───────────────
+  // The chipset lane needs a known chipset; this one needs only a patch level, so it
+  // reaches every SPL-bearing build and covers more of the fleet than the pane above.
+  const pl=d.platform, spread=d.spl_spread||[];
+  const mx = spread.length ? Math.max(...spread.map(y=>y.devices)) : 1;
+  const plCard = !pl ? "" : `<div class="card wide"><h3>Android platform &amp; kernel</h3>
+    <p class="sub">Needs no chipset — a patch level alone adjudicates these, so this lane
+      reaches <b>${pl.devices}</b> devices where the chipset lane reaches ${cv.judged||0}.
+      AOSP, Framework, Runtime and kernel CVEs from the Android bulletin.</p>
+    <div class="grid3">
+      <div><div class="big v-bad">${(pl.open_pairs||0).toLocaleString()}</div>
+        <div class="sub">distinct (device, CVE) <b>open</b></div></div>
+      <div><div class="big v-ok">${(pl.fixed_n||0).toLocaleString()}</div>
+        <div class="sub">claimed fixed — kept as counts, not rows</div></div>
+      <div><div class="big v-warn">${(((pl.status||{})["unadjudicable-tier"])||0).toLocaleString()}</div>
+        <div class="sub">level can't say — a —01 build against a —05 CVE</div></div>
+    </div></div>`;
+
+  const spreadCard = !spread.length ? "" : `<div class="card wide">
+    <h3>Patch-level spread across the fleet</h3>
+    <p class="sub">The security patch level each device's newest build reports, newest
+      first. Anything far down this list has fallen behind.</p>
+    <div class="bars">${spread.map((x,i)=>`<div class="bar">
+      <span class="t mono">${esc(x.spl)}</span><span class="track">
+      <i class="vbar ${i===0?"v-ok":(i>=4?"v-warn":"")}"
+         style="width:${(x.devices/mx*100).toFixed(1)}%"></i></span>
+      <span class="v">${x.devices} dev</span></div>`).join("")}</div></div>`;
+
+  const recent = (pl&&pl.recent)||[];
+  const recentCard = !recent.length ? "" : `<div class="card wide">
+    <h3>Most recently patched builds</h3>
+    <p class="sub">Latest build per device and region, newest patch level first ·
+      <b>open</b> counts Android-bulletin CVEs fixed at a level newer than this build.</p>
+    <div style="overflow-x:auto"><table class="vt"><thead><tr>
+      <th>Device</th><th>Rgn</th><th>Build</th><th>OS</th><th>Patch level</th>
+      <th class="num">Open</th></tr></thead><tbody>
+    ${recent.slice(0,16).map(r=>`<tr>
+      <td>${esc(r.device)}</td><td class="rgn">${esc(r.region||"")}</td>
+      <td class="mono">${esc(r.version||"")}</td><td class="mono">${esc(r.android||"—")}</td>
+      <td class="mono">${esc(r.spl||"··")}</td>
+      <td class="num ${r.open_n?"v-bad":"v-ok"}"><b>${r.open_n||0}</b></td></tr>`).join("")}
+    </tbody></table></div></div>`;
+
   const byBuild=new Map();
   for(const r of (d.rows||[])){
     const k=[r.device,r.version,r.spl,r.open_n,r.fixed_n,r.unknown_n].join("|");
@@ -742,7 +787,7 @@ async function renderExposure(){
     </tbody></table></div>
     <p class="sub">Click a row for the per-CVE verdicts and how each chipset was matched.</p></div>`;
 
-  g.innerHTML=cover+legend+table+`<div id="vdetail"></div>`;
+  g.innerHTML=cover+plCard+spreadCard+recentCard+legend+table+`<div id="vdetail"></div>`;
   const cb=$("#expopen"); if(cb) cb.onchange=()=>{EXP_OPEN=cb.checked;renderExposure();};
   $$(".vrow").forEach(tr=>tr.onclick=()=>showVulnDetail(tr.dataset.dev));
 }

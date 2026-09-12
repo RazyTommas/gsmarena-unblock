@@ -25,6 +25,7 @@ from ui import PAGE
 import watches
 import board
 import vuln
+import platform_vuln
 
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -284,6 +285,36 @@ def vuln_data(q) -> dict:
         if dev:
             out["detail"] = vuln.for_device(con, dev)[:400]
         st = dict(con.execute("SELECT status, COUNT(*) FROM device_vuln GROUP BY status"))
+        # The PLATFORM lane — AOSP/kernel CVEs, which need no chipset and therefore
+        # reach every build carrying a patch level. It was built and then left out of
+        # the UI entirely, so the pane showed 62 devices while the corpus could
+        # actually adjudicate 83.
+        try:
+            out["platform"] = {
+                "status": dict(con.execute(
+                    "SELECT status, COUNT(*) FROM platform_vuln GROUP BY status")),
+                "devices": con.execute(
+                    "SELECT COUNT(DISTINCT device) FROM platform_vuln").fetchone()[0],
+                "fixed_n": con.execute(
+                    "SELECT IFNULL(SUM(fixed_n),0) FROM platform_coverage").fetchone()[0],
+                "open_pairs": con.execute(
+                    "SELECT COUNT(DISTINCT device||'|'||cve) FROM platform_vuln "
+                    "WHERE status='open'").fetchone()[0],
+                "recent": [dict(zip([c[0] for c in cur.description], r))
+                           for cur in [con.execute("""
+                    SELECT device, vendor, region, version, spl, android,
+                           SUM(status='open') AS open_n
+                    FROM platform_vuln GROUP BY device, region, version
+                    ORDER BY spl DESC, open_n DESC LIMIT 40""")] for r in cur.fetchall()],
+            }
+        except sqlite3.OperationalError:
+            out["platform"] = None
+        # Fleet-wide patch-level spread: who is current and who has fallen behind.
+        out["spl_spread"] = [
+            {"spl": r[0], "devices": r[1]} for r in con.execute("""
+                SELECT security_level, COUNT(DISTINCT device) FROM roms
+                WHERE IFNULL(security_level,'')!='' GROUP BY security_level
+                ORDER BY security_level DESC LIMIT 14""")]
         tot_dev = con.execute("SELECT COUNT(DISTINCT device) FROM roms").fetchone()[0]
         with_chip = con.execute("SELECT COUNT(DISTINCT device) FROM roms "
                                 "WHERE IFNULL(chipset,'')!=''").fetchone()[0]

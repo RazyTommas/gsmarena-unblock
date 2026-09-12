@@ -23,6 +23,7 @@ when we have it and updated_at otherwise, and rows with neither are never
 reported as new.
 """
 from __future__ import annotations
+import re
 import json, sqlite3, time
 from common import DB_PATH
 
@@ -69,7 +70,18 @@ def _where(pred):
     """Predicate dict -> (sql, args) over roms r LEFT JOIN device_specs ds."""
     w, a = [], []
     if pred.get("device"):
-        w.append("r.device = ?"); a.append(pred["device"])
+        # A LIST, matched by substring. Two defects lived in the old
+        # `r.device = ?`: it demanded the exact full string, so the obvious thing to
+        # type ("Galaxy S25") matched nothing while 6 devices contained it; and one
+        # watch could only ever name one device, so "the handful I actually care
+        # about" was not expressible at all.
+        devs = pred["device"]
+        if isinstance(devs, str):
+            devs = [d.strip() for d in re.split(r"[|,]", devs) if d.strip()]
+        devs = [d for d in devs if d]
+        if devs:
+            w.append("(" + " OR ".join("LOWER(r.device) LIKE ?" for _ in devs) + ")")
+            a.extend(f"%{d.lower()}%" for d in devs)
     if pred.get("vendor"):
         w.append("r.vendor = ?"); a.append(pred["vendor"])
     if pred.get("region"):
@@ -85,7 +97,13 @@ def _where(pred):
         except (TypeError, ValueError):
             pass
     if pred.get("security"):
-        w.append("(r.security_url IS NOT NULL AND r.security_url!='') OR (r.security_level IS NOT NULL AND r.security_level!='')")
+        # PARENTHESISED. Unwrapped, this read
+        #   device=? AND (url...) OR (level...)
+        # and SQL's precedence binds AND tighter than OR, so the whole device filter
+        # was discarded and the watch silently matched every build with a patch level.
+        # A broad clause OR'd with a narrow one IS the broad clause.
+        w.append("((r.security_url IS NOT NULL AND r.security_url!='') "
+                 "OR (r.security_level IS NOT NULL AND r.security_level!=''))")
     return (" AND ".join(w) if w else "1=1"), a
 
 

@@ -92,6 +92,21 @@ def devices_on(html):
     return out
 
 
+def write_csv(outdir, rows):
+    """Write whatever we have, always. Every early-exit path used to `return` before
+    this, so a 429 at brand 60 of 63 threw away 6,872 already-collected rows -- data
+    that cost real requests against a budget we had already half spent. A partial
+    harvest is not a failed harvest; it is a smaller one, and discarding it makes the
+    NEXT attempt more expensive in exactly the currency that ran out."""
+    if not rows:
+        return []
+    p = outdir / "gsm_slugs.csv"
+    with open(p, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w.writeheader(); w.writerows(rows)
+    return ["gsm_slugs.csv"]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=".")
@@ -181,26 +196,35 @@ def main():
             done_pages.add(pnum); seen_urls.add(url)
             ok, used, limit = host_budget("www.gsmarena.com")
             if not ok:
+                files = write_csv(outdir, rows)      # keep what we paid for
                 print(f"  BUDGET EXHAUSTED at {used}/{limit} requests to gsmarena today "
-                      f"— stopping with {len(rows)} rows rather than earning a 429")
+                      f"— stopping with {len(rows):,} rows KEPT rather than earning a 429")
                 (outdir / "result.json").write_text(json.dumps(
-                    {"outcome": "refused", "control_ok": True,
+                    {"outcome": "refused", "control_ok": True, "partial": True,
+                     "files": files,
                      "note": f"stopped at the daily per-host budget ({used}/{limit}) "
                              f"after {len(rows)} rows. Not an error and not a block — "
                              f"the ceiling exists so a 429 is never the thing that "
-                             f"tells us we went too far.",
+                             f"tells us we went too far. The rows collected so far ARE "
+                             f"in gsm_slugs.csv and are usable.",
                      "counts": {"rows": len(rows), "requests_today": used,
-                                "budget": limit}, "files": []}, indent=2))
+                                "budget": limit}}, indent=2))
                 return 1
             st, html = get(url)
             http[str(st)] = http.get(str(st), 0) + 1
             time.sleep(a.delay)
             if st == 429:
-                print(f"  429 on {url} -- stopping and reporting rather than pushing on")
+                files = write_csv(outdir, rows)      # keep what we paid for
+                print(f"  429 on {url} -- stopping. {len(rows):,} rows KEPT.")
                 (outdir / "result.json").write_text(json.dumps(
-                    {"outcome": "refused", "control_ok": True,
-                     "note": f"429 rate-limited at {url} after {len(rows)} rows; stopped.",
-                     "counts": {"rows": len(rows)}, "files": []}, indent=2))
+                    {"outcome": "refused", "control_ok": True, "partial": True,
+                     "note": f"429 rate-limited at {url} after {len(rows):,} rows. The "
+                             f"rows collected before the limit ARE in gsm_slugs.csv and "
+                             f"are usable -- this is a partial harvest, not a failed "
+                             f"one. Resume from a later brand rather than re-fetching "
+                             f"what is already here.",
+                     "counts": {"rows": len(rows), "brands_done": len(per_brand)},
+                     "files": files}, indent=2))
                 return 1
             if not html:
                 continue

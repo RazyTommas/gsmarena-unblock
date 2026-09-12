@@ -81,6 +81,30 @@ def now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def _crawl_in_flight():
+    """Is something actively writing into results/ right now?
+
+    relay.py does `git pull --rebase --autostash` on send. If a collector is writing
+    its CSV into results/<task>/ in the same working tree, autostash stashes the
+    half-written file, rebases, and pops a STALE copy back over it. That is not
+    hypothetical: four relay messages sent during a live crawl replaced a 6,688-row
+    harvest with the 3,222-row file from the previous run, while result.json still
+    claimed 6,688. The mismatch was caught by counting rows rather than trusting
+    either file, and the pair was never pushed.
+
+    Git's autostash is safe for a tree only a human edits. It is not safe for a tree
+    a background process is writing to, and nothing warned about the difference."""
+    import time as _t
+    now = _t.time()
+    for p in RESULTS.rglob("*"):
+        try:
+            if p.is_file() and now - p.stat().st_mtime < 120:
+                return p
+        except OSError:
+            continue
+    return None
+
+
 def sync():
     """Pull other people's messages. Rebase, because our commits are append-only files
     that always replay cleanly on top of theirs.
@@ -90,6 +114,13 @@ def sync():
     to do — correct behaviour with no forward path. So name the offending files and the
     fix, and carry on with local state rather than dying: a stale read is recoverable,
     a crashed collector mid-harvest is not."""
+    busy = _crawl_in_flight()
+    if busy:
+        print(f"  ! not touching git: {busy.name} was written seconds ago, so a "
+              f"collector is still running. An --autostash rebase here would stash "
+              f"its half-written output and pop a stale copy back over it.",
+              file=sys.stderr)
+        return False
     dirty = [l for l in sh("git", "status", "--porcelain", check=False).splitlines()
              if l.strip()]
     if dirty:
@@ -134,6 +165,12 @@ def push(paths, message, tries=4):
     """Commit ONLY the given relay paths and push, rebasing on contention. Scoped to
     relay/ so this can never sweep up unrelated working-tree changes."""
     require_git_identity()
+    busy = _crawl_in_flight()
+    if busy and not any("results" in str(p) for p in paths):
+        print(f"  ! refusing to push while a collector is writing ({busy.name}). "
+              f"Send this again when it finishes, or the rebase will clobber its "
+              f"output.", file=sys.stderr)
+        return False
     rel = [str(Path(p).resolve().relative_to(REPO)) for p in paths]
     sh("git", "add", "--", *rel)
     if not sh("git", "diff", "--cached", "--name-only"):

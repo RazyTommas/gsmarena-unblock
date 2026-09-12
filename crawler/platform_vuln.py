@@ -57,8 +57,14 @@ RELEVANCE_MONTHS = 24
 
 
 def tier_of(spl: str):
-    """1 or 5 from a patch-level string; None when it carries no tier (never guess)."""
+    """1 or 5 from a FULL patch-level date; None when it carries no tier (never guess).
+
+    The length check is load-bearing: '2026-01' is a patch MONTH and ends in '-01', so
+    a bare endswith() read January as tier-1 and May as tier-5, inventing a tier from a
+    value that has none."""
     s = (spl or "").strip()
+    if len(s) != 10:
+        return None
     if s.endswith("-01"):
         return 1
     if s.endswith("-05"):

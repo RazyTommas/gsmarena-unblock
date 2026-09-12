@@ -69,7 +69,16 @@ def precision_of(spl):
 
 
 def tier_of(spl):
+    """1 or 5 from a FULL patch-level date, else None.
+
+    The length check is load-bearing. '2026-01' is a patch MONTH and ends in '-01',
+    so a bare endswith() read January as tier-1 and May as tier-5 — inventing a tier
+    from a value that has none. That is worse than returning None: a fabricated tier-1
+    asserts the build cannot adjudicate any chipset CVE, and a fabricated tier-5
+    asserts it can."""
     s = (spl or "").strip()
+    if len(s) != 10:
+        return None
     return 1 if s.endswith("-01") else (5 if s.endswith("-05") else None)
 
 
@@ -83,14 +92,29 @@ def build(con=None, verbose=True):
     now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
     # newest build per device, and the columns that hang off it
+    # The newest build identifies the device's CURRENT version. But a field is taken
+    # from the newest build that actually HAS it, not from the newest build.
+    #
+    # Those differ, and it cost 73 devices their patch level: once the date-format fix
+    # made fota-cloud rows sort correctly, they became the newest build for many
+    # Samsung devices — and the OTA manifest carries no patch level, while the
+    # samsung-doc rows that do carry one are older. Reading the newest ROW returned
+    # empty for a device whose patch level we hold. "Latest build" and "latest known
+    # value of X" are different questions and only one of them was being asked.
     latest = {}
     for dev, vend, model, region, ver, spl, bb, chip, os_, upd in con.execute("""
             SELECT device, vendor, model, region, version, security_level, baseband,
                    chipset, android, updated_at
             FROM roms ORDER BY device, IFNULL(updated_at,'') DESC, version DESC"""):
-        if dev not in latest:
-            latest[dev] = dict(vendor=vend, model=model, region=region, version=ver,
-                               spl=spl, baseband=bb, chipset=chip, os=os_, date=upd)
+        d = latest.get(dev)
+        if d is None:
+            latest[dev] = d = dict(vendor=vend, model=model, region=region, version=ver,
+                                   spl=None, baseband=None, chipset=None, os=None,
+                                   date=upd)
+        # first non-empty wins, scanning newest-first
+        for key, val in (("spl", spl), ("baseband", bb), ("chipset", chip), ("os", os_)):
+            if not d[key] and val:
+                d[key] = val
     agg = {d: (r[0], r[1]) for d, *r in con.execute(
         "SELECT device, COUNT(DISTINCT region), COUNT(*) FROM roms GROUP BY device")}
 

@@ -132,6 +132,38 @@ def main():
     log(f"baseband restored on {restored:,} rows ({n:,} total) from apple_baseband + samsung_modem")
     con.close()
 
+    # 7b. security_level and chipset — same problem as baseband, same fix.
+    #
+    # Every one of these is FETCHED, not derived, so a wholesale row replacement
+    # destroys them and nothing can recompute them from the corpus. Patch levels went
+    # 83 devices -> 10 and chipsets 440 -> 385 between two runs today, with the source
+    # data sitting safe in its own table the entire time. The values were never lost;
+    # only their copy inside roms was, and nothing put it back.
+    #
+    # The rule this closes: an enrichment needs a table that owns it AND a line here.
+    # A table without a restore is a backup nobody restores from.
+    con = sqlite3.connect(DB_PATH)
+    for label, sql in (
+        ("security_level from samsung_aspl",
+         """UPDATE roms SET security_level = (
+              SELECT a.spl FROM samsung_aspl a WHERE a.build = roms.version)
+            WHERE IFNULL(security_level,'')='' AND EXISTS (
+              SELECT 1 FROM samsung_aspl a WHERE a.build = roms.version)"""),
+        ("chipset from model_soc",
+         """UPDATE roms SET chipset = (
+              SELECT s.soc FROM model_soc s WHERE s.model = roms.model)
+            WHERE IFNULL(chipset,'')='' AND EXISTS (
+              SELECT 1 FROM model_soc s WHERE s.model = roms.model)"""),
+    ):
+        try:
+            con.execute(sql)
+            n = con.execute("SELECT changes()").fetchone()[0]
+            if n:
+                log(f"restored {label}: {n:,} rows")
+        except sqlite3.OperationalError:
+            pass
+    con.commit(); con.close()
+
     # 8. chipset (its own module — normalised-name matching)
     try:
         import link_chipsets

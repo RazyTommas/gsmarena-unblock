@@ -689,6 +689,7 @@ const WHY_LABEL = {
   "not-published":  ["v-dim", "nobody publishes it; a source would have to start existing"],
   "month-precision":["v-warn","published, but too coarse to adjudicate inside a month"],
   "not-applicable": ["v-dim", "genuinely does not apply — not a failure, never a to-do"],
+  "undefined":      ["v-dim", "the property does not exist for this device — HarmonyOS NEXT has no AOSP layer, so there is no Android patch level to publish"],
 };
 async function renderState(){
   $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";

@@ -131,6 +131,18 @@ def main():
         print("\n(dry run — nothing written)")
         return 0
 
+    # Write to a table we OWN before touching roms. roms is replaced wholesale by
+    # every ingest, so a mapping that lives only there is destroyed on the next
+    # refresh — which is exactly what happened to 55 devices' chipsets between two
+    # runs today. derive.py restores from model_soc afterwards, no refetch.
+    con.executescript("""
+    CREATE TABLE IF NOT EXISTS model_soc(
+      model TEXT PRIMARY KEY, soc TEXT, src TEXT, fetched_at TEXT);
+    """)
+    import time as _t
+    now = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime())
+    con.executemany("INSERT OR REPLACE INTO model_soc VALUES(?,?,'google-catalog',?)",
+                    [(m, soc, now) for soc, m in updates])
     con.executemany("UPDATE roms SET chipset=? WHERE model=? AND IFNULL(chipset,'')=''",
                     updates)
     con.commit()

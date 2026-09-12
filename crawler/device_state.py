@@ -149,9 +149,22 @@ def build(con=None, verbose=True):
                          "detail": "no model code in the Play catalog and no spec sheet "
                                    "ingested for this device"})
         if not spl:
-            gaps.append({"field": "security_level", "why": "not-published",
-                         "detail": "this device's firmware source publishes no Android "
-                                   "patch level"})
+            # A fourth category, and the field box found it: for some devices the
+            # property does not EXIST. Huawei's current lineup is HarmonyOS NEXT with
+            # the AOSP layer removed, so there is no Android patch level to publish or
+            # withhold. Filing that as "not-published" would put it in a backlog of
+            # things a vendor might one day start doing, and it would sit there
+            # forever. An undefined property is not a null.
+            if (L["vendor"] or "").lower() in ("huawei", "honor") and \
+                    (L["os"] or "").lower().startswith(("harmony", "emui 15", "next")):
+                gaps.append({"field": "security_level", "why": "undefined",
+                             "detail": "HarmonyOS NEXT has no AOSP layer, so an Android "
+                                       "patch level does not exist for this device — "
+                                       "not missing, inapplicable"})
+            else:
+                gaps.append({"field": "security_level", "why": "not-published",
+                             "detail": "this device's firmware source publishes no "
+                                       "Android patch level"})
         elif prec == "month":
             gaps.append({"field": "security_level", "why": "month-precision",
                          "detail": "vendor publishes the patch MONTH only; verdicts "
@@ -215,6 +228,9 @@ def cmd_gaps(con):
     for (f, w), n in sorted(c.items(), key=lambda kv: -kv[1]):
         print(f"  {f:22} {w:18} {n:>6,}")
     print("\n  not-collected  = our backlog, fixable by us")
+    print("  undefined      = the property does not exist for this device (HarmonyOS")
+    print("                   NEXT has no AOSP layer). Never a to-do, and distinct from")
+    print("                   not-published: nobody is withholding it.")
     print("  not-published  = nobody publishes it; a source would have to start existing")
     print("  month-precision= published, but too coarse to adjudicate within a month")
     print("  not-applicable = genuinely does not apply; NOT a failure and never a to-do")

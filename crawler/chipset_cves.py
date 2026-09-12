@@ -60,10 +60,40 @@ def ensure(con):
 
 
 def parts_from_cve(v):
-    """Affected chipset part numbers from an NVD record's CPE configurations.
+    """Affected chipset part numbers from an NVD record.
+
+    TWO SOURCES, and the second one is not a fallback — it is the ORIGINAL.
+    MediaTek and Qualcomm are both CNAs: they self-publish the full affected-chip
+    list in their own CVE record, machine-readable, the same day. NVD's CPE
+    enrichment was a REFORMATTING of data the vendors already supplied. So when
+    NVD's enrichment collapsed in April 2026, the part numbers did not disappear —
+    only NVD's restatement of them did.
+
+    Since 2026-06-17 the API carries the verbatim CNA block at
+    `cve.affected[].affectedData[].versions[].version`, and it is present on records
+    NVD has explicitly marked `Deferred` with no `configurations` at all. Verified on
+    CVE-2026-20457: vulnStatus Deferred, configurations ABSENT, affected PRESENT with
+    59 MediaTek part numbers.
+
+    This was in our own research notes and went unimplemented, so the pipeline read
+    an empty `configurations` as "no chips affected" for every 2026 record. It is the
+    same defect this project keeps finding elsewhere: an absence that was never
+    capable of being a presence.
+
     We keep only things that LOOK like a chipset part, never 'android' or 'linux' —
     a generic OS CPE would match every device and make the join meaningless."""
     out = set()
+
+    # --- the CNA's own list, verbatim -------------------------------------------
+    for a in (v.get("affected") or []):
+        for ad in (a.get("affectedData") or []):
+            for ver in (ad.get("versions") or []):
+                p = (ver.get("version") or "").strip().upper()
+                # the CNA sometimes ships a redaction placeholder instead of a list
+                if not p or set(p) <= {"X"} or p in ("N/A", "-", "UNSPECIFIED"):
+                    continue
+                if len(p) >= 4 and any(ch.isdigit() for ch in p):
+                    out.add(p)
     for cfg in v.get("configurations", []):
         for node in cfg.get("nodes", []):
             for cm in node.get("cpeMatch", []):

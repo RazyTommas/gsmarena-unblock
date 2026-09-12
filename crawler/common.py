@@ -126,3 +126,56 @@ def replace_rows(con, table, where_sql, params, new_rows, insert_sql, *,
         con.rollback()
         raise
     return n, ("ok" if n else "empty")
+
+
+# ── per-host politeness budget ──────────────────────────────────────────────────
+# The one failure today that no fixture could have caught. Several gsmarena crawls
+# were run while debugging -- killed runs, test runs, a full run -- and every single
+# one was defensible on its own. Nothing counted the TOTAL across runs, across
+# processes, across the day, so nothing objected until gsmarena returned 429.
+#
+# A budget scoped per-invocation cannot see that. This one is per HOST per DAY and
+# lives on disk, so it spans separate processes and survives a crash mid-crawl. It
+# is deliberately not clever: a counter, a ceiling, and a refusal.
+import json as _json
+import os as _os
+from pathlib import Path as _Path
+
+BUDGET_FILE = _Path(__file__).resolve().parent / "data" / ".host_budget.json"
+DEFAULT_BUDGET = {"www.gsmarena.com": 1200, "doc.samsungmobile.com": 3000,
+                  "www.mediatek.com": 300, "api.appledb.dev": 2000}
+
+
+def host_budget(host, spend=1, limit=None, day=None):
+    """Count a request against today's budget for `host`. Returns (ok, used, limit).
+
+    ok=False means STOP -- not "slow down". The caller should stop and report, the
+    same way it treats a 429, because the next request is the one that earns it.
+    """
+    import time as _t
+    day = day or _t.strftime("%Y-%m-%d", _t.gmtime())
+    limit = limit or DEFAULT_BUDGET.get(host, 5000)
+    try:
+        BUDGET_FILE.parent.mkdir(parents=True, exist_ok=True)
+        d = _json.loads(BUDGET_FILE.read_text()) if BUDGET_FILE.exists() else {}
+    except Exception:
+        d = {}
+    if d.get("day") != day:
+        d = {"day": day}                      # a new day resets every host
+    used = int(d.get(host, 0)) + spend
+    d[host] = used
+    try:
+        tmp = BUDGET_FILE.with_suffix(".tmp")
+        tmp.write_text(_json.dumps(d))
+        _os.replace(tmp, BUDGET_FILE)          # atomic: concurrent crawlers both count
+    except Exception:
+        pass
+    return used <= limit, used, limit
+
+
+def budget_report():
+    try:
+        d = _json.loads(BUDGET_FILE.read_text())
+    except Exception:
+        return {}
+    return {k: v for k, v in d.items() if k != "day"}

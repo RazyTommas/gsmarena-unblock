@@ -293,6 +293,16 @@ def cmd_run(a):
     outdir = RESULTS / a.id
     outdir.mkdir(parents=True, exist_ok=True)
     argv = [sys.executable, str(CRAWLER / script)] + list(t.get("args") or [])
+    # Extra args from the command line, appended AFTER the task's own. A task's JSON
+    # and a human's prose instruction could previously disagree with no way to
+    # reconcile them: T004 shipped --delay 2.0 while the message telling someone to
+    # run it said 5.0, and `run` had no override, so the doer had to choose between
+    # the letter and the intent. They chose correctly and flagged it -- but they
+    # should not have had to. The task file stays the source of truth; this makes a
+    # deviation explicit and visible in the result rather than a judgement call.
+    if getattr(a, "set", None):
+        argv += list(a.set)
+        print(f"  (overriding task args with: {' '.join(a.set)})")
     argv = [x.replace("{OUT}", str(outdir)) for x in argv]
     print(f"$ {' '.join(argv)}\n")
     log = outdir / "run.log"
@@ -511,6 +521,8 @@ def main():
     c.set_defaults(fn=cmd_claim)
 
     r = sub.add_parser("run"); r.add_argument("id"); r.add_argument("--force", action="store_true")
+    r.add_argument("--set", nargs=argparse.REMAINDER,
+                   help="extra args appended to the task's own, e.g. --set --delay 5.0")
     r.set_defaults(fn=cmd_run)
 
     s = sub.add_parser("submit"); s.add_argument("id")

@@ -30,6 +30,14 @@ UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
 CONTROL_BRAND = "samsung-phones-9.php"
 
 
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from common import host_budget
+except Exception:                      # standalone on a box without the corpus
+    def host_budget(host, spend=1, limit=None, day=None):
+        return True, 0, 0
+
+
 def get(url, timeout=30):
     req = urllib.request.Request(url, headers={"User-Agent": UA,
                                                "Accept-Language": "en-US,en;q=0.9"})
@@ -134,6 +142,21 @@ def main():
     print(f"{len(brands)} brands total; this box takes {len(mine)} (half {a.half})")
     time.sleep(a.delay)
 
+    # Per-host, per-DAY budget, shared across every process on this box. The 429
+    # today came from several individually-reasonable runs whose total nobody counted.
+    ok, used, limit = host_budget("www.gsmarena.com", spend=0)
+    if not ok:
+        note = (f"REFUSED before fetching: this box has already made {used} requests to "
+                f"www.gsmarena.com today against a budget of {limit}. That budget is "
+                f"per-host and per-day precisely because the last 429 came from runs "
+                f"that each looked small. Resume tomorrow or raise the limit "
+                f"deliberately in common.DEFAULT_BUDGET.")
+        print(note)
+        (outdir / "result.json").write_text(json.dumps(
+            {"outcome": "refused", "note": note, "control_ok": None,
+             "counts": {"requests_today": used, "budget": limit}, "files": []}, indent=2))
+        return 1
+
     rows, seen, http, per_brand = [], set(), {}, []
     PAGE_RE = re.compile(r'<a href="([a-z0-9_\-]+-p(\d+)\.php)"', re.I)
     for i, (slug, brand, declared) in enumerate(mine, 1):
@@ -156,6 +179,19 @@ def main():
             if pnum in done_pages or url in seen_urls:
                 continue
             done_pages.add(pnum); seen_urls.add(url)
+            ok, used, limit = host_budget("www.gsmarena.com")
+            if not ok:
+                print(f"  BUDGET EXHAUSTED at {used}/{limit} requests to gsmarena today "
+                      f"— stopping with {len(rows)} rows rather than earning a 429")
+                (outdir / "result.json").write_text(json.dumps(
+                    {"outcome": "refused", "control_ok": True,
+                     "note": f"stopped at the daily per-host budget ({used}/{limit}) "
+                             f"after {len(rows)} rows. Not an error and not a block — "
+                             f"the ceiling exists so a 429 is never the thing that "
+                             f"tells us we went too far.",
+                     "counts": {"rows": len(rows), "requests_today": used,
+                                "budget": limit}, "files": []}, indent=2))
+                return 1
             st, html = get(url)
             http[str(st)] = http.get(str(st), 0) + 1
             time.sleep(a.delay)

@@ -65,7 +65,22 @@ def decode_pda(pda):
 
 
 def pda_month(pda):
-    """'Aug 2026' from a PDA build, or '' if undecodable."""
+    """'2026-08-01' from a PDA build, or '' if undecodable.
+
+    Returns ISO, not 'Aug 2026'. It used to return the display form and that value
+    went straight into roms.updated_at, which every other source fills with an ISO
+    date -- so one column carried two formats and sorted as text. 'Aug 2026' sorts
+    ABOVE '2026-08-18', which silently corrupted every "latest build per device"
+    query and every date filter for the 726 rows involved. A column is one vocabulary
+    or it is not a column.
+
+    Use pda_month_display() where a human needs to read it."""
+    d = decode_pda(pda)
+    return f"{d[0]}-{d[1]:02d}-01" if d else ""
+
+
+def pda_month_display(pda):
+    """'Aug 2026' — for rendering only, never for storage or comparison."""
     d = decode_pda(pda)
     return f"{_MONTHS[d[1]]} {d[0]}" if d else ""
 

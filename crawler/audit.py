@@ -29,6 +29,8 @@ one-off, so new sources get screened by the same rules:
             number printed in the vendor spec sheet
   DESTRUCTIVE a refresh-by-replace ingester that deletes before it fetches, so a
             blocked fetch erases the corpus and still logs a successful run
+  DATEFMT   one date column carrying two formats, so it sorts as text and every
+            "latest" query silently picks the wrong row
 
 Exit code = number of FAIL findings, so it composes in CI:
     python audit.py || echo "defects found"
@@ -274,6 +276,24 @@ def run(verbose=True):
             f"all {len(cl)} logged runs either hold rows or carry an explicit outcome "
             f"(blocked/refused/empty)",
             "ingesters must use common.replace_rows() and log_run(..., outcome=...)")
+
+    # ---- DATEFMT: a date column must have ONE vocabulary --------------------
+    # roms.updated_at held ISO dates from six sources and 'Aug 2026' from a seventh.
+    # Text sort puts 'Aug 2026' ABOVE '2026-08-18', so "latest build per device" --
+    # used by device_state, vuln.py, platform_vuln and the Releases view -- silently
+    # picked the wrong row for every affected device. Nothing errored.
+    bad = q("SELECT COUNT(*) FROM roms WHERE IFNULL(updated_at,'')!='' "
+            "AND updated_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'")
+    tot_dated = q("SELECT COUNT(*) FROM roms WHERE IFNULL(updated_at,'')!=''")
+    if tot_dated == 0:
+        add("INFO", "DATEFMT", "no dated rows — nothing to check")
+    else:
+        add("FAIL" if bad else "PASS", "DATEFMT",
+            f"{bad:,} of {tot_dated:,} dated rows are not ISO YYYY-MM-DD — they sort as "
+            f"text against the rest and corrupt every 'latest' query"
+            if bad else
+            f"all {tot_dated:,} dated rows are ISO YYYY-MM-DD (one vocabulary)",
+            "common.pda_month() returns ISO; pda_month_display() is for rendering only")
 
     con.close()
 

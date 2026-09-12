@@ -26,6 +26,7 @@ import watches
 import board
 import vuln
 import platform_vuln
+import device_state
 
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -264,6 +265,51 @@ def all_roms() -> dict:
         f"SELECT {sel} FROM roms LEFT JOIN device_specs ds ON ds.device=roms.device")]
     conn.close()
     return {"columns": cols, "rows": rows}
+
+
+def state_data(q) -> dict:
+    """One row per device: every known fact with its source, every absence with its
+    reason. This is the read model the nine underlying tables exist to produce."""
+    import json as _j
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    out = {}
+    try:
+        w, a = ["1=1"], []
+        if q.get("vendor"):
+            w.append("vendor=?"); a.append(q["vendor"])
+        if q.get("device"):
+            w.append("LOWER(device) LIKE ?"); a.append(f"%{q['device'].lower()}%")
+        if q.get("gaps") == "1":
+            w.append("gaps != '[]'")
+        rows = [dict(r) for r in con.execute(
+            f"SELECT * FROM device_state WHERE {' AND '.join(w)} "
+            f"ORDER BY chipset_cve_open DESC, platform_cve_open DESC, device LIMIT 400", a)]
+        for r in rows:
+            r["gaps"] = _j.loads(r.get("gaps") or "[]")
+        out["rows"] = rows
+        out["totals"] = dict(con.execute("""SELECT
+            COUNT(*) devices,
+            SUM(IFNULL(chipset,'')!='') with_chipset,
+            SUM(IFNULL(spl,'')!='') with_spl,
+            SUM(IFNULL(baseband,'')!='') with_baseband,
+            SUM(can_adjudicate_chipset) adj_chipset,
+            SUM(can_adjudicate_platform) adj_platform
+            FROM device_state""").fetchone())
+        # gaps grouped by REASON — our backlog vs the world's limit vs not-applicable
+        from collections import Counter
+        c = Counter()
+        for (g,) in con.execute("SELECT gaps FROM device_state"):
+            for x in _j.loads(g or "[]"):
+                c[(x["field"], x["why"])] += 1
+        out["gaps"] = [{"field": f, "why": w2, "devices": n}
+                       for (f, w2), n in sorted(c.items(), key=lambda kv: -kv[1])]
+        out["refreshed"] = con.execute(
+            "SELECT MAX(refreshed_at) FROM device_state").fetchone()[0]
+    except sqlite3.OperationalError as e:
+        out["error"] = f"{e} — run: python3 device_state.py"
+    con.close()
+    return out
 
 
 def vuln_data(q) -> dict:
@@ -1283,6 +1329,9 @@ class Handler(BaseHTTPRequestHandler):
             q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
             self._send(json.dumps(board.board(q.get("chip",""), q.get("vendor",""),
                                               q.get("region",""))).encode(), "application/json")
+        elif p == "/api/state":
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            self._send(json.dumps(state_data(q)).encode(), "application/json")
         elif p == "/api/vuln":
             q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
             self._send(json.dumps(vuln_data(q)).encode(), "application/json")

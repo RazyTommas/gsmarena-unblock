@@ -405,7 +405,7 @@ const refetch=debounce(()=>fetchRows(true),220);
 /* ── chrome ───────────────────────────────────────────────── */
 function renderNav(){
   const s=ALL.stats;
-  $("#nav").innerHTML=[["board","Dashboard",""],["products","Devices",s.devices],
+  $("#nav").innerHTML=[["board","Overview",""],["products","Devices",s.devices],
     ["roms","Releases",s.roms],["exposure","Exposure",""],["watch","Watch",""],
     ["updates","Updates",""],["insights","Insights",""]]
     .map(([k,l,n])=>`<button data-v="${k}" class="${k===VIEW?"on":""}">${l}${n!==""?`<span class="n">${n.toLocaleString()}</span>`:""}</button>`).join("");
@@ -518,7 +518,7 @@ function render(){
   if(VIEW==="exposure"){renderExposure();return;}
   if(VIEW==="insights"){renderInsights();return;}
   if(VIEW==="watch"){renderWatch();return;}
-  if(VIEW==="board"){renderBoard();return;}
+  if(VIEW==="board"){renderState();return;}
   if(VIEW==="updates"){renderUpdates();return;}
   $("#grid").style.display="none"; $(".wrap table").style.display="";
   VIEW==="roms"?renderReleases():renderDevices();
@@ -676,6 +676,87 @@ const VSTATE={
   "unadjudicable-not-in-bulletin":{g:"◌", l:"No patch level", c:"v-warn", d:"Vendor-published CVE that never entered an Android bulletin — no patch level speaks to it"},
   "unknown-no-spl":  {g:"·", l:"No patch level on build", c:"v-dim", d:"This build carries no Security Patch Level"}
 };
+
+// ── Dashboard: one row per device, every fact with its source ────────────────
+// The read model the nine underlying tables exist to produce. Two rules it exists
+// to enforce visually: a value never renders without its provenance, and an empty
+// cell never renders without its reason.
+const SRC_WEIGHT = {"google-catalog":"strong","spec-sheet":"strong","samsung-doc":"strong",
+                    "fota-manifest":"strong","appledb":"strong","source":"ok",
+                    "name-match":"weak"};
+const WHY_LABEL = {
+  "not-collected":  ["v-warn","our backlog — a source exists and we have not fetched it"],
+  "not-published":  ["v-dim", "nobody publishes it; a source would have to start existing"],
+  "month-precision":["v-warn","published, but too coarse to adjudicate inside a month"],
+  "not-applicable": ["v-dim", "genuinely does not apply — not a failure, never a to-do"],
+};
+async function renderState(){
+  $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
+  g.innerHTML=`<div class="card"><h3>Loading…</h3></div>`;
+  const vend=[...F.vendor][0]||"";
+  let d={};
+  try{ d=await (await fetch(`/api/state?vendor=${encodeURIComponent(vend)}${STATE_GAPS?"&gaps=1":""}`,{cache:"no-store"})).json(); }catch(e){}
+  if(d.error){ g.innerHTML=`<div class="card wide"><h3>Not built yet</h3><p class="sub">${esc(d.error)}</p></div>`; return; }
+  const t=d.totals||{}, tot=t.devices||1;
+  const bar=(n,lbl,cls)=>`<div class="bar"><span class="t">${lbl}</span><span class="track">
+    <i class="vbar ${cls||""}" style="width:${((n||0)/tot*100).toFixed(1)}%"></i></span>
+    <span class="v">${(n||0).toLocaleString()}</span></div>`;
+
+  const cover=`<div class="card wide"><h3>What we know, across ${tot.toLocaleString()} devices</h3>
+    <p class="sub">Each bar is a column of the corpus. The distance to the right edge is the work left.</p>
+    <div class="bars">
+      ${bar(t.with_chipset,"chipset known")}
+      ${bar(t.with_spl,"security patch level")}
+      ${bar(t.with_baseband,"modem firmware")}
+      ${bar(t.adj_chipset,"can adjudicate chipset CVEs","v-ok")}
+      ${bar(t.adj_platform,"can adjudicate platform CVEs","v-ok")}
+    </div>
+    <p class="sub" style="margin-top:10px">Last rebuilt ${esc(d.refreshed||"—")}.</p></div>`;
+
+  const gaps=`<div class="card wide"><h3>What is missing, and whose problem it is</h3>
+    <p class="sub">An empty cell is ambiguous — not collected, not published, or not
+      applicable are three different facts and only one of them is ours to fix.</p>
+    <div style="overflow-x:auto"><table class="vt"><thead><tr>
+      <th>Field</th><th>Reason</th><th class="num">Devices</th><th>Meaning</th>
+      </tr></thead><tbody>
+    ${(d.gaps||[]).map(x=>{const w=WHY_LABEL[x.why]||["v-dim",""];return `<tr>
+      <td class="mono">${esc(x.field)}</td>
+      <td class="${w[0]}"><b>${esc(x.why)}</b></td>
+      <td class="num">${x.devices.toLocaleString()}</td>
+      <td class="sub">${esc(w[1])}</td></tr>`}).join("")}
+    </tbody></table></div></div>`;
+
+  const rows=d.rows||[];
+  const cell=(v,src)=>{
+    if(!v) return `<td class="v-dim">—</td>`;
+    const w=SRC_WEIGHT[src]||"ok";
+    const cls=w==="weak"?"v-warn":(w==="strong"?"":"sub");
+    return `<td class="${cls}" title="${esc(src||"no source recorded")}">${esc(String(v).slice(0,34))}
+      <span class="sub" style="font-size:10px">${esc(src||"?")}</span></td>`;
+  };
+  const table=`<div class="card wide"><h3>Per device</h3>
+    <p class="sub">${rows.length} shown, worst first · every value carries the source it came
+      from · <label style="cursor:pointer"><input type="checkbox" id="stgaps" ${STATE_GAPS?"checked":""}> only devices with a gap</label></p>
+    <div style="overflow-x:auto"><table class="vt"><thead><tr>
+      <th>Device</th><th>Chipset</th><th>Patch level</th><th>Modem fw</th>
+      <th class="num">Chip open</th><th class="num">Plat open</th><th class="num">Gaps</th>
+      </tr></thead><tbody>
+    ${rows.slice(0,60).map(r=>`<tr>
+      <td>${esc(r.device)}<span class="sub" style="font-size:10px"> ${esc(r.model||"")}</span></td>
+      ${cell(r.chipset,r.chipset_src)}
+      ${cell(r.spl,r.spl_src)}${r.spl_precision==="month"?'<!-- month -->':''}
+      ${cell(r.baseband,r.baseband_src)}
+      <td class="num ${r.chipset_cve_open?"v-bad":"v-dim"}">${r.chipset_cve_open||0}</td>
+      <td class="num ${r.platform_cve_open?"v-bad":"v-dim"}">${r.platform_cve_open||0}</td>
+      <td class="num ${(r.gaps||[]).length?"v-warn":"v-ok"}">${(r.gaps||[]).length}</td>
+      </tr>`).join("")}
+    </tbody></table></div></div>`;
+
+  g.innerHTML=cover+gaps+table;
+  const cb=$("#stgaps"); if(cb) cb.onchange=()=>{STATE_GAPS=cb.checked;renderState();};
+}
+let STATE_GAPS=false;
+
 async function renderExposure(){
   $(".wrap table").style.display="none"; const g=$("#grid"); g.style.display="";
   g.innerHTML=`<div class="card"><h3>Loading…</h3></div>`;

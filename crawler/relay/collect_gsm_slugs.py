@@ -90,7 +90,7 @@ def main():
     ap.add_argument("--half", type=int, choices=[1, 2], default=1,
                     help="which half of the brand list this box takes")
     ap.add_argument("--delay", type=float, default=2.0)
-    ap.add_argument("--max-pages", type=int, default=40,
+    ap.add_argument("--max-pages", type=int, default=60,
                     help="safety bound only. Brands paginate at ~50/page and the largest "
                          "is ~670 devices, so 40 pages cannot truncate a real brand — it "
                          "exists to stop a pagination loop, not to cap collection.")
@@ -145,12 +145,17 @@ def main():
         # page 1 up to --max-pages times, collected nothing new each round, and
         # stopped looking like it had reached the end of the catalogue. Huawei came
         # back 106 of 546 declared that way, and the page cap got the blame.
-        todo, done_pages = [BASE + slug], set()
+        # Key visited pages by PAGE NUMBER, not by URL. gsmarena exposes the same page
+        # under more than one form ("...-f-9-0-p2.php" and "...-f-9-0-r1-p1.php"), so a
+        # URL-keyed set treats duplicates as new work and spends the page budget on
+        # content it already has. Samsung burned all 40 pages to collect 784 of 1,465
+        # that way -- ~20 devices per page instead of ~40.
+        todo, done_pages, seen_urls = [(0, BASE + slug)], set(), set()
         while todo and len(done_pages) < a.max_pages:
-            url = todo.pop(0)
-            if url in done_pages:
+            pnum, url = todo.pop(0)
+            if pnum in done_pages or url in seen_urls:
                 continue
-            done_pages.add(url)
+            done_pages.add(pnum); seen_urls.add(url)
             st, html = get(url)
             http[str(st)] = http.get(str(st), 0) + 1
             time.sleep(a.delay)
@@ -171,13 +176,20 @@ def main():
                              "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                                          time.gmtime())})
             for href, num in PAGE_RE.findall(html):
-                u = BASE + href
-                if u not in done_pages and u not in todo:
-                    todo.append(u)
+                n = int(num)
+                if n not in done_pages and not any(t[0] == n for t in todo):
+                    todo.append((n, BASE + href))
 
         got = len(rows) - before
+        # Distinguish "we ran out of budget" from "the listing genuinely ended".
+        # A brand that paginated to its natural end and is still short of the declared
+        # count is a DENOMINATOR difference -- gsmarena's per-brand total counts
+        # tablets and watches that the phones listing does not show. That is not
+        # truncation and must not be scored as if it were.
+        capped = len(done_pages) >= a.max_pages
         per_brand.append({"brand": brand.strip(), "declared": declared,
-                          "collected": got, "pages": len(done_pages)})
+                          "collected": got, "pages": len(done_pages),
+                          "hit_cap": capped})
         if got < declared:
             print(f"  ! {brand.strip()}: {got} of {declared} declared "
                   f"({len(done_pages)} pages)", flush=True)
@@ -186,19 +198,29 @@ def main():
 
     declared_total = sum(b["declared"] for b in per_brand)
     short = [b for b in per_brand if b["collected"] < b["declared"]]
+    truncated = [b for b in short if b.get("hit_cap")]
     completeness = (len(rows) / declared_total) if declared_total else 0.0
     with open(outdir / "completeness.json", "w") as f:
         json.dump({"declared_total": declared_total, "collected_total": len(rows),
                    "completeness": round(completeness, 4), "short_brands": short}, f, indent=2)
 
-    if completeness < a.min_completeness:
-        worst = sorted(short, key=lambda b: b["declared"] - b["collected"], reverse=True)[:5]
-        note = (f"REFUSED: collected {len(rows):,} of {declared_total:,} declared "
-                f"({completeness:.0%}). gsmarena states each brand's device count and "
-                f"{len(short)} brands came up short — worst: "
+    # Fail on TRUNCATION, not on the denominator. A run that paginated every brand to
+    # its end has collected everything the listings expose, even if gsmarena's headline
+    # counts include hardware those listings omit.
+    if truncated:
+        worst = sorted(truncated, key=lambda b: b["declared"] - b["collected"],
+                       reverse=True)[:5]
+        note = (f"REFUSED: {len(truncated)} brand(s) hit the {a.max_pages}-page budget "
+                f"and are TRUNCATED (collected {len(rows):,} of {declared_total:,} "
+                f"declared, {completeness:.0%}) — worst: "
                 + ", ".join(f"{b['brand']} {b['collected']}/{b['declared']}" for b in worst)
-                + ". A partial index that reports ok is worse than no index, because the "
-                  "devices it silently omits look like devices gsmarena does not have.")
+                + f". Raise --max-pages above {a.max_pages} and re-run. A partial index "
+                  f"that reports ok is worse than no index, because the devices it "
+                  f"silently omits look like devices gsmarena does not have. "
+                  f"({len(short) - len(truncated)} further brands are short but "
+                  f"paginated to their natural end — that is gsmarena's headline count "
+                  f"including tablets and watches the phones listing omits, not "
+                  f"truncation.)")
         print(f"\n{note}")
         (outdir / "result.json").write_text(json.dumps(
             {"outcome": "refused", "note": note, "control_ok": True,

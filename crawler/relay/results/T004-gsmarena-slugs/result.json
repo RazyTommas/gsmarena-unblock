@@ -1,15 +1,18 @@
 {
-  "outcome": "ok",
-  "note": "3,222 device slugs across 62 brands (half 2). HTTP mix: {'200': 186}. Control passed, so an empty brand is a real absence.",
+  "outcome": "refused",
+  "note": "REFUSED: collected 3,222 of 7,123 declared (45%). gsmarena states each brand's device count and 28 brands came up short \u2014 worst: LG 95/667, Nokia 88/598, vivo 110/616, Xiaomi 98/549, alcatel 63/414. A partial index that reports ok is worse than no index, because the devices it silently omits look like devices gsmarena does not have.",
   "control_ok": true,
   "counts": {
     "devices": 3222,
-    "brands": 62
+    "declared": 7123,
+    "completeness": 0.4523,
+    "short_brands": 28
   },
   "files": [
-    "gsm_slugs.csv"
+    "gsm_slugs.csv",
+    "completeness.json"
   ],
   "agent": "box-field",
-  "finished_at": "2026-09-12T06:08:28Z",
+  "finished_at": "2026-09-12T07:23:57Z",
   "id": "T004-gsmarena-slugs"
 }

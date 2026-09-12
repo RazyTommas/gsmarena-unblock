@@ -1,16 +1,44 @@
 CONTROL samsung-phones-9.php: HTTP 200, 47 device links
 125 brands total; this box takes 62 (half 2)
-  5/62 brands · 276 devices
-  10/62 brands · 547 devices
-  15/62 brands · 686 devices
-  20/62 brands · 1,051 devices
-  25/62 brands · 1,187 devices
-  30/62 brands · 1,464 devices
-  35/62 brands · 1,584 devices
-  40/62 brands · 1,896 devices
-  45/62 brands · 2,163 devices
-  50/62 brands · 2,499 devices
-  55/62 brands · 2,789 devices
+  ! alcatel: 63 of 414 declared
+  ! Amazon: 14 of 25 declared
+  ! Apple: 80 of 152 declared
+  ! Asus: 82 of 208 declared
+  5/62 brands · 275 devices
+  ! Bird: 60 of 61 declared
+  ! Blackview: 100 of 138 declared
+  ! Celkon: 94 of 229 declared
+  10/62 brands · 546 devices
+  ! Coolpad: 56 of 57 declared
+  ! Fairphone: 5 of 6 declared
+  15/62 brands · 685 devices
+  ! Honor: 110 of 337 declared
+  ! HTC: 94 of 297 declared
+  20/62 brands · 1,050 devices
+  ! Intex: 14 of 15 declared
+  25/62 brands · 1,186 devices
+  ! LG: 95 of 667 declared
+  ! Micromax: 101 of 289 declared
+  30/62 brands · 1,463 devices
+  ! Nokia: 88 of 598 declared
+  35/62 brands · 1,583 devices
+  ! OnePlus: 80 of 115 declared
+  ! Oukitel: 102 of 121 declared
+  ! Panasonic: 105 of 123 declared
+  40/62 brands · 1,894 devices
+  ! Plum: 99 of 113 declared
+  ! Prestigio: 53 of 56 declared
+  ! Realme: 82 of 298 declared
+  45/62 brands · 2,161 devices
+  ! Sagem: 104 of 120 declared
+  ! Sony Ericsson: 108 of 188 declared
+  50/62 brands · 2,501 devices
+  ! T-Mobile: 66 of 69 declared
+  ! Tecno: 75 of 195 declared
+  55/62 brands · 2,790 devices
+  ! vivo: 110 of 616 declared
+  ! Xiaomi: 98 of 549 declared
   60/62 brands · 3,109 devices
+  ! Yezz: 99 of 113 declared
 
-3,222 device slugs across 62 brands (half 2). HTTP mix: {'200': 186}. Control passed, so an empty brand is a real absence.
+REFUSED: collected 3,222 of 7,123 declared (45%). gsmarena states each brand's device count and 28 brands came up short — worst: LG 95/667, Nokia 88/598, vivo 110/616, Xiaomi 98/549, alcatel 63/414. A partial index that reports ok is worse than no index, because the devices it silently omits look like devices gsmarena does not have.

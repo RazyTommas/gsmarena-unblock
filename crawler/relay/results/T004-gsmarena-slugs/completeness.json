@@ -1,0 +1,147 @@
+{
+  "declared_total": 7123,
+  "collected_total": 3222,
+  "completeness": 0.4523,
+  "short_brands": [
+    {
+      "brand": "alcatel",
+      "declared": 414,
+      "collected": 63
+    },
+    {
+      "brand": "Amazon",
+      "declared": 25,
+      "collected": 14
+    },
+    {
+      "brand": "Apple",
+      "declared": 152,
+      "collected": 80
+    },
+    {
+      "brand": "Asus",
+      "declared": 208,
+      "collected": 82
+    },
+    {
+      "brand": "Bird",
+      "declared": 61,
+      "collected": 60
+    },
+    {
+      "brand": "Blackview",
+      "declared": 138,
+      "collected": 100
+    },
+    {
+      "brand": "Celkon",
+      "declared": 229,
+      "collected": 94
+    },
+    {
+      "brand": "Coolpad",
+      "declared": 57,
+      "collected": 56
+    },
+    {
+      "brand": "Fairphone",
+      "declared": 6,
+      "collected": 5
+    },
+    {
+      "brand": "Honor",
+      "declared": 337,
+      "collected": 110
+    },
+    {
+      "brand": "HTC",
+      "declared": 297,
+      "collected": 94
+    },
+    {
+      "brand": "Intex",
+      "declared": 15,
+      "collected": 14
+    },
+    {
+      "brand": "LG",
+      "declared": 667,
+      "collected": 95
+    },
+    {
+      "brand": "Micromax",
+      "declared": 289,
+      "collected": 101
+    },
+    {
+      "brand": "Nokia",
+      "declared": 598,
+      "collected": 88
+    },
+    {
+      "brand": "OnePlus",
+      "declared": 115,
+      "collected": 80
+    },
+    {
+      "brand": "Oukitel",
+      "declared": 121,
+      "collected": 102
+    },
+    {
+      "brand": "Panasonic",
+      "declared": 123,
+      "collected": 105
+    },
+    {
+      "brand": "Plum",
+      "declared": 113,
+      "collected": 99
+    },
+    {
+      "brand": "Prestigio",
+      "declared": 56,
+      "collected": 53
+    },
+    {
+      "brand": "Realme",
+      "declared": 298,
+      "collected": 82
+    },
+    {
+      "brand": "Sagem",
+      "declared": 120,
+      "collected": 104
+    },
+    {
+      "brand": "Sony Ericsson",
+      "declared": 188,
+      "collected": 108
+    },
+    {
+      "brand": "T-Mobile",
+      "declared": 69,
+      "collected": 66
+    },
+    {
+      "brand": "Tecno",
+      "declared": 195,
+      "collected": 75
+    },
+    {
+      "brand": "vivo",
+      "declared": 616,
+      "collected": 110
+    },
+    {
+      "brand": "Xiaomi",
+      "declared": 549,
+      "collected": 98
+    },
+    {
+      "brand": "Yezz",
+      "declared": 113,
+      "collected": 99
+    }
+  ]
+}

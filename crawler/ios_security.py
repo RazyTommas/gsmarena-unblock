@@ -24,6 +24,13 @@ APPLEDB = "https://api.appledb.dev/ios/iOS;{build}.json"
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=90, help="only builds newer than this (default 90)")
+    ap.add_argument("--all", action="store_true",
+                    help="every build in the corpus, not just recent ones. The --days "
+                         "window is right for the security-notes sweep (old advisories "
+                         "do not change) but wrong for baseband: a build's modem version "
+                         "is a permanent fact about that build, so restricting the "
+                         "backfill by date left 128 of ~4,400 rows filled and the column "
+                         "looking broken rather than unpopulated.")
     args = ap.parse_args()
     cutoff = (datetime.now(timezone.utc) - timedelta(days=args.days)).strftime("%Y-%m-%d")
 
@@ -37,13 +44,19 @@ def main():
 
     # distinct recent iOS builds (extract the build id from "iOS 26.6.1 (23G83)")
     builds = {}
-    for ver, upd in con.execute(
-            "SELECT DISTINCT version, updated_at FROM roms WHERE source='ipsw.me' "
-            "AND updated_at>=? AND version LIKE '%(%)'", (cutoff,)):
+    q = ("SELECT DISTINCT version, updated_at FROM roms WHERE source='ipsw.me' "
+         "AND version LIKE '%(%)'")
+    params = ()
+    if not args.all:
+        q += " AND updated_at>=?"
+        params = (cutoff,)
+    for ver, upd in con.execute(q, params):
         m = re.search(r"\(([A-Za-z0-9]+)\)", ver or "")
         if m:
             builds[m.group(1)] = ver
-    print(f"recent iOS builds since {cutoff}: {len(builds)}", flush=True)
+    print(f"iOS builds to check: {len(builds)}"
+          + ("" if args.all else f" (since {cutoff}; use --all for the full corpus)"),
+          flush=True)
 
     filled = bb = 0
     for build in sorted(builds):

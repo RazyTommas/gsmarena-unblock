@@ -135,46 +135,55 @@ def main():
     time.sleep(a.delay)
 
     rows, seen, http, per_brand = [], set(), {}, []
+    PAGE_RE = re.compile(r'<a href="([a-z0-9_\-]+-p(\d+)\.php)"', re.I)
     for i, (slug, brand, declared) in enumerate(mine, 1):
         declared = int(declared)
         before = len(rows)
-        page, url = 1, BASE + slug
-        while page <= a.max_pages:
+        # Walk pagination by PAGE NUMBER, not by "the first next-page link found".
+        # The previous version did re.search() for any p<N>.php and took the first
+        # hit -- which on a brand page is "...-r1-p1.php", page ONE. So it re-fetched
+        # page 1 up to --max-pages times, collected nothing new each round, and
+        # stopped looking like it had reached the end of the catalogue. Huawei came
+        # back 106 of 546 declared that way, and the page cap got the blame.
+        todo, done_pages = [BASE + slug], set()
+        while todo and len(done_pages) < a.max_pages:
+            url = todo.pop(0)
+            if url in done_pages:
+                continue
+            done_pages.add(url)
             st, html = get(url)
             http[str(st)] = http.get(str(st), 0) + 1
             time.sleep(a.delay)
             if st == 429:
-                print(f"  429 on {url} — stopping and reporting rather than pushing on")
+                print(f"  429 on {url} -- stopping and reporting rather than pushing on")
                 (outdir / "result.json").write_text(json.dumps(
                     {"outcome": "refused", "control_ok": True,
                      "note": f"429 rate-limited at {url} after {len(rows)} rows; stopped.",
                      "counts": {"rows": len(rows)}, "files": []}, indent=2))
                 return 1
             if not html:
-                break
-            found = devices_on(html)
-            for name, dslug in found:
+                continue
+            for name, dslug in devices_on(html):
                 if dslug in seen:
                     continue
                 seen.add(dslug)
                 rows.append({"brand": brand.strip(), "device": name, "slug": dslug,
-                             "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
-            nxt = re.search(rf'<a href="({re.escape(slug.split("-")[0])}[^"]*p(\d+)\.php)"', html)
-            if not found or not nxt:
-                break
-            url, page = BASE + nxt.group(1), page + 1
-        got = len(rows) - before
-        per_brand.append({"brand": brand.strip(), "declared": declared, "collected": got})
-        if got < declared:
-            print(f"  ! {brand.strip()}: {got} of {declared} declared", flush=True)
-        if i % 5 == 0:
-            print(f"  {i}/{len(mine)} brands · {len(rows):,} devices", flush=True)
+                             "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                         time.gmtime())})
+            for href, num in PAGE_RE.findall(html):
+                u = BASE + href
+                if u not in done_pages and u not in todo:
+                    todo.append(u)
 
-    csv_path = outdir / "gsm_slugs.csv"
-    if rows:
-        with open(csv_path, "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-            w.writeheader(); w.writerows(rows)
+        got = len(rows) - before
+        per_brand.append({"brand": brand.strip(), "declared": declared,
+                          "collected": got, "pages": len(done_pages)})
+        if got < declared:
+            print(f"  ! {brand.strip()}: {got} of {declared} declared "
+                  f"({len(done_pages)} pages)", flush=True)
+        if i % 5 == 0:
+            print(f"  {i}/{len(mine)} brands - {len(rows):,} devices", flush=True)
+
     declared_total = sum(b["declared"] for b in per_brand)
     short = [b for b in per_brand if b["collected"] < b["declared"]]
     completeness = (len(rows) / declared_total) if declared_total else 0.0

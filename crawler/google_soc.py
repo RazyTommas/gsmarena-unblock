@@ -48,7 +48,7 @@ does not retire the gsmarena path; it removes the urgency from it.
 """
 from __future__ import annotations
 import argparse, csv, io, sqlite3, sys, urllib.request
-from common import DB_PATH, USER_AGENT, log_run
+from common import DB_PATH, USER_AGENT, log_run, connect as db_connect
 
 SUPPORTED = "https://storage.googleapis.com/play_public/supported_devices.csv"
 CATALOG = ("https://raw.githubusercontent.com/hossain-khan/"
@@ -104,7 +104,7 @@ def main():
     a = ap.parse_args()
 
     m2s = build_map()
-    con = sqlite3.connect(DB_PATH)
+    con = db_connect()
     where = "IFNULL(chipset,'')=''" if not a.overwrite else "1=1"
     rows = list(con.execute(
         f"SELECT DISTINCT device, model FROM roms WHERE {where} AND IFNULL(model,'')!=''"))

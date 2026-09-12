@@ -71,6 +71,29 @@ def pda_month(pda):
 
 
 # --- crawl/pull run log (so the UI can show when data was last refreshed) ----
+def connect(path=None, timeout=60.0):
+    """A SQLite connection that WAITS for a writer instead of failing on it.
+
+    Two collectors running at once is normal here -- the scheduler fires ingests
+    while a manual harvest is mid-flight -- and SQLite's default is to raise
+    `database is locked` immediately. fota_modem.py spent an hour collecting 4,503
+    builds and lost all of them to that exception at the final executemany, because
+    ios_security.py happened to be writing at that moment. The work was fine; the
+    handoff was not.
+
+    busy_timeout makes a concurrent writer wait its turn. WAL lets readers carry on
+    while one writer works, so the app serving the UI is not blocked by an ingest.
+    Every module should use this rather than sqlite3.connect()."""
+    import sqlite3 as _s
+    con = _s.connect(path or DB_PATH, timeout=timeout)
+    con.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+    try:
+        con.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass          # a read-only or oddly-mounted corpus is still usable
+    return con
+
+
 def log_run(source, rows=None, outcome=None, note=None):
     """Record that an ingester/crawler for `source` just ran.
 

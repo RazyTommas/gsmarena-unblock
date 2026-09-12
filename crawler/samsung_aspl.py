@@ -46,7 +46,7 @@ to 1 request/second and is meant to be re-run monthly, never in a loop.
 """
 from __future__ import annotations
 import argparse, collections, re, sqlite3, sys, time
-from common import DB_PATH, http_get, log_run, replace_rows
+from common import DB_PATH, http_get, log_run, replace_rows, connect as db_connect
 
 DOC = "https://doc.samsungmobile.com/{model}/{csc}/doc.html"
 ENG = "https://doc.samsungmobile.com/{model}/{doc_id}/eng.html"
@@ -169,7 +169,7 @@ def main():
           f"≈ {len(models)*len(cscs)*2*a.delay/60:.0f} min", flush=True)
     rows, refused, tried = collect(models, cscs, a.delay)
 
-    con = sqlite3.connect(DB_PATH)
+    con = db_connect()
     con.executescript("""
     CREATE TABLE IF NOT EXISTS samsung_aspl(
       model TEXT, csc TEXT, build TEXT, spl TEXT, fetched_at TEXT,

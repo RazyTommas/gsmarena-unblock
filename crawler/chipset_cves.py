@@ -30,7 +30,7 @@ traffic and cannot be budgeted against.
 """
 from __future__ import annotations
 import argparse, sqlite3, time
-from common import DB_PATH, http_get, log_run
+from common import DB_PATH, http_get, log_run, connect as db_connect
 
 NVD = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 # CNA source identifiers (an authoritative filter, unlike keyword search)
@@ -177,7 +177,7 @@ def main():
     ap.add_argument("--since", default="2023-01-01")
     ap.add_argument("--vendor", choices=list(VENDORS))
     a = ap.parse_args()
-    con = sqlite3.connect(DB_PATH)
+    con = db_connect()
     ensure(con)
     vendors = [a.vendor] if a.vendor else list(VENDORS)
     print(f"Ingesting chipset CVEs since {a.since} for: {', '.join(vendors)}", flush=True)

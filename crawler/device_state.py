@@ -28,7 +28,7 @@ So this materialises that answer, and it carries two things most schemas drop:
 """
 from __future__ import annotations
 import argparse, json, sqlite3, sys
-from common import DB_PATH, log_run
+from common import DB_PATH, log_run, connect as db_connect
 
 DDL = """
 CREATE TABLE IF NOT EXISTS device_state(
@@ -75,7 +75,7 @@ def tier_of(spl):
 
 def build(con=None, verbose=True):
     own = con is None
-    con = con or sqlite3.connect(DB_PATH)
+    con = con or db_connect()
     con.executescript(DDL)
     con.execute("DELETE FROM device_state")
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -225,7 +225,7 @@ def main():
     ap.add_argument("--device")
     ap.add_argument("--gaps", action="store_true")
     a = ap.parse_args()
-    con = sqlite3.connect(DB_PATH)
+    con = db_connect()
     if not a.device and not a.gaps:
         build(con)
     if a.gaps:

@@ -31,7 +31,7 @@ matter how recent the month is. That is stored as spl_tier and enforced in vuln.
 """
 from __future__ import annotations
 import argparse, io, json, re, sqlite3, urllib.request, zipfile
-from common import DB_PATH, USER_AGENT, log_run
+from common import DB_PATH, USER_AGENT, log_run, connect as db_connect
 
 OSV_ZIP = "https://osv-vulnerabilities.storage.googleapis.com/Android/all.zip"
 
@@ -108,7 +108,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stats", action="store_true")
     a = ap.parse_args()
-    con = sqlite3.connect(DB_PATH)
+    con = db_connect()
     ensure(con)
     if not a.stats:
         print(f"downloading {OSV_ZIP} …", flush=True)

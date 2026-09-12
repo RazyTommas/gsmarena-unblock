@@ -37,7 +37,7 @@ argument for.
 """
 from __future__ import annotations
 import argparse, re, sqlite3, sys, time
-from common import DB_PATH, http_get, log_run, host_budget
+from common import DB_PATH, http_get, log_run, host_budget, connect as db_connect
 
 MANIFEST = "https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
 FOTA_UA = "Kies2.0_FUS"
@@ -112,7 +112,7 @@ def main():
     print(f"CONTROL SM-A055F/ILO: {len(ctl)} builds, "
           f"CP={ctl[0][3] or '(none)'}", flush=True)
 
-    con = sqlite3.connect(DB_PATH)
+    con = db_connect()
     con.executescript("""
     CREATE TABLE IF NOT EXISTS samsung_modem(
       model TEXT, csc TEXT, ap TEXT, csc_ver TEXT, cp TEXT, kind TEXT, fetched_at TEXT,
@@ -120,7 +120,26 @@ def main():
     CREATE INDEX IF NOT EXISTS ix_smodem_ap ON samsung_modem(ap);
     """)
 
-    rows, hit, stopped = [], set(), False
+    def flush(batch):
+        """Write as we go. The first version accumulated every row and wrote once at
+        the end, so an hour of collection was destroyed by a single
+        `database is locked` when a scheduled ingest happened to be writing. Work
+        already paid for should not be held hostage to the last statement."""
+        if not batch:
+            return 0
+        for attempt in range(4):
+            try:
+                con.executemany(
+                    "INSERT OR REPLACE INTO samsung_modem VALUES(?,?,?,?,?,?,?)", batch)
+                con.commit()
+                return len(batch)
+            except sqlite3.OperationalError as e:
+                if "locked" not in str(e).lower() or attempt == 3:
+                    raise
+                time.sleep(2 + attempt * 3)
+        return 0
+
+    rows, hit, stopped, pending, written = [], set(), False, [], 0
     for i, model in enumerate(sorted(models), 1):
         for csc in cscs:
             got, err = fetch(model, csc, a.delay)
@@ -132,17 +151,17 @@ def main():
                 continue
             hit.add(model)
             for kind, apv, cscv, cp in got:
-                rows.append((model, csc, apv, cscv, cp, kind,
-                             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+                r = (model, csc, apv, cscv, cp, kind,
+                     time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+                rows.append(r); pending.append(r)
         if stopped:
             break
+        written += flush(pending); pending = []
         if i % 10 == 0:
-            print(f"  {i}/{len(models)} models · {len(rows):,} builds · "
+            print(f"  {i}/{len(models)} models · {len(rows):,} builds ({written:,} written) · "
                   f"{sum(1 for r in rows if r[4])} with a CP version", flush=True)
 
-    if rows:
-        con.executemany("INSERT OR REPLACE INTO samsung_modem VALUES(?,?,?,?,?,?,?)", rows)
-        con.commit()
+    written += flush(pending)
 
     with_cp = sum(1 for r in rows if r[4])
     # Fill roms.baseband by exact AP build match. No fuzzy matching: a wrong modem

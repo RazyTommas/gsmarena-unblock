@@ -16,7 +16,7 @@ Idempotent; safe to run on the refresh schedule. Stdlib + common.py.
 from __future__ import annotations
 import argparse, re, sqlite3, time
 from datetime import datetime, timedelta, timezone
-from common import DB_PATH as DB, http_get, log_run
+from common import DB_PATH as DB, http_get, log_run, connect as db_connect
 
 APPLEDB = "https://api.appledb.dev/ios/iOS;{build}.json"
 
@@ -34,7 +34,7 @@ def main():
     args = ap.parse_args()
     cutoff = (datetime.now(timezone.utc) - timedelta(days=args.days)).strftime("%Y-%m-%d")
 
-    con = sqlite3.connect(DB)
+    con = db_connect()
     cols = [c[1] for c in con.execute("PRAGMA table_info(roms)")]
     if "security_patch" not in cols:
         con.execute('ALTER TABLE roms ADD COLUMN security_patch TEXT')

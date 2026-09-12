@@ -21,13 +21,20 @@ DB_PATH = Path(__file__).resolve().parent / "data" / "devices.db"
 USER_AGENT = "Mozilla/5.0 (compatible; device-crawler/1.0)"
 
 
-def http_get(url, timeout=25, retries=3, backoff=0.6, as_json=False):
+def http_get(url, timeout=25, retries=3, backoff=0.6, as_json=False, headers=None):
     """GET a URL with the shared UA and simple retry. Returns text (or parsed
-    JSON when as_json=True), or None on repeated failure."""
+    JSON when as_json=True), or None on repeated failure.
+
+    `headers` overrides the defaults. Some endpoints serve their payload only to a
+    specific client identifier and refuse a generic browser UA; where we have been
+    authorised to use such a path, the caller passes the identifier explicitly rather
+    than the module changing its default UA for everything."""
     for attempt in range(retries):
         try:
+            h = {"User-Agent": USER_AGENT}
+            h.update(headers or {})
             raw = urllib.request.urlopen(
-                urllib.request.Request(url, headers={"User-Agent": USER_AGENT}),
+                urllib.request.Request(url, headers=h),
                 timeout=timeout).read()
             return _json.loads(raw) if as_json else raw.decode("utf-8", "ignore")
         except Exception:

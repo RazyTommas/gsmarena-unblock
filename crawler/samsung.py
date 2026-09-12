@@ -18,9 +18,20 @@ version history + direct downloads use the samfw browser-ingest instead.
 """
 from __future__ import annotations
 import argparse, sqlite3, re, time
-from common import replace_rows, DB_PATH as DB, http_get, pda_month, log_run
+from common import (replace_rows, DB_PATH as DB, http_get, pda_month,
+                    log_run, host_budget)
 
 MANIFEST = "https://fota-cloud-dn.ospserver.net/firmware/{csc}/{model}/version.xml"
+
+# This endpoint serves OTA metadata to Samsung's own update client and refuses a
+# generic browser UA with an Akamai 403. Ray authorised this path explicitly, after
+# speaking with them, and it is the reason the host is reachable at all.
+#
+# Two limits held regardless of that authorisation, because they are about scope
+# rather than permission: METADATA ONLY -- version strings, never firmware binaries,
+# even though the manifest hands us fwsize and the download path -- and no
+# credentials anywhere. Requests are counted against common.host_budget().
+FOTA_UA = "Kies2.0_FUS"
 
 # Samsung A-series + S-series (2020-2026). code -> marketing name.
 MODELS = {
@@ -63,7 +74,13 @@ CSCS_DEFAULT = ["XAA", "BTU", "DBT", "XEU", "EUX", "INS", "INU", "XSG", "XFA", "
 
 
 def latest(csc, model):
-    xml = http_get(MANIFEST.format(csc=csc, model=model), timeout=15)
+    ok, used, limit = host_budget("fota-cloud-dn.ospserver.net")
+    if not ok:
+        print(f"  budget exhausted for fota-cloud ({used}/{limit} today) — stopping",
+              flush=True)
+        return "BUDGET"
+    xml = http_get(MANIFEST.format(csc=csc, model=model), timeout=15,
+                   headers={"User-Agent": FOTA_UA})
     if not xml:
         return None
     m = re.search(r"<latest[^>]*>([^<]+)</latest>", xml)

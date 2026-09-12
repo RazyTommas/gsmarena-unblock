@@ -1,10 +1,15 @@
 {
-  "outcome": "empty",
-  "note": "makers.php3 returned HTTP 200 with no brands",
+  "outcome": "ok",
+  "note": "3,222 device slugs across 62 brands (half 2). HTTP mix: {'200': 186}. Control passed, so an empty brand is a real absence.",
   "control_ok": true,
-  "counts": {},
-  "files": [],
+  "counts": {
+    "devices": 3222,
+    "brands": 62
+  },
+  "files": [
+    "gsm_slugs.csv"
+  ],
   "agent": "box-field",
-  "finished_at": "2026-09-11T14:38:30Z",
+  "finished_at": "2026-09-12T06:08:28Z",
   "id": "T004-gsmarena-slugs"
 }

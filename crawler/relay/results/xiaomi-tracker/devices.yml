@@ -1,0 +1,4266 @@
+HM2013022:
+- Redmi 1 China
+- HM2
+HM2013023:
+- Redmi 1 W Global
+- HMWGlobal
+HM2013023_sg_global:
+- Redmi 1 W Singapore
+- HMWSGP
+HM2014011:
+- Redmi 1S TD 3G China
+- HM1STD
+HM2014501:
+- Redmi 1S TD 4G China
+- HM1SLTE
+HM2014811:
+- Redmi 2 LTE Global
+- HM2014811Global
+HM2014813:
+- Redmi 2 LTE China
+- HM2014813
+agate:
+- Xiaomi 11T China
+- AGATE
+agate_eea_global:
+- Xiaomi 11T EEA
+- AGATEEEAGlobal
+agate_global:
+- Xiaomi 11T Global
+- AGATEGlobal
+agate_id_global:
+- Xiaomi 11T Indonesia
+- AGATEIDGlobal
+agate_in_global:
+- Xiaomi 11T India
+- AGATEINGlobal
+agate_ru_global:
+- Xiaomi 11T Russia
+- AGATERUGlobal
+agate_tr_global:
+- Xiaomi 11T Turkey
+- AGATETRGlobal
+agate_tw_global:
+- Xiaomi 11T Taiwan
+- AGATETWGlobal
+air:
+- Redmi 13R 5G / 13C 5G China
+- AIR
+air_eea_global:
+- Redmi 13R 5G / 13C 5G EEA
+- AIREEAGlobal
+air_global:
+- Redmi 13R 5G / 13C 5G Global
+- AIRGlobal
+air_id_global:
+- Redmi 13R 5G / 13C 5G Indonesia
+- AIRIDGlobal
+air_in_global:
+- Redmi 13R 5G / POCO M6 5G India
+- AIRINGlobal
+air_ru_global:
+- Redmi 13R 5G / 13C 5G Russia
+- AIRRUGlobal
+air_tr_global:
+- Redmi 13R 5G / 13C 5G Turkey
+- AIRTRGlobal
+air_tw_global:
+- Redmi 13R 5G / 13C 5G Taiwan
+- AIRTWGlobal
+alioth:
+- Redmi K40 China
+- ALIOTH
+alioth_eea_global:
+- POCO F3 EEA
+- ALIOTHEEAGlobal
+alioth_global:
+- POCO F3 Global
+- ALIOTHGlobal
+alioth_id_global:
+- POCO F3 Indonesia
+- ALIOTHIDGlobal
+alioth_in_global:
+- Mi 11X India
+- ALIOTHINGlobal
+alioth_ru_global:
+- POCO F3 Russia
+- ALIOTHRUGlobal
+alioth_tr_global:
+- POCO F3 Turkey
+- ALIOTHTRGlobal
+alioth_tw_global:
+- POCO F3 Taiwan
+- ALIOTHTWGlobal
+amethyst:
+- Redmi Note 14 Pro+ 5G China
+- AMETHYST
+amethyst_eea_global:
+- Redmi Note 14 Pro+ 5G EEA
+- AMETHYSTEEAGlobal
+amethyst_global:
+- Redmi Note 14 Pro+ 5G Global
+- AMETHYSTGlobal
+amethyst_id_global:
+- Redmi Note 14 Pro+ 5G Indonesia
+- AMETHYSTIDGlobal
+amethyst_in_global:
+- Redmi Note 14 Pro+ 5G India
+- AMETHYSTINGlobal
+amethyst_jp_global:
+- Redmi Note 14 Pro+ 5G Japan
+- AMETHYSTTWGlobal
+amethyst_ru_global:
+- Redmi Note 14 Pro+ 5G Russia
+- AMETHYSTRUGlobal
+amethyst_tr_global:
+- Redmi Note 14 Pro+ 5G Turkey
+- AMETHYSTTRGlobal
+amethyst_tw_global:
+- Redmi Note 14 Pro+ 5G Taiwan
+- AMETHYSTTWGlobal
+andromeda:
+- Mi MIX 3 5G China
+- ANDROMEDA
+andromeda_eea_global:
+- Mi MIX 3 5G EEA
+- ANDROMEDAEEAGlobal
+andromeda_global:
+- Mi MIX 3 5G Global
+- ANDROMEDAGlobal
+angelica_eea_global:
+- Redmi 9C EEA
+- ANGELICAEEAGlobal
+angelica_global:
+- Redmi 9C Global
+- ANGELICAGlobal
+angelica_id_global:
+- Redmi 9C Indonesia
+- ANGELICAIDGlobal
+angelica_tr_global:
+- Redmi 9C Turkey
+- ANGELICATRGlobal
+angelicain_in_global:
+- POCO C3 India
+- ANGELICAININGlobal
+angelicain_in_rf_global:
+- POCO C31 India
+- ANGELICAININRFGlobal
+angelican_eea_global:
+- Redmi 9C NFC EEA
+- ANGELICANEEAGlobal
+angelican_global:
+- Redmi 9C NFC Global
+- ANGELICANGlobal
+angelican_ru_global:
+- Redmi 9C NFC Russia
+- ANGELICANRUGlobal
+annibale:
+- Redmi K90 China
+- ANNIBALE
+annibale_eea_global:
+- Redmi K90 / POCO F8 Pro EEA
+- ANNIBALEEEAGlobal
+annibale_global:
+- Redmi K90 / POCO F8 Pro Global
+- ANNIBALEGlobal
+annibale_id_global:
+- Redmi K90 / POCO F8 Pro Indonesia
+- ANNIBALEIDGlobal
+annibale_ru_global:
+- Redmi K90 / POCO F8 Pro Russia
+- ANNIBALERUGlobal
+annibale_tr_global:
+- Redmi K90 / POCO F8 Pro Turkey
+- ANNIBALETRGlobal
+annibale_tw_global:
+- Redmi K90 / POCO F8 Pro Taiwan
+- ANNIBALETWGlobal
+apollo:
+- Redmi K30S Ultra China
+- APOLLO
+apollo_eea_global:
+- Mi 10T / Mi 10T Pro EEA
+- APOLLOEEAGlobal
+apollo_global:
+- Mi 10T / Mi 10T Pro Global
+- APOLLOGlobal
+apollo_id_global:
+- Mi 10T / Mi 10T Pro Indonesia
+- APOLLOIDGlobal
+apollo_in_global:
+- Mi 10T / Mi 10T Pro India
+- APOLLOINGlobal
+apollo_ru_global:
+- Mi 10T / Mi 10T Pro Russia
+- APOLLORUGlobal
+apollo_tr_global:
+- Mi 10T / Mi 10T Pro Turkey
+- APOLLOTRGlobal
+apollo_tw_global:
+- Mi 10T / Mi 10T Pro Taiwan
+- APOLLOTWGlobal
+aqua:
+- MI 4S China
+- MI4s
+arctic_eea_global:
+- Redmi A7 Pro / POCO C81 / C81 Pro EEA
+- ARCTICEEAGlobal
+arctic_global:
+- Redmi A7 Pro / POCO C81 / C81 Pro Global
+- ARCTICGlobal
+arctic_id_global:
+- Redmi A7 Pro / POCO C81 / C81 Pro Indonesia
+- ARCTICIDGlobal
+arctic_in_global:
+- Redmi A7 Pro / POCO C81 / C81 Pro India
+- ARCTICINGlobal
+arctic_ru_global:
+- Redmi A7 Pro / POCO C81 / C81 Pro Russia
+- ARCTICRUGlobal
+arctic_tr_global:
+- Redmi A7 Pro / POCO C81 / C81 Pro Turkey
+- ARCTICTRGlobal
+ares:
+- Redmi K40 Gaming China
+- ARES
+ares_in_global:
+- POCO F3 GT India
+- ARESINGlobal
+aries:
+- MI 2S China
+- MI2
+aries_global:
+- MI 2S Global
+- MI2Global
+aristotle_eea_global:
+- Xiaomi 13T EEA
+- ARISTOTLEEEAGlobal
+aristotle_global:
+- Xiaomi 13T Global
+- ARISTOTLEGlobal
+aristotle_id_global:
+- Xiaomi 13T Indonesia
+- ARISTOTLEIDGlobal
+aristotle_jp_global:
+- Xiaomi 13T Japan
+- ARISTOTLEJPGlobal
+aristotle_ru_global:
+- Xiaomi 13T Russia
+- ARISTOTLERUGlobal
+aristotle_tr_global:
+- Xiaomi 13T Turkey
+- ARISTOTLETRGlobal
+aristotle_tw_global:
+- Xiaomi 13T Taiwan
+- ARISTOTLETWGlobal
+armani:
+- Redmi 1S China
+- HM1SWC
+armani_global:
+- Redmi 1S Global
+- HM1SWCGlobal
+athens:
+- Redmi K100 Pro China
+- ATHENS
+athens_eea_global:
+- POCO F9 Pro EEA
+- ATHENSEEAGlobal
+athens_global:
+- POCO F9 Pro Global
+- ATHENSGlobal
+athens_id_global:
+- POCO F9 Pro Indonesia
+- ATHENSIDGlobal
+athens_jp_global:
+- POCO F9 Pro Japan
+- ATHENSJPGlobal
+athens_ru_global:
+- POCO F9 Pro Russia
+- ATHENSRUGlobal
+athens_tr_global:
+- POCO F9 Pro Turkey
+- ATHENSTRGlobal
+athens_tw_global:
+- POCO F9 Pro Taiwan
+- ATHENSTWGlobal
+atom:
+- Redmi 10X 5G China
+- ATOM
+aurora:
+- Xiaomi 14 Ultra China
+- AURORA
+aurora_eea_global:
+- Xiaomi 14 Ultra EEA
+- AURORAEUGlobal
+aurora_global:
+- Xiaomi 14 Ultra Global
+- AURORAGlobal
+aurora_id_global:
+- Xiaomi 14 Ultra Indonesia
+- AURORAIDGlobal
+aurora_in_global:
+- Xiaomi 14 Ultra India
+- AURORAINGlobal
+aurora_ru_global:
+- Xiaomi 14 Ultra Russia
+- AURORARUGlobal
+aurora_tr_global:
+- Xiaomi 14 Ultra Turkey
+- AURORATRGlobal
+aurora_tw_global:
+- Xiaomi 14 Ultra Taiwan
+- AURORATWGlobal
+babylon:
+- MIX Fold 3 China
+- BABYLON
+begonia:
+- Redmi Note 8 Pro China
+- BEGONIA
+begonia_eea_global:
+- Redmi Note 8 Pro EEA
+- BEGONIAEEAGlobal
+begonia_global:
+- Redmi Note 8 Pro Global
+- BEGONIAGlobal
+begonia_id_global:
+- Redmi Note 8 Pro Indonesia
+- BEGONIAIDGlobal
+begonia_ru_global:
+- Redmi Note 8 Pro Russia
+- BEGONIARUGlobal
+begoniain_in_global:
+- Redmi Note 8 Pro India
+- BEGONIAININGlobal
+beryl:
+- Redmi Note 14 5G China
+- BERYL
+beryl_eea_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G EEA
+- BERYLEEAGlobal
+beryl_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G Global
+- BERYLGlobal
+beryl_id_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G Indonesia
+- BERYLIDGlobal
+beryl_in_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G India
+- BERYLINGlobal
+beryl_ru_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G Russia
+- BERYLRUGlobal
+beryl_tr_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G Turkey
+- BERYLTRGlobal
+beryl_tw_global:
+- Redmi Note 14 5G / POCO M7 Pro 5G Taiwan
+- BERYLTWGlobal
+beryllium_global:
+- POCO F1 Global
+- POCOF1Global
+beryllium_ru_global:
+- POCO F1 Russia
+- POCOF1RUGlobal
+biloba_eea_global:
+- Redmi Note 8 (2021) EEA
+- BILOBAEEAGlobal
+biloba_global:
+- Redmi Note 8 (2021) Global
+- BILOBAGlobal
+biloba_ru_global:
+- Redmi Note 8 (2021) Russia
+- BILOBARUGlobal
+bixi:
+- MIX Flip 2 China
+- BIXI
+blue_eea_global:
+- Redmi A3 EEA
+- BLUEEEAGlobal
+blue_global:
+- Redmi A3 Global
+- BLUEGlobal
+blue_id_global:
+- Redmi A3 Indonesia
+- BLUEIDGlobal
+blue_in_global:
+- POCO C61/Redmi A3 India
+- BLUEINGlobal
+blue_ru_global:
+- Redmi A3 Russia
+- BLUERUGlobal
+bomb:
+- Redmi 10X Pro China
+- BOMB
+breeze:
+- Redmi Note 13R China
+- BREEZE
+breeze_global:
+- Redmi 13 5G / POCO M6 Plus 5G Global
+- BREEZEGlobal
+breeze_in_global:
+- Redmi 13 5G / POCO M6 Plus 5G India
+- BREEZEINGlobal
+brussels:
+- Redmi Note 17 Pro Max 5G China
+- BRUSSELS
+brussels_eea_global:
+- Redmi Note 17 Pro Max 5G EEA
+- BRUSSELSEEAGlobal
+brussels_global:
+- Redmi Note 17 Pro Max 5G Global
+- BRUSSELSGlobal
+brussels_id_global:
+- Redmi Note 17 Pro Max 5G Indonesia
+- BRUSSELSIDGlobal
+brussels_in_global:
+- Redmi Note 17 Pro Max 5G / POCO X8 Power India
+- BRUSSELSINGlobal
+brussels_jp_global:
+- Redmi Note 17 Pro Max 5G Japan
+- BRUSSELSJPGlobal
+brussels_ru_global:
+- Redmi Note 17 Pro Max 5G Russia
+- BRUSSELSRUGlobal
+brussels_tr_global:
+- Redmi Note 17 Pro Max 5G Turkey
+- BRUSSELSTRGlobal
+brussels_tw_global:
+- Redmi Note 17 Pro Max 5G Taiwan
+- BRUSSELSTWGlobal
+byron:
+- Xiaomi 17 Max China
+- BYRON
+cactus:
+- Redmi 6A China
+- HM6A
+cactus_global:
+- Redmi 6A Global
+- HM6AGlobal
+cactus_ru_global:
+- Redmi 6A Russia
+- HM6ARUGlobal
+camellia:
+- Redmi Note 10 5G / Redmi Note 11SE China
+- CAMELLIA
+camellia_in_global:
+- Redmi Note 10T 5G / POCO M3 Pro 5G India
+- CAMELLIAINGlobal
+camellian_eea_global:
+- Redmi Note 10 5G EEA
+- CAMELLIANEEAGlobal
+camellian_global:
+- Redmi Note 10 5G Global
+- CAMELLIANGlobal
+camellian_id_global:
+- Redmi Note 10 5G Indonesia
+- CAMELLIANIDGlobal
+camellian_ru_global:
+- Redmi Note 10T / POCO M3 Pro Russia
+- CAMELLIANRUGlobal
+camellian_tr_global:
+- Redmi Note 10 5G Turkey
+- CAMELLIANTRGlobal
+camellian_tw_global:
+- Redmi Note 10 5G Taiwan
+- CAMELLIANTWGlobal
+cancro:
+- MI 3 / Mi 4 China
+- MI3WMI4W
+cancro_global:
+- MI 3 Global
+- MI3WGlobal
+cancro_lte_ct:
+- MI 4 LTE CT China
+- MI4LTECT
+cannon:
+- Redmi Note 9 5G China
+- CANNON
+cannong_eea_global:
+- Redmi Note 9T EEA
+- CANNONGEEAGlobal
+cannong_global:
+- Redmi Note 9T Global
+- CANNONGGlobal
+cannong_id_global:
+- Redmi Note 9T Indonesia
+- CANNONGIDGlobal
+cannong_in_global:
+- Redmi Note 9T India
+- CANNONGINGlobal
+cannong_ru_global:
+- Redmi Note 9T Russia
+- CANNONGRUGlobal
+cannong_tr_global:
+- Redmi Note 9T Turkey
+- CANNONGTRGlobal
+cannong_tw_global:
+- Redmi Note 9T Taiwan
+- CANNONGTWGlobal
+cappu:
+- Mi Pad 3 China
+- MIPAD3
+capricorn:
+- Mi 5s China
+- MI5S
+capricorn_global:
+- Mi 5s Global
+- MI5SGlobal
+cas:
+- Mi 10 Ultra China
+- CAS
+cattail_in_global:
+- Redmi 9 / 9 Activ India
+- CATTAILINGlobal
+cepheus:
+- Mi 9 China
+- CEPHEUS
+cepheus_eea_global:
+- Mi 9 EEA
+- CEPHEUSEEAGlobal
+cepheus_global:
+- Mi 9 Global
+- CEPHEUSGlobal
+cepheus_ru_global:
+- Mi 9 Russia
+- CEPHEUSRUGlobal
+cereus:
+- Redmi 6 China
+- HM6
+cereus_global:
+- Redmi 6 Global
+- HM6Global
+cereus_ru_global:
+- Redmi 6 Russia
+- HM6RUGlobal
+cetus:
+- Mi MIX Fold China
+- CETUS
+cezanne:
+- Redmi K30 Ultra China
+- CEZANNE
+chagall:
+- Xiaomi 17T China
+- CHAGALL
+chagall_eea_global:
+- Xiaomi 17T EEA
+- CHAGALLEEAGlobal
+chagall_global:
+- Xiaomi 17T Global
+- CHAGALLGlobal
+chagall_id_global:
+- Xiaomi 17T Indonesia
+- CHAGALLIDGlobal
+chagall_in_global:
+- Xiaomi 17T India
+- CHAGALLINGlobal
+chagall_ru_global:
+- Xiaomi 17T Russia
+- CHAGALLRUGlobal
+chagall_tr_global:
+- Xiaomi 17T Turkey
+- CHAGALLTRGlobal
+chagall_tw_global:
+- Xiaomi 17T Taiwan
+- CHAGALLTWGlobal
+charoite_eea_global:
+- Redmi Note 15 Pro 4G EEA
+- CHAROITEEEAGlobal
+charoite_global:
+- Redmi Note 15 Pro 4G Global
+- CHAROITEGlobal
+charoite_id_global:
+- Redmi Note 15 Pro 4G Indonesia
+- CHAROITEIDGlobal
+charoite_ru_global:
+- Redmi Note 15 Pro 4G Russia
+- CHAROITERUGlobal
+charoite_tr_global:
+- Redmi Note 15 Pro 4G Turkey
+- CHAROITETRGlobal
+chenfeng:
+- Xiaomi Civi 4 Pro China
+- CHENFENG
+chenfeng_global:
+- Xiaomi Civi 4 Pro Global
+- CHENFENGGlobal
+chenfeng_in_global:
+- Xiaomi Civi 4 Pro India
+- CHENFENGINGlobal
+chiron:
+- Mi MIX 2 China
+- MIMIX2
+chiron_global:
+- Mi MIX 2 Global
+- MIMIX2Global
+chopin:
+- Redmi Note 10 Pro 5G China
+- CHOPIN
+chopin_global:
+- POCO X3 GT Global
+- CHOPINGlobal
+chopin_id_global:
+- POCO X3 GT Indonesia
+- CHOPINIDGlobal
+chopin_in_global:
+- POCO X3 GT India
+- CHOPININGlobal
+chopin_tr_global:
+- POCO X3 GT Turkey
+- CHOPINTRGlobal
+citrus_eea_global:
+- POCO M3 EEA
+- CITRUSEEAGlobal
+citrus_global:
+- POCO M3 Global
+- CITRUSGlobal
+citrus_id_global:
+- POCO M3 Indonesia
+- CITRUSIDGlobal
+citrus_in_global:
+- POCO M3 India
+- CITRUSINGlobal
+citrus_ru_global:
+- POCO M3 Russia
+- CITRUSRUGlobal
+citrus_tr_global:
+- POCO M3 Turkey
+- CITRUSTRGlobal
+citrus_tw_global:
+- POCO M3 Taiwan
+- CITRUSTWGlobal
+clover:
+- Mi Pad 4 (Plus) China
+- MIPAD4
+cmi:
+- Mi 10 Pro China
+- CMI
+cmi_eea_global:
+- Mi 10 Pro EEA
+- CMIEEAGlobal
+cmi_global:
+- Mi 10 Pro Global
+- CMIGlobal
+corot:
+- Redmi K60 Ultra China
+- COROT
+corot_eea_global:
+- Xiaomi 13T Pro EEA
+- COROTEEAGlobal
+corot_global:
+- Xiaomi 13T Pro Global
+- COROTGlobal
+corot_jp_global:
+- Xiaomi 13T Pro Japan
+- COROTJPGlobal
+corot_ru_global:
+- Xiaomi 13T Pro Russia
+- COROTRUGlobal
+corot_tr_global:
+- Xiaomi 13T Pro Turkey
+- COROTTRGlobal
+corot_tw_global:
+- Xiaomi 13T Pro Taiwan
+- COROTTWGlobal
+courbet_eea_global:
+- Mi 11 Lite 4G EEA
+- COURBETEEAGlobal
+courbet_global:
+- Mi 11 Lite 4G Global
+- COURBETGlobal
+courbet_id_global:
+- Mi 11 Lite 4G Indonesia
+- COURBETIDGlobal
+courbet_in_global:
+- Mi 11 Lite 4G India
+- COURBETINGlobal
+courbet_ru_global:
+- Mi 11 Lite 4G Russia
+- COURBETRUGlobal
+courbet_tr_global:
+- Mi 11 Lite 4G Turkey
+- COURBETTRGlobal
+creek_eea_global:
+- Redmi 15 / POCO M7 EEA
+- CREEKEEAGlobal
+creek_global:
+- Redmi 15 / POCO M7 Global
+- CREEKGlobal
+creek_id_global:
+- Redmi 15 / POCO M7 Indonesia
+- CREEKIDGlobal
+creek_ru_global:
+- Redmi 15 / POCO M7 Russia
+- CREEKRUGlobal
+creek_tr_global:
+- Redmi 15 / POCO M7 Turkey
+- CREEKTRGlobal
+creek_tw_global:
+- Redmi 15 / POCO M7 Taiwan
+- CREEKTWGlobal
+crux:
+- Mi 9 Pro 5G China
+- CRUX
+cupid:
+- Xiaomi 12 China
+- CUPID
+cupid_eea_global:
+- Xiaomi 12 EEA
+- CUPIDEEAGlobal
+cupid_global:
+- Xiaomi 12 Global
+- CUPIDGlobal
+cupid_id_global:
+- Xiaomi 12 Indonesia
+- CUPIDIDGlobal
+cupid_ru_global:
+- Xiaomi 12 Russia
+- CUPIDRUGlobal
+cupid_tr_global:
+- Xiaomi 12 Turkey
+- CUPIDTRGlobal
+cupid_tw_global:
+- Xiaomi 12 Taiwan
+- CUPIDTWGlobal
+curtana_eea_global:
+- Redmi Note 9S EEA
+- CURTANAEEAGlobal
+curtana_global:
+- Redmi Note 9S Global
+- CURTANAGlobal
+curtana_in_global:
+- Redmi Note 9 Pro India
+- CURTANAINGlobal
+curtana_in_rf_global:
+- Redmi Note 10 Lite India
+- CURTANAINGlobal
+curtana_ru_global:
+- Redmi Note 9S Russia
+- CURTANARUGlobal
+curtana_tr_global:
+- Redmi Note 9S Turkey
+- CURTANATRGlobal
+dada:
+- Xiaomi 15 China
+- DADA
+dada_eea_global:
+- Xiaomi 15 EEA
+- DADAEEAGlobal
+dada_global:
+- Xiaomi 15 Global
+- DADAGlobal
+dada_id_global:
+- Xiaomi 15 Indonesia
+- DADAIDGlobal
+dada_in_global:
+- Xiaomi 15 India
+- DADAINGlobal
+dada_ru_global:
+- Xiaomi 15 Russia
+- DADARUGlobal
+dada_tr_global:
+- Xiaomi 15 Turkey
+- DADATRGlobal
+dada_tw_global:
+- Xiaomi 15 Taiwan
+- DADATWGlobal
+dagu:
+- Xiaomi Pad 5 Pro 12.4 China
+- DAGU
+daisy_global:
+- Mi A2 Lite Global
+- DAISYGlobal
+dali:
+- Redmi K80 Ultra China
+- DALI
+dandelion:
+- Redmi 9A China
+- DANDELION
+dandelion_c3l2:
+- Redmi 10A China
+- DANDELIONC3L2
+dandelion_c3l2_eea_global:
+- Redmi 10A EEA
+- DANDELIONC3L2EEAGlobal
+dandelion_c3l2_global:
+- Redmi 10A Global
+- DANDELIONC3L2Global
+dandelion_c3l2_id_global:
+- Redmi 10A Indonesia
+- DANDELIONC3L2IDGlobal
+dandelion_c3l2_in_global:
+- Redmi 10A / 10A Sport India
+- DANDELIONC3L2INGlobal
+dandelion_c3l2_ru_global:
+- Redmi 10A Russia
+- DANDELIONC3L2RUGlobal
+dandelion_c3l2_tw_global:
+- Redmi 10A Taiwan
+- DANDELIONC3L2TWGlobal
+dandelion_eea_global:
+- Redmi 9A / 9AT EEA
+- DANDELIONEEAGlobal
+dandelion_global:
+- Redmi 9A Global
+- DANDELIONGlobal
+dandelion_id_global:
+- Redmi 9A Indonesia
+- DANDELIONIDGlobal
+dandelion_in_global:
+- Redmi 9A / 9i / 9A Sport India
+- DANDELIONINGlobal
+dandelion_ru_global:
+- Redmi 9A Russia
+- DANDELIONRUGlobal
+dandelion_tr_global:
+- Redmi 9A Turkey
+- DANDELIONTRGlobal
+dash:
+- Redmi Turbo 5 Max China
+- DASH
+dash_eea_global:
+- POCO X8 Pro Max EEA
+- DASHEEAGlobal
+dash_global:
+- POCO X8 Pro Max Global
+- DASHGlobal
+dash_id_global:
+- POCO X8 Pro Max Indonesia
+- DASHIDGlobal
+dash_in_global:
+- POCO X8 Pro Max India
+- DASHINGlobal
+dash_ru_global:
+- POCO X8 Pro Max Russia
+- DASHRUGlobal
+dash_tr_global:
+- POCO X8 Pro Max Turkey
+- DASHTRGlobal
+dash_tw_global:
+- POCO X8 Pro Max Taiwan
+- DASHTWGlobal
+daumier:
+- Xiaomi 12 Pro Dimensity China
+- DAUMIER
+davinci:
+- Redmi K20 China
+- DAVINCI
+davinci_eea_global:
+- Mi 9T EEA
+- DAVINCIEEAGlobal
+davinci_global:
+- Mi 9T Global
+- DAVINCIGlobal
+davinci_ru_global:
+- Mi 9T Russia
+- DAVINCIRUGlobal
+davinciin_in_global:
+- Redmi K20 India
+- DAVINCIININGlobal
+degas_eea_global:
+- Xiaomi 14T EEA
+- DEGASEEAGlobal
+degas_global:
+- Xiaomi 14T Global
+- DEGASGlobal
+degas_id_global:
+- Xiaomi 14T Indonesia
+- DEGASIDGlobal
+degas_ru_global:
+- Xiaomi 14T Russia
+- DEGASRUGlobal
+degas_tr_global:
+- Xiaomi 14T Turkey
+- DEGASTRGlobal
+degas_tw_global:
+- Xiaomi 14T Taiwan
+- DEGASTWGlobal
+dew_eea_global:
+- Redmi 15C / POCO C85 EEA
+- DEWEUGlobal
+dew_global:
+- Redmi 15C / POCO C85 Global
+- DEWGlobal
+dew_id_global:
+- Redmi 15C / POCO C85 Indonesia
+- DEWIDGlobal
+dew_ru_global:
+- Redmi 15C / POCO C85 Russia
+- DEWRUGlobal
+dew_tr_global:
+- Redmi 15C / POCO C85 Turkey
+- DEWTRGlobal
+dew_tw_global:
+- Redmi 15C / POCO C85 Taiwan
+- DEWTWGlobal
+dijun:
+- Xiaomi 15S Pro China
+- DIJUN
+dior:
+- Redmi Note 4G China
+- HMNoteLTE
+dior_global:
+- Redmi Note 4G Global
+- HMNoteLTEGlobal
+dipper:
+- Mi 8 China
+- MI8
+dipper_global:
+- Mi 8 Global
+- MI8Global
+dipper_ru_global:
+- Mi 8 Russia
+- MI8RUGlobal
+diting:
+- Redmi K50 Ultra China
+- DITING
+diting_eea_global:
+- Xiaomi 12T Pro EEA
+- DITINGEEAGlobal
+diting_global:
+- Xiaomi 12T Pro Global
+- DITINGGlobal
+diting_jp_global:
+- Xiaomi 12T Pro Japan
+- DITINGJPGlobal
+diting_ru_global:
+- Xiaomi 12T Pro Russia
+- DITINGRUGlobal
+diting_tr_global:
+- Xiaomi 12T Pro Turkey
+- DITINGTRGlobal
+diting_tw_global:
+- Xiaomi 12T Pro Taiwan
+- DITINGTWGlobal
+dizi:
+- Redmi Pad Pro China
+- DIZI
+dizi_eea_global:
+- Redmi Pad Pro / POCO Pad EEA
+- DIZIEEAGlobal
+dizi_global:
+- Redmi Pad Pro / POCO Pad Global
+- DIZIGlobal
+dizi_id_global:
+- Redmi Pad Pro / POCO Pad Indonesia
+- DIZIIDGlobal
+dizi_in_global:
+- Redmi Pad Pro / POCO Pad India
+- DIZIINGlobal
+dizi_ru_global:
+- Redmi Pad Pro / POCO Pad Russia
+- DIZIRUGlobal
+dizi_tr_global:
+- Redmi Pad Pro / POCO Pad Turkey
+- DIZITRGlobal
+dizi_tw_global:
+- Redmi Pad Pro / POCO Pad Taiwan
+- DIZITWGlobal
+duchamp:
+- Redmi K70E China
+- DUCHAMP
+duchamp_eea_global:
+- POCO X6 Pro 5G EEA
+- DUCHAMPEEAGlobal
+duchamp_global:
+- POCO X6 Pro 5G Global
+- DUCHAMPGlobal
+duchamp_id_global:
+- POCO X6 Pro 5G Indonesia
+- DUCHAMPIDGlobal
+duchamp_in_global:
+- POCO X6 Pro 5G India
+- DUCHAMPINGlobal
+duchamp_ru_global:
+- POCO X6 Pro 5G Russia
+- DUCHAMPRUGlobal
+duchamp_tr_global:
+- POCO X6 Pro 5G Turkey
+- DUCHAMPTRGlobal
+duchamp_tw_global:
+- POCO X6 Pro 5G Taiwan
+- DUCHAMPTWGlobal
+earth:
+- Redmi 12C China
+- EARTH
+earth_eea_global:
+- Redmi 12C / POCO C55 EEA
+- EARTHEEAGlobal
+earth_global:
+- Redmi 12C / POCO C55 Global
+- EARTHGlobal
+earth_id_global:
+- Redmi 12C / POCO C55 Indonesia
+- EARTHIDGlobal
+earth_in_global:
+- Redmi 12C / POCO C55 India
+- EARTHINGlobal
+earth_ru_global:
+- Redmi 12C / POCO C55 Russia
+- EARTHRUGlobal
+earth_tr_global:
+- Redmi 12C / POCO C55 Turkey
+- EARTHTRGlobal
+earth_tw_global:
+- Redmi 12C / POCO C55 Taiwan
+- EARTHTWGlobal
+elish:
+- Xiaomi Pad 5 Pro Wi-Fi China
+- ELISH
+emerald_eea_global:
+- Redmi Note 13 Pro 4G / POCO M6 Pro EEA
+- EMERALDEEAGlobal
+emerald_global:
+- Redmi Note 13 Pro 4G / POCO M6 Pro Global
+- EMERALDGlobal
+emerald_id_global:
+- Redmi Note 13 Pro 4G / POCO M6 Pro Indonesia
+- EMERALDIDGlobal
+emerald_r_eea_global:
+- Redmi Note 14S EEA
+- EMERALDREEAGlobal
+emerald_r_global:
+- Redmi Note 14S Global
+- EMERALDRGlobal
+emerald_r_ru_global:
+- Redmi Note 14S Russia
+- EMERALDRUGlobal
+emerald_r_tr_global:
+- Redmi Note 14S Turkey
+- EMERALDRTRGlobal
+emerald_ru_global:
+- Redmi Note 13 Pro 4G / POCO M6 Pro Russia
+- EMERALDRUGlobal
+emerald_tr_global:
+- Redmi Note 13 Pro 4G / POCO M6 Pro Turkey
+- EMERALDTRGlobal
+emeraldr:
+- POCO M6 Pro Global
+- EMERALDRGlobal
+enuma:
+- Xiaomi Pad 5 Pro 5G China
+- ENUMA
+equuleus:
+- Mi 8 Pro China
+- MI8UD
+equuleus_global:
+- Mi 8 Pro Global
+- MI8UDGlobal
+equuleus_ru_global:
+- Mi 8 Pro Russia
+- MI8ProRUGlobal
+erhu:
+- Redmi Pad 2 SE 4G China
+- ERHU
+erhu_eea_global:
+- Redmi Pad 2 SE 4G EEA
+- ERHUEEAGlobal
+erhu_global:
+- Redmi Pad 2 SE 4G Global
+- ERHUGlobal
+erhu_id_global:
+- Redmi Pad 2 SE 4G Indonesia
+- ERHUIDGlobal
+erhu_in_global:
+- Redmi Pad 2 SE 4G India
+- ERHUINGlobal
+erhu_ru_global:
+- Redmi Pad 2 SE 4G Russia
+- ERHURUGlobal
+erhu_tr_global:
+- Redmi Pad 2 SE 4G Turkey
+- ERHUTRGlobal
+erhu_tw_global:
+- Redmi Pad 2 SE 4G Taiwan
+- ERHUTWGlobal
+evergo:
+- Redmi Note 11 5G China
+- EVERGO
+evergo_in_global:
+- Redmi Note 11T 5G India
+- EVERGOINGlobal
+evergreen_eea_global:
+- POCO M4 Pro 5G EEA
+- EVERGREENEEAGlobal
+evergreen_global:
+- POCO M4 Pro 5G Global
+- EVERGREENGlobal
+evergreen_id_global:
+- POCO M4 Pro 5G Indonesia
+- EVERGREENIDGlobal
+evergreen_ru_global:
+- POCO M4 Pro 5G Russia
+- EVERGREENRUGlobal
+evergreen_tr_global:
+- POCO M4 Pro 5G Turkey
+- EVERGREENTRGlobal
+evergreen_tw_global:
+- POCO M4 Pro 5G Taiwan
+- EVERGREENTWGlobal
+excalibur_in_global:
+- Redmi Note 9 Pro Max India
+- EXCALIBURINGlobal
+ferrari:
+- MI 4i China
+- MI4i
+ferrari_global:
+- MI 4i Global
+- MI4iGlobal
+fire_eea_global:
+- Redmi 12 EEA
+- FIREEEAGlobal
+fire_global:
+- Redmi 12 Global
+- FIREGlobal
+fire_id_global:
+- Redmi 12 Indonesia
+- FIREIDGlobal
+fire_in_global:
+- Redmi 12 India
+- FIREINGlobal
+fire_ru_global:
+- Redmi 12 Russia
+- FIRERUGlobal
+fire_tr_global:
+- Redmi 12 Turkey
+- FIRETRGlobal
+flame:
+- Redmi 14R 5G China
+- FLAME
+flame_eea_global:
+- Redmi 14C 5G / POCO M7 5G EEA
+- FLAMEEEAGlobal
+flame_global:
+- Redmi 14C 5G / POCO M7 5G Global
+- FLAMEGlobal
+flame_id_global:
+- Redmi 14C 5G / POCO M7 5G Indonesia
+- FLAMEIDGlobal
+flame_in_global:
+- Redmi 14C 5G / POCO M7 5G India
+- FLAMEINGlobal
+flame_jp_global:
+- Redmi 14C 5G / POCO M7 5G Japan
+- FLAMEJPGlobal
+flame_ru_global:
+- Redmi 14C 5G / POCO M7 5G Russia
+- FLAMERUGlobal
+flame_tr_global:
+- Redmi 14C 5G / POCO M7 5G Turkey
+- FLAMETRGlobal
+flame_tw_global:
+- Redmi 14C 5G / POCO M7 5G Taiwan
+- FLAMETWGlobal
+flare_eea_global:
+- Redmi Pad SE 8.7 5G EEA
+- FLAREEEAGlobal
+flare_global:
+- Redmi Pad SE 8.7 5G Global
+- FLAREGlobal
+flare_id_global:
+- Redmi Pad SE 8.7 5G Indonesia
+- FLAREIDGlobal
+flare_ru_global:
+- Redmi Pad SE 8.7 5G Russia
+- FLARERUGlobal
+flare_tr_global:
+- Redmi Pad SE 8.7 5G Turkey
+- FLARETRGlobal
+flare_tw_global:
+- Redmi Pad SE 8.7 5G Taiwan
+- FLARETWGlobal
+fleur_eea_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G EEA
+- FLEUREEAGlobal
+fleur_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G Global
+- FLEURGlobal
+fleur_id_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G Indonesia
+- FLEURIDGlobal
+fleur_in_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G India
+- FLEURINGlobal
+fleur_ru_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G Russia
+- FLEURRUGlobal
+fleur_tr_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G Turkey
+- FLEURTRGlobal
+fleur_tw_global:
+- Redmi Note 11S 4G / POCO M4 Pro 4G Taiwan
+- FLEURTWGlobal
+flourite:
+- Redmi Note 15 Pro+ 5G China
+- FLOURITE
+flourite_eea_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G EEA
+- FLOURITEEUGlobal
+flourite_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Global
+- FLOURITEGlobal
+flourite_id_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Indonesia
+- FLOURITEIDGlobal
+flourite_in_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G India
+- FLOURITEINGlobal
+flourite_ru_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Russia
+- FLOURITERUGlobal
+flourite_tr_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Turkey
+- FLOURITETRGlobal
+flourite_tw_global:
+- Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Taiwan
+- FLOURITETWGlobal
+flute:
+- Redmi Pad 2 Pro China
+- FLUTE
+flute_eea_global:
+- Redmi Pad 2 Pro / POCO Pad M1 EEA
+- FLUTEEEAGlobal
+flute_global:
+- Redmi Pad 2 Pro / POCO Pad M1 Global
+- FLUTEGlobal
+flute_id_global:
+- Redmi Pad 2 Pro / POCO Pad M1 Indonesia
+- FLUTEIDGlobal
+flute_in_global:
+- Redmi Pad 2 Pro / POCO Pad M1 India
+- FLUTEINGlobal
+flute_ru_global:
+- Redmi Pad 2 Pro / POCO Pad M1 Russia
+- FLUTERUGlobal
+flute_tr_global:
+- Redmi Pad 2 Pro / POCO Pad M1 Turkey
+- FLUTETRGlobal
+flute_tw_global:
+- Redmi Pad 2 Pro / POCO Pad M1 Taiwan
+- FLUTETWGlobal
+fog_eea_global:
+- Redmi 10C EEA
+- FOGEEAGlobal
+fog_global:
+- Redmi 10C Global
+- FOGGlobal
+fog_id_global:
+- Redmi 10C Indonesia
+- FOGIDGlobal
+fog_in_global:
+- Redmi 10C India
+- FOGINGlobal
+fog_ru_global:
+- Redmi 10C Russia
+- FOGRUGlobal
+fog_tr_global:
+- Redmi 10C Turkey
+- FOGTRGlobal
+fog_tw_global:
+- Redmi 10C Taiwan
+- FOGTWGlobal
+frost_eea_global:
+- POCO C40 EEA
+- FROSTEEAGlobal
+frost_global:
+- POCO C40 Global
+- FROSTGlobal
+frost_id_global:
+- POCO C40 Indonesia
+- FROSTIDGlobal
+frost_in_global:
+- POCO C40 India
+- FROSTINGlobal
+frost_ru_global:
+- POCO C40 Russia
+- FROSTRUGlobal
+frost_tr_global:
+- POCO C40 Turkey
+- FROSTTRGlobal
+frost_tw_global:
+- POCO C40 Taiwan
+- FROSTTWGlobal
+fuxi:
+- Xiaomi 13 China
+- FUXI
+fuxi_eea_global:
+- Xiaomi 13 EEA
+- FUXIEEAGlobal
+fuxi_global:
+- Xiaomi 13 Global
+- FUXIGlobal
+fuxi_id_global:
+- Xiaomi 13 Indonesia
+- FUXIIDGlobal
+fuxi_ru_global:
+- Xiaomi 13 Russia
+- FUXIRUGlobal
+fuxi_tr_global:
+- Xiaomi 13 Turkey
+- FUXITRGlobal
+fuxi_tw_global:
+- Xiaomi 13 Taiwan
+- FUXITWGlobal
+gale_eea_global:
+- Redmi 13C / POCO C65 EEA
+- GALEEEAGlobal
+gale_global:
+- Redmi 13C / POCO C65 Global
+- GALEGlobal
+gale_id_global:
+- Redmi 13C / POCO C65 Indonesia
+- GALEIDGlobal
+gale_in_global:
+- Redmi 13C / POCO C65 India
+- GALEINGlobal
+gale_ru_global:
+- Redmi 13C / POCO C65 Russia
+- GALERUGlobal
+gale_tr_global:
+- Redmi 13C / POCO C65 Turkey
+- GALETRGlobal
+gale_tw_global:
+- Redmi 13C / POCO C65 Taiwan
+- GALETWGlobal
+garnet:
+- Redmi Note 13 Pro 5G China
+- GARNET
+garnet_eea_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G EEA
+- GARNETEEAGlobal
+garnet_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G Global
+- GARNETGlobal
+garnet_id_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G Indonesia
+- GARNETIDGlobal
+garnet_in_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G India
+- GARNETINGlobal
+garnet_ru_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G Russia
+- GARNETRUGlobal
+garnet_tr_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G Turkey
+- GARNETTRGlobal
+garnet_tw_global:
+- Redmi Note 13 Pro 5G / POCO X6 5G Taiwan
+- GARNETTWGlobal
+gauguin:
+- Redmi Note 9 Pro 5G China
+- GAUGUIN
+gauguin_eea_global:
+- Mi 10T Lite EEA
+- GAUGUINEEAGlobal
+gauguin_global:
+- Mi 10T Lite Global
+- GAUGUINGlobal
+gauguin_in_global:
+- Mi 10i India
+- GAUGUININGlobal
+gauguin_ru_global:
+- Mi 10T Lite Russia
+- GAUGUINRUGlobal
+gauguin_tr_global:
+- Mi 10T Lite Turkey
+- GAUGUINTRGlobal
+gauguin_tw_global:
+- Mi 10T Lite Taiwan
+- GAUGUINTWGlobal
+gemini:
+- MI 5 China
+- MI5
+gemini_global:
+- MI 5 Global
+- MI5Global
+ginkgo:
+- Redmi Note 8 China
+- GINKGO
+ginkgo_eea_global:
+- Redmi Note 8 EEA
+- GINKGOEEAGlobal
+ginkgo_global:
+- Redmi Note 8 Global
+- GINKGOGlobal
+ginkgo_id_global:
+- Redmi Note 8 Indonesia
+- GINKGOIDGlobal
+ginkgo_in_global:
+- Redmi Note 8 India
+- GINKGOINGlobal
+ginkgo_ru_global:
+- Redmi Note 8 Russia
+- GINKGORUGlobal
+goku:
+- MIX Fold 4 China
+- GOKU
+gold:
+- Redmi Note 13 5G / 13R Pro China
+- GOLD
+gold_eea_global:
+- Redmi Note 13 5G / POCO X6 Neo 5G EEA
+- GOLDEEAGlobal
+gold_global:
+- Redmi Note 13 5G / POCO X6 Neo 5G Global
+- GOLDGlobal
+gold_id_global:
+- Redmi Note 13 5G / POCO X6 Neo 5G Indonesia
+- GOLDIDGlobal
+gold_in_global:
+- Redmi Note 13 5G / POCO X6 Neo 5G India
+- GOLDINGlobal
+gold_tr_global:
+- Redmi Note 13 5G / POCO X6 Neo 5G Turkey
+- GOLDTRGlobal
+gold_tw_global:
+- Redmi Note 13 5G / POCO X6 Neo 5G Taiwan
+- GOLDTWGlobal
+goya_eea_global:
+- Xiaomi 15T EEA
+- GOYAEEAGlobal
+goya_global:
+- Xiaomi 15T Global
+- GOYAGlobal
+goya_id_global:
+- Xiaomi 15T Indonesia
+- GOYAIDGlobal
+goya_ru_global:
+- Xiaomi 15T Russia
+- GOYARUGlobal
+goya_tr_global:
+- Xiaomi 15T Turkey
+- GOYATRGlobal
+goya_tw_global:
+- Xiaomi 15T Taiwan
+- GOYATWGlobal
+gram_in_global:
+- POCO M2 Pro India
+- GRAMINGlobal
+grus:
+- Mi 9 SE China
+- GRUS
+grus_eea_global:
+- Mi 9 SE EEA
+- GRUSEEAGlobal
+grus_global:
+- Mi 9 SE Global
+- GRUSGlobal
+grus_ru_global:
+- Mi 9 SE Russia
+- GRUSRUGlobal
+gucci:
+- Redmi Note 1S 4G China
+- HMNote1S
+gucci_global:
+- Redmi Note 1S 4G Global
+- HMNote1SGlobal
+guitar:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 China
+- GUITAR
+guitar_eea_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 EEA
+- GUITAREEAGlobal
+guitar_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Global
+- GUITARGlobal
+guitar_id_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Indonesia
+- GUITARIDGlobal
+guitar_in_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 India
+- GUITARINGlobal
+guitar_ru_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Russia
+- GUITARRUGlobal
+guitar_tr_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Turkey
+- GUITARTRGlobal
+guitar_tw_global:
+- Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Taiwan
+- GUITARTWGlobal
+haotian:
+- Xiaomi 15 Pro China
+- HAOTIAN
+haydn:
+- Redmi K40 Pro / Pro+ China
+- HAYDN
+haydn_eea_global:
+- Mi 11i EEA
+- HAYDNEEAGlobal
+haydn_global:
+- Mi 11i Global
+- HAYDNGlobal
+haydn_id_global:
+- Mi 11i Indonesia
+- HAYDNIDGlobal
+haydn_in_global:
+- Mi 11X Pro India
+- HAYDNINGlobal
+haydn_ru_global:
+- Mi 11i Russia
+- HAYDNRUGlobal
+haydn_tr_global:
+- Mi 11i Turkey
+- HAYDNTRGlobal
+haydn_tw_global:
+- Mi 11i Taiwan
+- HAYDNTWGlobal
+helium:
+- Mi Max Prime China
+- MIMAX652
+helium_global:
+- Mi Max Prime Global
+- MIMAX652Global
+hennessy:
+- Redmi Note 3 (MTK) China
+- HMNote3
+hermes:
+- Redmi Note 2 China
+- HMNote2
+hermes_global:
+- Redmi Note 2 Global
+- HMNote2Global
+houji:
+- Xiaomi 14 China
+- HOUJI
+houji_eea_global:
+- Xiaomi 14 EEA
+- HOUJIEEAGlobal
+houji_global:
+- Xiaomi 14 Global
+- HOUJIGlobal
+houji_id_global:
+- Xiaomi 14 Indonesia
+- HOUJIIDGlobal
+houji_in_global:
+- Xiaomi 14 India
+- HOUJIINGlobal
+houji_ru_global:
+- Xiaomi 14 Russia
+- HOUJIRUGlobal
+houji_tr_global:
+- Xiaomi 14 Turkey
+- HOUJITRGlobal
+houji_tw_global:
+- Xiaomi 14 Taiwan
+- HOUJITWGlobal
+hydrogen:
+- Mi Max China
+- MIMAX
+hydrogen_global:
+- Mi Max Global
+- MIMAXGlobal
+ice_eea_global:
+- Redmi A1 / POCO C50 EEA
+- ICEEEAGlobal
+ice_global:
+- Redmi A1 / POCO C50 Global
+- ICEGlobal
+ice_id_global:
+- Redmi A1 / POCO C50 Indonesia
+- ICEIDGlobal
+ice_in_global:
+- Redmi A1 / A1+ / POCO C50 India
+- ICEINGlobal
+ice_ru_global:
+- Redmi A1 / POCO C50 Russia
+- ICERUGlobal
+ice_tr_global:
+- Redmi A1 / POCO C50 Turkey
+- ICETRGlobal
+ice_tw_global:
+- Redmi A1 / POCO C50 Taiwan
+- ICETWGlobal
+ido_xhdpi:
+- Redmi 3 China
+- HM3
+ido_xhdpi_global:
+- Redmi 3/3 Pro Global
+- HM3Global
+ingres:
+- Redmi K50G China
+- INGRES
+ingres_eea_global:
+- POCO F4 GT EEA
+- INGRESEEAGlobal
+ingres_global:
+- POCO F4 GT Global
+- INGRESGlobal
+ingres_id_global:
+- POCO F4 GT Indonesia
+- INGRESIDGlobal
+ingres_ru_global:
+- POCO F4 GT Russia
+- INGRESRUGlobal
+ingres_tr_global:
+- POCO F4 GT Turkey
+- INGRESTRGlobal
+ingres_tw_global:
+- POCO F4 GT Taiwan
+- INGRTWGlobal
+iolite:
+- Redmi Note 17 Pro 5G China
+- IOLITE
+iolite_eea_global:
+- Redmi Note 17 Pro 5G / POCO X8 EEA
+- IOLITEEEAGlobal
+iolite_global:
+- Redmi Note 17 Pro 5G / POCO X8 Global
+- IOLITEGlobal
+iolite_id_global:
+- Redmi Note 17 Pro 5G / POCO X8 Indonesia
+- IOLITEIDGlobal
+iolite_in_global:
+- Redmi Note 17 Pro 5G / POCO X8 India
+- IOLITEINGlobal
+iolite_jp_global:
+- Redmi Note 17 Pro 5G / POCO X8 Japan
+- IOLITEJPGlobal
+iolite_ru_global:
+- Redmi Note 17 Pro 5G / POCO X8 Russia
+- IOLITERUGlobal
+iolite_tr_global:
+- Redmi Note 17 Pro 5G / POCO X8 Turkey
+- IOLITETRGlobal
+iolite_tw_global:
+- Redmi Note 17 Pro 5G / POCO X8 Taiwan
+- IOLITETWGlobal
+ishtar:
+- Xiaomi 13 Ultra China
+- ISHTAR
+ishtar_eea_global:
+- Xiaomi 13 Ultra EEA
+- ISHTAREEAGlobal
+ishtar_global:
+- Xiaomi 13 Ultra Global
+- ISHTARGlobal
+ishtar_ru_global:
+- Xiaomi 13 Ultra Russia
+- ISHTARRUGlobal
+ishtar_tw_global:
+- Xiaomi 13 Ultra Taiwan
+- ISHTARTWGlobal
+jasmine_global:
+- Mi A2 Global
+- JASMINEGlobal
+jason:
+- Mi Note 3 China
+- MINote3
+jason_global:
+- Mi Note 3 Global
+- MINote3Global
+jinghu:
+- Xiaomi Pad 7 Ultra China
+- JINGHU
+joyeuse_eea_global:
+- Redmi Note 9 Pro EEA
+- JOYEUSEEEAGlobal
+joyeuse_global:
+- Redmi Note 9 Pro Global
+- JOYEUSEGlobal
+joyeuse_id_global:
+- Redmi Note 9 Pro Indonesia
+- JOYEUSEIDGlobal
+joyeuse_ru_global:
+- Redmi Note 9 Pro Russia
+- JOYEUSERUGlobal
+joyeuse_tr_global:
+- Redmi Note 9 Pro Turkey
+- JOYEUSETRGlobal
+joyeuse_tw_global:
+- Redmi Note 9 Pro Taiwan
+- JOYEUSETWGlobal
+kate_global:
+- Redmi Note 3 SE Global
+- HMNote3ProtwGlobal
+kenzo:
+- Redmi Note 3 Pro China
+- HMNote3Pro
+kenzo_global:
+- Redmi Note 3 Pro Global
+- HMNote3ProGlobal
+klee:
+- Redmi Turbo 5 China
+- KLEE
+klee_eea_global:
+- POCO X8 Pro EEA
+- KLEEEEAGlobal
+klee_global:
+- POCO X8 Pro Global
+- KLEEGlobal
+klee_id_global:
+- POCO X8 Pro Indonesia
+- KLEEIDGlobal
+klee_in_global:
+- POCO X8 Pro India
+- KLEEINGlobal
+klee_ru_global:
+- POCO X8 Pro Russia
+- KLEERUGlobal
+klee_tr_global:
+- POCO X8 Pro Turkey
+- KLEETRGlobal
+klee_tw_global:
+- POCO X8 Pro Taiwan
+- KLEETWGlobal
+klein_global:
+- Redmi A3x Global
+- KLEINGlobal
+klein_in_global:
+- Redmi A3x India
+- KLEININGlobal
+klein_ru_global:
+- Redmi A3x Russia
+- KLEINRUGlobal
+klimt_eea_global:
+- Xiaomi 15T Pro EEA
+- KLIMTEUGlobal
+klimt_global:
+- Xiaomi 15T Pro Global
+- KLIMTGlobal
+klimt_id_global:
+- Xiaomi 15T Pro Indonesia
+- KLIMTIDGlobal
+klimt_jp_global:
+- Xiaomi 15T Pro Japan
+- KLIMTJPGlobal
+klimt_ru_global:
+- Xiaomi 15T Pro Russia
+- KLIMTRUGlobal
+klimt_tr_global:
+- Xiaomi 15T Pro Turkey
+- KLIMTTRGlobal
+klimt_tw_global:
+- Xiaomi 15T Pro Taiwan
+- KLIMTTWGlobal
+koto:
+- Redmi Pad 2 4G China
+- KOTO
+koto_eea_global:
+- Redmi Pad 2 4G EEA
+- KOTOEEAGlobal
+koto_global:
+- Redmi Pad 2 4G Global
+- KOTOGlobal
+koto_id_global:
+- Redmi Pad 2 4G Indonesia
+- KOTOIDGlobal
+koto_in_global:
+- Redmi Pad 2 4G India
+- KOTOINGlobal
+koto_ru_global:
+- Redmi Pad 2 4G Russia
+- KOTORUGlobal
+koto_tr_global:
+- Redmi Pad 2 4G Turkey
+- KOTOTRGlobal
+koto_tw_global:
+- Redmi Pad 2 4G Taiwan
+- KOTOTWGlobal
+kunzite:
+- Redmi Note 15 5G China
+- KUNZITE
+kunzite_eea_global:
+- Redmi Note 15 5G / POCO M8 5G EEA
+- KUNZITEEUGlobal
+kunzite_global:
+- Redmi Note 15 5G / POCO M8 5G Global
+- KUNZITEGlobal
+kunzite_id_global:
+- Redmi Note 15 5G / POCO M8 5G Indonesia
+- KUNZITEIDGlobal
+kunzite_in_global:
+- Redmi Note 15 / 15 SE 5G India
+- KUNZITEINGlobal
+kunzite_ru_global:
+- Redmi Note 15 5G / POCO M8 5G Russia
+- KUNZITERUGlobal
+kunzite_tr_global:
+- Redmi Note 15 5G / POCO M8 5G Turkey
+- KUNZITETRGlobal
+kunzite_tw_global:
+- Redmi Note 15 5G / POCO M8 5G Taiwan
+- KUNZITETWGlobal
+lake_eea_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 EEA
+- LAKEEEAGlobal
+lake_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 Global
+- LAKEGlobal
+lake_id_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 Indonesia
+- LAKEIDGlobal
+lake_in_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 India
+- LAKEINGlobal
+lake_ru_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 Russia
+- LAKERUGlobal
+lake_tr_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 Turkey
+- LAKETRGlobal
+lake_tw_global:
+- Redmi 14C/17C/A3 Pro/POCO C75 Taiwan
+- LAKETWGlobal
+lancelot:
+- Redmi 9 China
+- LANCELOT
+lancelot_eea_global:
+- Redmi 9 EEA
+- LANCELOTEEAGlobal
+lancelot_global:
+- Redmi 9 Global
+- LANCELOTGlobal
+lancelot_id_global:
+- Redmi 9 Indonesia
+- LANCELOTIDGlobal
+lancelot_in_global:
+- Redmi 9 Prime India
+- LANCELOTINGlobal
+lancelot_ru_global:
+- Redmi 9 Russia
+- LANCELOTRUGlobal
+lancelot_tr_global:
+- Redmi 9 Turkey
+- LANCELOTTRGlobal
+land:
+- Redmi 3S China
+- HM3S
+land_global:
+- Redmi 3S Global
+- HM3SGlobal
+lapis:
+- Redmi Note 15 Pro 5G China
+- LAPIS
+lapis_eea_global:
+- Redmi Note 15 Pro 5G EEA
+- LAPISEUGlobal
+lapis_global:
+- Redmi Note 15 Pro 5G Global
+- LAPISGlobal
+lapis_id_global:
+- Redmi Note 15 Pro 5G Indonesia
+- LAPISIDGlobal
+lapis_in_global:
+- Redmi Note 15 Pro 5G India
+- LAPISINGlobal
+lapis_jp_global:
+- Redmi Note 15 Pro 5G Japan
+- LAPISJPGlobal
+lapis_ru_global:
+- Redmi Note 15 Pro 5G Russia
+- LAPISRUGlobal
+lapis_tr_global:
+- Redmi Note 15 Pro 5G Turkey
+- LAPISTRGlobal
+lapis_tw_global:
+- Redmi Note 15 Pro 5G Taiwan
+- LAPISTWGlobal
+latte:
+- MiPad 2 China
+- MIPAD2
+laurel_sprout_eea_global:
+- Mi A3 EEA
+- LAURELSPROUTEEAGlobal
+laurel_sprout_global:
+- Mi A3 Global
+- LAURELSPROUTGlobal
+laurus:
+- Mi CC 9e China
+- LAURUS
+lavender:
+- Redmi Note 7 China
+- LAVENDER
+lavender_eea_global:
+- Redmi Note 7 EEA
+- LAVENDEREEAGlobal
+lavender_global:
+- Redmi Note 7 Global
+- LAVENDERGlobal
+lavender_in_global:
+- Redmi Note 7/7S India
+- LAVENDERINGlobal
+lavender_ru_global:
+- Redmi Note 7 Russia
+- LAVENDERRUGlobal
+lcsh92_wet_jb9:
+- Redmi Note 3G China
+- HMNoteW
+lcsh92_wet_jb9_global:
+- Redmi Note 3G Global
+- HMNoteWGlobal
+lcsh92_wet_tdd:
+- Redmi Note 1 TD China
+- HMNoteTD
+leedsa:
+- Redmi 17 China
+- LEEDSA
+leedsa_eea_global:
+- Redmi 17 / POCO C95 Pro EEA
+- LEEDSAEEAGlobal
+leedsa_global:
+- Redmi 17 / POCO C95 Pro Global
+- LEEDSAGlobal
+leedsa_id_global:
+- Redmi 17 / POCO C95 Pro Indonesia
+- LEEDSAIDGlobal
+leedsa_jp_global:
+- Redmi 17 Japan
+- LEEDSAJPGlobal
+leedsa_ru_global:
+- Redmi 17 / POCO C95 Pro Russia
+- LEEDSARUGlobal
+leedsa_tr_global:
+- Redmi 17 / POCO C95 Pro Turkey
+- LEEDSATRGlobal
+leedsa_tw_global:
+- Redmi 17 / POCO C95 Pro Taiwan
+- LEEDSATWGlobal
+leo:
+- Mi Note Pro China
+- MINotePro
+lhasa:
+- Xiaomi 18 Fold China
+- LHASA
+libra:
+- Mi 4c China
+- MI4c
+light:
+- Redmi Note 11E China
+- LIGHT
+light_eea_global:
+- Redmi 10 5G / POCO M4 5G EEA
+- LIGHTEEAGlobal
+light_global:
+- Redmi 10 5G / POCO M4 5G Global
+- LIGHTGlobal
+light_id_global:
+- Redmi 10 5G / POCO M4 5G Indonesia
+- LIGHTIDGlobal
+light_in_global:
+- Redmi 11 Prime 5G / POCO M4 5G India
+- LIGHTINGlobal
+light_ru_global:
+- Redmi 10 5G / POCO M4 5G Russia
+- LIGHTRUGlobal
+light_tr_global:
+- Redmi 10 5G / POCO M4 5G Turkey
+- LIGHTTRGlobal
+light_tw_global:
+- Redmi 10 5G / POCO M4 5G Taiwan
+- LIGHTTWGlobal
+lightcm:
+- Redmi Note 11R China
+- LIGHTCM
+lilac_jp_global:
+- Redmi Note 10T Japan
+- LILACJPGlobal
+lime:
+- Redmi Note 9 4G China
+- LIME
+lime_eea_global:
+- Redmi 9T EEA
+- LIMEEEAGlobal
+lime_global:
+- Redmi 9T Global
+- LIMEGlobal
+lime_id_global:
+- Redmi 9T Indonesia
+- LIMEIDGlobal
+lime_in_global:
+- Redmi 9 Power India
+- LIMEINGlobal
+lime_ru_global:
+- Redmi 9T Russia
+- LIMERUGlobal
+lime_tr_global:
+- Redmi 9T Turkey
+- LIMETRGlobal
+lime_tw_global:
+- Redmi 9T Taiwan
+- LIMETWGlobal
+lisa:
+- Mi 11 LE China
+- LISA
+lisa_eea_global:
+- Xiaomi 11 Lite 5G NE EEA
+- LISAEEAGlobal
+lisa_global:
+- Xiaomi 11 Lite 5G NE Global
+- LISAGlobal
+lisa_id_global:
+- Xiaomi 11 Lite 5G NE Indonesia
+- LISAIDGlobal
+lisa_in_global:
+- Xiaomi 11 Lite 5G NE India
+- LISAINGlobal
+lisa_ru_global:
+- Xiaomi 11 Lite 5G NE Russia
+- LISARUGlobal
+lisa_tr_global:
+- Xiaomi 11 Lite 5G NE Turkey
+- LISATRGlobal
+lisa_tw_global:
+- Xiaomi 11 Lite 5G NE Taiwan
+- LISATWGlobal
+lithium:
+- Mi MIX China
+- MIMIX
+lithium_global:
+- Mi MIX Global
+- MIMIXGlobal
+liuqin:
+- Xiaomi Pad 6 Pro China
+- LIUQIN
+lmi:
+- Redmi K30 Pro China
+- LMI
+lmi_eea_global:
+- POCO F2 Pro EEA
+- LMIEEAGlobal
+lmi_global:
+- POCO F2 Pro Global
+- LMIGlobal
+lmi_id_global:
+- POCO F2 Pro Indonesia
+- LMIIDGlobal
+lmi_ru_global:
+- POCO F2 Pro Russia
+- LMIRUGlobal
+lmi_tr_global:
+- POCO F2 Pro Turkey
+- LMITRGlobal
+lotus:
+- Mi Play China
+- MIPLAY
+lotus_global:
+- Mi Play Global
+- MIPLAYGlobal
+lotus_ru_global:
+- Mi Play Russia
+- MIPLAYRUGlobal
+lte26007:
+- Redmi 2A China
+- HM2XLCLTE
+luming:
+- Xiaomi Civi 5 Pro China
+- LUMING
+malachite:
+- Redmi Note 14 Pro 5G / POCO X7 China
+- MALACHITE
+malachite_eea_global:
+- Redmi Note 14 Pro 5G / POCO X7 EEA
+- MALACHITEEEAGlobal
+malachite_global:
+- Redmi Note 14 Pro 5G / POCO X7 Global
+- MALACHITEGlobal
+malachite_id_global:
+- Redmi Note 14 Pro 5G / POCO X7 Indonesia
+- MALACHITEIDGlobal
+malachite_in_global:
+- Redmi Note 14 Pro 5G / POCO X7 India
+- MALACHITEINGlobal
+malachite_ru_global:
+- Redmi Note 14 Pro 5G / POCO X7 Russia
+- MALACHITERUGlobal
+malachite_tr_global:
+- Redmi Note 14 Pro 5G / POCO X7 Turkey
+- MALACHITETRGlobal
+malachite_tw_global:
+- Redmi Note 14 Pro 5G / POCO X7 Taiwan
+- MALACHITETWGlobal
+manet:
+- Redmi K70 Pro China
+- MANET
+marble:
+- Redmi Note 12 Turbo China
+- MARBLE
+marble_eea_global:
+- POCO F5 EEA
+- MARBLEEEAGlobal
+marble_global:
+- POCO F5 Global
+- MARBLEGlobal
+marble_id_global:
+- POCO F5 Indonesia
+- MARBLEINGlobal
+marble_in_global:
+- POCO F5 India
+- MARBLEINGlobal
+marble_ru_global:
+- POCO F5 Russia
+- MARBLERUGlobal
+marble_tr_global:
+- POCO F5 Turkey
+- MARBLETRGlobal
+marble_tw_global:
+- POCO F5 Taiwan
+- MARBLETWGlobal
+markw:
+- Redmi 4 Prime China
+- HM4Pro
+markw_global:
+- Redmi 4 Prime Global
+- HM4ProGlobal
+matisse:
+- Redmi K50 Pro China
+- MATISSE
+mayfly:
+- Xiaomi 12S China
+- MAYFLY
+meri:
+- Mi 5C China
+- MI5C
+merlin:
+- Redmi 10X 4G China
+- MERLIN
+merlin_eea_global:
+- Redmi Note 9 EEA
+- MERLINEEAGlobal
+merlin_global:
+- Redmi Note 9 Global
+- MERLINGlobal
+merlin_id_global:
+- Redmi Note 9 Indonesia
+- MERLINIDGlobal
+merlin_in_global:
+- Redmi Note 9 India
+- MERLININGlobal
+merlin_ru_global:
+- Redmi Note 9 Russia
+- MERLINRUGlobal
+merlin_tr_global:
+- Redmi Note 9 Turkey
+- MERLINTRGlobal
+merlin_tw_global:
+- Redmi Note 9 Taiwan
+- MERLINTWGlobal
+mido:
+- Redmi Note 4 China
+- HMNote4X
+mido_global:
+- Redmi Note 4 Global
+- HMNote4XGlobal
+mione_plus:
+- MI 1S China
+- Mioneplus
+miro:
+- Redmi K80 Pro China
+- MIRO
+miro_eea_global:
+- Redmi K80 Pro / POCO F7 Ultra EEA
+- MIROEEAGlobal
+miro_global:
+- Redmi K80 Pro / POCO F7 Ultra Global
+- MIROGlobal
+miro_id_global:
+- Redmi K80 Pro / POCO F7 Ultra Indonesia
+- MIROIDGlobal
+miro_ru_global:
+- Redmi K80 Pro / POCO F7 Ultra Russia
+- MIRORUGlobal
+miro_tr_global:
+- Redmi K80 Pro / POCO F7 Ultra Turkey
+- MIROTRGlobal
+miro_tw_global:
+- Redmi K80 Pro / POCO F7 Ultra Taiwan
+- MIROTWGlobal
+mist:
+- Redmi Note 17 5G China
+- MIST
+mist_eea_global:
+- Redmi Note 17 5G EEA
+- MISTEEAGlobal
+mist_global:
+- Redmi Note 17 5G Global
+- MISTGlobal
+mist_id_global:
+- Redmi Note 17 5G Indonesia
+- MISTIDGlobal
+mist_in_global:
+- POCO M8 Power 5G / Redmi Note 17 5G India
+- MISTINGlobal
+mist_ru_global:
+- Redmi Note 17 5G Russia
+- MISTRUGlobal
+mist_tr_global:
+- Redmi Note 17 5G Turkey
+- MISTTRGlobal
+mist_tw_global:
+- Redmi Note 17 5G Taiwan
+- MISTTWGlobal
+mocha:
+- MiPad 1 China
+- MIPAD
+mocha_global:
+- MiPad 1 Global
+- MIPADGlobal
+mojito_eea_global:
+- Redmi Note 10 EEA
+- MOJITOEEAGlobal
+mojito_global:
+- Redmi Note 10 Global
+- MOJITOGlobal
+mojito_id_global:
+- Redmi Note 10 Indonesia
+- MOJITOIDGlobal
+mojito_in_global:
+- Redmi Note 10 India
+- MOJITOINGlobal
+mojito_ru_global:
+- Redmi Note 10 Russia
+- MOJITORUGlobal
+mojito_tr_global:
+- Redmi Note 10 Turkey
+- MOJITOTRGlobal
+mona:
+- Xiaomi Civi China
+- MONA
+mondrian:
+- Redmi K60 China
+- MONDRIAN
+mondrian_eea_global:
+- POCO F5 Pro EEA
+- MONDRIANEEAGlobal
+mondrian_global:
+- POCO F5 Pro Global
+- MONDRIANGlobal
+mondrian_in_global:
+- POCO F5 Pro India
+- MONDRIANINGlobal
+mondrian_ru_global:
+- POCO F5 Pro Russia
+- MONDRIANRUGlobal
+mondrian_tr_global:
+- POCO F5 Pro Turkey
+- MONDRIANTRGlobal
+mondrian_tw_global:
+- POCO F5 Pro Taiwan
+- MONDRIANTWGlobal
+monet_eea_global:
+- Mi 10 Lite EEA
+- MONETEEAGlobal
+monet_global:
+- Mi 10 Lite Global
+- MONETGlobal
+monet_tw_global:
+- Mi 10 Lite Taiwan
+- MONETTWGlobal
+moon_eea_global:
+- Redmi 13 / POCO M6 EEA
+- MOONEUGlobal
+moon_global:
+- Redmi 13 / POCO M6 Global
+- MOONGlobal
+moon_id_global:
+- Redmi 13 / POCO M6 Indonesia
+- MOONIDGlobal
+moon_ru_global:
+- Redmi 13 / POCO M6 Russia
+- MOONRUGlobal
+moon_tr_global:
+- Redmi 13 / POCO M6 Turkey
+- MOONTRGlobal
+moon_tw_global:
+- Redmi 13 / POCO M6 Taiwan
+- MOONTWGlobal
+moonstone_eea_global:
+- POCO X5 5G EEA
+- MOONSTONEEEAGlobal
+moonstone_global:
+- POCO X5 5G Global
+- MOONSTONEGlobal
+moonstone_id_global:
+- POCO X5 5G Indonesia
+- MOONSTONEIDGlobal
+moonstone_in_global:
+- POCO X5 5G India
+- MOONSTONEINGlobal
+moonstone_ru_global:
+- POCO X5 5G Russia
+- MOONSTONERUGlobal
+moonstone_tr_global:
+- POCO X5 5G Turkey
+- MOONSTONETRGlobal
+moonstone_tw_global:
+- POCO X5 5G Taiwan
+- MOONSTONETWGlobal
+munch:
+- Redmi K40S China
+- MUNCH
+munch_eea_global:
+- POCO F4 EEA
+- MUNCHEEAGlobal
+munch_global:
+- POCO F4 Global
+- MUNCHGlobal
+munch_id_global:
+- POCO F4 Indonesia
+- MUNCHIDGlobal
+munch_in_global:
+- POCO F4 India
+- MUNCHINGlobal
+munch_ru_global:
+- POCO F4 Russia
+- MUNCHRUGlobal
+munch_tr_global:
+- POCO F4 Turkey
+- MUNCHTWGlobal
+munch_tw_global:
+- POCO F4 Taiwan
+- MUNCHTWGlobal
+muyu:
+- Xiaomi Pad 7 Pro China
+- MUYU
+muyu_eea_global:
+- Xiaomi Pad 7 Pro EEA
+- MUYUEEAGlobal
+muyu_global:
+- Xiaomi Pad 7 Pro Global
+- MUYUGlobal
+muyu_id_global:
+- Xiaomi Pad 7 Pro Indonesia
+- MUYUIDGlobal
+muyu_ru_global:
+- Xiaomi Pad 7 Pro Russia
+- MUYURUGlobal
+muyu_tr_global:
+- Xiaomi Pad 7 Pro Turkey
+- MUYUTRGlobal
+muyu_tw_global:
+- Xiaomi Pad 7 Pro Taiwan
+- MUYUTWGlobal
+myron:
+- Redmi K90 Pro Max China
+- MYRON
+myron_eea_global:
+- Redmi K90 Pro Max / POCO F8 Ultra EEA
+- MYRONEEAGlobal
+myron_global:
+- Redmi K90 Pro Max / POCO F8 Ultra Global
+- MYRONGlobal
+myron_id_global:
+- Redmi K90 Pro Max / POCO F8 Ultra Indonesia
+- MYRONIDGlobal
+myron_ru_global:
+- Redmi K90 Pro Max / POCO F8 Ultra Russia
+- MYRONRUGlobal
+myron_tr_global:
+- Redmi K90 Pro Max / POCO F8 Ultra Turkey
+- MYRONTRGlobal
+myron_tw_global:
+- Redmi K90 Pro Max / POCO F8 Ultra Taiwan
+- MYRONTWGlobal
+nabu:
+- Xiaomi Pad 5 China
+- NABU
+nabu_eea_global:
+- Xiaomi Pad 5 EEA
+- NABUEEAGlobal
+nabu_global:
+- Xiaomi Pad 5 Global
+- NABUGlobal
+nabu_in_global:
+- Xiaomi Pad 5 India
+- NABUINGlobal
+nabu_ru_global:
+- Xiaomi Pad 5 Russia
+- NABURUGlobal
+nabu_tr_global:
+- Xiaomi Pad 5 Turkey
+- NABUTRGlobal
+nabu_tw_global:
+- Xiaomi Pad 5 Taiwan
+- NABUTWGlobal
+natrium:
+- Mi 5s Plus China
+- MI5SPlus
+natrium_global:
+- Mi 5s Plus Global
+- MI5SPlusGlobal
+nezha:
+- Xiaomi 17 Ultra China
+- NEZHA
+nezha_eea_global:
+- Xiaomi 17 Ultra EEA
+- NEZHAEEAGlobal
+nezha_global:
+- Xiaomi 17 Ultra Global
+- NEZHAGlobal
+nezha_id_global:
+- Xiaomi 17 Ultra Indonesia
+- NEZHAIDGlobal
+nezha_in_global:
+- Xiaomi 17 Ultra India
+- NEZHAINGlobal
+nezha_ru_global:
+- Xiaomi 17 Ultra Russia
+- NEZHARUGlobal
+nezha_tr_global:
+- Xiaomi 17 Ultra Turkey
+- NEZHATRGlobal
+nezha_tw_global:
+- Xiaomi 17 Ultra Taiwan
+- NEZHATWGlobal
+nikel:
+- Redmi Note 4 MTK China
+- HMNote4
+nikel_global:
+- Redmi Note 4 MTK Global
+- HMNote4Global
+nitrogen:
+- Mi Max 3 China
+- MIMAX3
+nitrogen_global:
+- Mi Max 3 Global
+- MIMAX3Global
+nitrogen_ru_global:
+- Mi Max 3 Russia
+- NITROGENRUGlobal
+nuwa:
+- Xiaomi 13 Pro China
+- NUWA
+nuwa_eea_global:
+- Xiaomi 13 Pro EEA
+- NUWAEEAGlobal
+nuwa_global:
+- Xiaomi 13 Pro Global
+- NUWAGlobal
+nuwa_in_global:
+- Xiaomi 13 Pro India
+- NUWAINGlobal
+nuwa_ru_global:
+- Xiaomi 13 Pro Russia
+- NUWARUGlobal
+nuwa_tr_global:
+- Xiaomi 13 Pro Turkey
+- NUWATRGlobal
+nuwa_tw_global:
+- Xiaomi 13 Pro Taiwan
+- NUWATWGlobal
+obsidian_eea_global:
+- Redmi Note 14 Pro 4G EEA
+- OBSIDIANEEAGlobal
+obsidian_global:
+- Redmi Note 14 Pro 4G Global
+- OBSIDIANGlobal
+obsidian_ru_global:
+- Redmi Note 14 Pro 4G Russia
+- OBSIDIANRUGlobal
+obsidian_tr_global:
+- Redmi Note 14 Pro 4G Turkey
+- OBSIDIANTRGlobal
+odin:
+- MIX 4 China
+- ODIN
+olive:
+- Redmi 8 China
+- OLIVE
+olive_eea_global:
+- Redmi 8 EEA
+- OLIVEEEAGlobal
+olive_global:
+- Redmi 8 Global
+- OLIVEGlobal
+olive_id_global:
+- Redmi 8 Indonesia
+- OLIVEIDGlobal
+olive_in_global:
+- Redmi 8 India
+- OLIVEINGlobal
+olive_ru_global:
+- Redmi 8 Russia
+- OLIVERUGlobal
+olivelite:
+- Redmi 8A China
+- OLIVELITE
+olivelite_eea_global:
+- Redmi 8A EEA
+- OLIVELITEEEAGlobal
+olivelite_global:
+- Redmi 8A Global
+- OLIVELITEGlobal
+olivelite_id_global:
+- Redmi 8A Indonesia
+- OLIVELITEIDGlobal
+olivelite_in_global:
+- Redmi 8A India
+- OLIVELITEINGlobal
+olivelite_ru_global:
+- Redmi 8A Russia
+- OLIVELITERUGlobal
+olivewood_id_global:
+- Redmi 8A Pro Indonesia
+- OLIVEWOODIDGlobal
+olivewood_in_global:
+- Redmi 8A Dual India
+- OLIVEWOODINGlobal
+omega:
+- Redmi Pro China
+- HMPro
+onc_in_global:
+- Redmi Y3 India
+- ONCINGlobal
+onclite:
+- Redmi 7 China
+- ONCLITE
+onclite_eea_global:
+- Redmi 7 EEA
+- ONCLITEEEAGlobal
+onclite_global:
+- Redmi 7 Global
+- ONCLITEGlobal
+onclite_in_global:
+- Redmi 7 India
+- ONCLITEINGlobal
+onclite_ru_global:
+- Redmi 7 Russia
+- ONCLITERUGlobal
+onyx:
+- Redmi Turbo 4 Pro China
+- ONYX
+onyx_eea_global:
+- POCO F7 EEA
+- ONYXEUGlobal
+onyx_global:
+- POCO F7 Global
+- ONYXGlobal
+onyx_id_global:
+- POCO F7 Indonesia
+- ONYXIDGlobal
+onyx_in_global:
+- POCO F7 India
+- ONYXINGlobal
+onyx_ru_global:
+- POCO F7 Russia
+- ONYXRUGlobal
+onyx_tr_global:
+- POCO F7 Turkey
+- ONYXTRGlobal
+onyx_tw_global:
+- POCO F7 Taiwan
+- ONYXTWGlobal
+opal_eea_global:
+- Redmi Note 11S 5G EEA
+- OPALEEAGlobal
+opal_global:
+- Redmi Note 11S 5G Global
+- OPALGlobal
+opal_ru_global:
+- Redmi Note 11S 5G Russia
+- OPALRUGlobal
+opal_tr_global:
+- Redmi Note 11S 5G Turkey
+- OPALTRGlobal
+opal_tw_global:
+- Redmi Note 11S 5G Taiwan
+- OPALTWGlobal
+organ:
+- Redmi Pad 2 Pro 5G China
+- ORGAN
+organ_eea_global:
+- Redmi Pad 2 Pro 5G EEA
+- ORGANEEAGlobal
+organ_global:
+- Redmi Pad 2 Pro 5G Global
+- ORGANGlobal
+organ_id_global:
+- Redmi Pad 2 Pro 5G Indonesia
+- ORGANIDGlobal
+organ_in_global:
+- Redmi Pad 2 Pro 5G India
+- ORGANINGlobal
+organ_ru_global:
+- Redmi Pad 2 Pro 5G Russia
+- ORGANRUGlobal
+organ_tw_global:
+- Redmi Pad 2 Pro 5G Taiwan
+- ORGANTWGlobal
+oxygen:
+- Mi Max 2 China
+- MIMAX2
+oxygen_global:
+- Mi Max 2 Global
+- MIMAX2Global
+pandora:
+- Xiaomi 17 Pro China
+- PANDORA
+pearl:
+- Redmi Note 12T Pro China
+- PEARL
+peridot:
+- Redmi Turbo 3 China
+- PERIDOT
+peridot_eea_global:
+- POCO F6 EEA
+- PERIDOTEUGlobal
+peridot_global:
+- POCO F6 Global
+- PERIDOTGlobal
+peridot_id_global:
+- POCO F6 Indonesia
+- PERIDOTIDGlobal
+peridot_in_global:
+- POCO F6 India
+- PERIDOTINGlobal
+peridot_ru_global:
+- POCO F6 Russia
+- PERIDOTRUGlobal
+peridot_tr_global:
+- POCO F6 Turkey
+- PERIDOTTRGlobal
+peridot_tw_global:
+- POCO F6 Taiwan
+- PERIDOTTWGlobal
+perseus:
+- Mi MIX 3 China
+- MIMIX3
+perseus_global:
+- Mi MIX 3 Global
+- MIMIX3Global
+perseus_ru_global:
+- Mi MIX 3 Russia
+- MIMIX3RUGlobal
+phoenix:
+- Redmi K30 4G China
+- PHOENIX
+phoenixin_in_global:
+- POCO X2 India
+- PHOENIXININGlobal
+piano:
+- Xiaomi Pad 8 Pro China
+- PIANO
+piano_eea_global:
+- Xiaomi Pad 8 Pro EEA
+- PIANOEEAGlobal
+piano_global:
+- Xiaomi Pad 8 Pro Global
+- PIANOGlobal
+piano_id_global:
+- Xiaomi Pad 8 Pro Indonesia
+- PIANOIDGlobal
+piano_ru_global:
+- Xiaomi Pad 8 Pro Russia
+- PIANORUGlobal
+piano_tr_global:
+- Xiaomi Pad 8 Pro Turkey
+- PIANOTRGlobal
+piano_tw_global:
+- Xiaomi Pad 8 Pro Taiwan
+- PIANOTWGlobal
+picasso:
+- Redmi K30 5G China
+- PICASSO
+picasso_48m:
+- Redmi K30i 5G China
+- PICASSO48M
+pine:
+- Redmi 7A China
+- PINE
+pine_eea_global:
+- Redmi 7A EEA
+- PINEEEAGlobal
+pine_global:
+- Redmi 7A Global
+- PINEGlobal
+pine_in_global:
+- Redmi 7A India
+- PINEINGlobal
+pine_ru_global:
+- Redmi 7A Russia
+- PINERUGlobal
+pipa:
+- Xiaomi Pad 6 China
+- PIPA
+pipa_eea_global:
+- Xiaomi Pad 6 EEA
+- PIPAEEAGlobal
+pipa_global:
+- Xiaomi Pad 6 Global
+- PIPAGlobal
+pipa_id_global:
+- Xiaomi Pad 6 Indonesia
+- PIPAIDGlobal
+pipa_in_global:
+- Xiaomi Pad 6 India
+- PIPAINGlobal
+pipa_ru_global:
+- Xiaomi Pad 6 Russia
+- PIPARUGlobal
+pipa_tr_global:
+- Xiaomi Pad 6 Turkey
+- PIPATRGlobal
+pipa_tw_global:
+- Xiaomi Pad 6 Taiwan
+- PIPATWGlobal
+pisces:
+- MI 3 TD China
+- MI3TD
+pissarro:
+- Redmi Note 11 Pro / Pro+ China
+- PISSARRO
+pissarro_eea_global:
+- Redmi Note 11 Pro+ 5G EEA
+- PISSARROEEAGlobal
+pissarro_global:
+- Redmi Note 11 Pro+ 5G Global
+- PISSARROGlobal
+pissarro_in_fk_global:
+- Xiaomi 11i 5G India
+- PISSARROINFKGlobal
+pissarro_in_global:
+- Xiaomi 11i / Hypercharge India
+- PISSARROINGlobal
+pissarro_ru_global:
+- Redmi Note 11 Pro+ 5G Russia
+- PISSARRORUGlobal
+pissarro_tr_global:
+- Redmi Note 11 Pro+ 5G Turkey
+- PISSARROTRGlobal
+pissarro_tw_global:
+- Redmi Note 11 Pro+ 5G Taiwan
+- PISSARROTWGlobal
+platina:
+- Mi 8 Lite China
+- MI8Lite
+platina_global:
+- Mi 8 Lite Global
+- MI8LiteGlobal
+platina_ru_global:
+- Mi 8 Lite Russia
+- PLATINARUGlobal
+plato_eea_global:
+- Xiaomi 12T EEA
+- PLATOEEAGlobal
+plato_global:
+- Xiaomi 12T Global
+- PLATOGlobal
+plato_id_global:
+- Xiaomi 12T Indonesia
+- PLATOIDGlobal
+plato_ru_global:
+- Xiaomi 12T Russia
+- PLATORUGlobal
+plato_tr_global:
+- Xiaomi 12T Turkey
+- PLATOTRGlobal
+plato_tw_global:
+- Xiaomi 12T Taiwan
+- PLATOTWGlobal
+polaris:
+- Mi MIX 2S China
+- MIMIX2S
+polaris_global:
+- Mi MIX 2S Global
+- MIMIX2SGlobal
+polaris_ru_global:
+- Mi MIX 2S Russia
+- MIMIX2SRUGlobal
+popsicle:
+- Xiaomi 17 Pro Max China
+- POPSICLE
+prada:
+- Redmi 4 China
+- HM4
+prada_global:
+- Redmi 4 Global
+- HM4Global
+prague:
+- Redmi K90 Max China
+- PRAGUE
+psyche:
+- Xiaomi 12X China
+- PSYCHE
+psyche_eea_global:
+- Xiaomi 12X EEA
+- PSYCHEEEAGlobal
+psyche_global:
+- Xiaomi 12X Global
+- PSYCHEGlobal
+psyche_ru_global:
+- Xiaomi 12X Russia
+- PSYCHERUGlobal
+psyche_tw_global:
+- Xiaomi 12X Taiwan
+- PSYCHETWGlobal
+pudding:
+- Xiaomi 17 China
+- PUDDING
+pudding_eea_global:
+- Xiaomi 17 EEA
+- PUDDINGEEAGlobal
+pudding_global:
+- Xiaomi 17 Global
+- PUDDINGGlobal
+pudding_id_global:
+- Xiaomi 17 Indonesia
+- PUDDINGIDGlobal
+pudding_in_global:
+- Xiaomi 17 India
+- PUDDINGINGlobal
+pudding_ru_global:
+- Xiaomi 17 Russia
+- PUDDINGRUGlobal
+pudding_tr_global:
+- Xiaomi 17 Turkey
+- PUDDINGTRGlobal
+pudding_tw_global:
+- Xiaomi 17 Taiwan
+- PUDDINGTWGlobal
+pyxis:
+- Mi CC 9 China
+- PYXIS
+pyxis_eea_global:
+- Mi 9 Lite EEA
+- PYXISEEAGlobal
+pyxis_global:
+- Mi 9 Lite Global
+- PYXISGlobal
+pyxis_ru_global:
+- Mi 9 Lite Russia
+- PYXISRUGlobal
+raphael:
+- Redmi K20 Pro China
+- RAPHAEL
+raphael_eea_global:
+- Mi 9T Pro EEA
+- RAPHAELEEAGlobal
+raphael_global:
+- Mi 9T Pro Global
+- RAPHAELGlobal
+raphael_ru_global:
+- Mi 9T Pro Russia
+- RAPHAELRUGlobal
+raphaelin_in_global:
+- Redmi K20 Pro India
+- RAPHAELININGlobal
+raphaels:
+- Redmi K20 Pro Premium Edition China
+- RAPHAELS
+redwood:
+- Redmi Note 12 Pro Speed China
+- REDWOOD
+redwood_eea_global:
+- POCO X5 Pro 5G EEA
+- REDWOODEEAGlobal
+redwood_global:
+- POCO X5 Pro 5G Global
+- REDWOODGlobal
+redwood_id_global:
+- POCO X5 Pro 5G Indonesia
+- REDWOODIDGlobal
+redwood_in_global:
+- POCO X5 Pro 5G India
+- REDWOODINGlobal
+redwood_ru_global:
+- POCO X5 Pro 5G Russia
+- REDWOODRUGlobal
+redwood_tr_global:
+- POCO X5 Pro 5G Turkey
+- REDWOODTRGlobal
+redwood_tw_global:
+- POCO X5 Pro 5G Taiwan
+- REDWOODTWGlobal
+rembrandt:
+- Redmi K60E China
+- REMBRANDT
+renoir:
+- Mi 11 Lite 5G China
+- RENOIR
+renoir_eea_global:
+- Mi 11 Lite 5G EEA
+- RENOIREEAGlobal
+renoir_global:
+- Mi 11 Lite 5G Global
+- RENOIRGlobal
+renoir_id_global:
+- Mi 11 Lite 5G Indonesia
+- RENOIRIDGlobal
+renoir_jp_global:
+- Mi 11 Lite 5G Japan
+- RENOIRJPGlobal
+renoir_ru_global:
+- Mi 11 Lite 5G Russia
+- RENOIRRUGlobal
+renoir_tr_global:
+- Mi 11 Lite 5G Turkey
+- RENOIRTRGlobal
+renoir_tw_global:
+- Mi 11 Lite 5G Taiwan
+- RENOIRTWGlobal
+riva:
+- Redmi 5A China
+- HM5A
+riva_global:
+- Redmi 5A Global
+- HM5AGlobal
+rock_eea_global:
+- POCO M5 EEA
+- ROCKEEAGlobal
+rock_global:
+- POCO M5 Global
+- ROCKGlobal
+rock_id_global:
+- POCO M5 Indonesia
+- ROCKIDGlobal
+rock_in_global:
+- POCO M5 / Redmi 11 Prime 4G India
+- ROCKINGlobal
+rock_ru_global:
+- POCO M5 Russia
+- ROCKRUGlobal
+rock_tr_global:
+- POCO M5 Turkey
+- ROCKTRGlobal
+rock_tw_global:
+- POCO M5 Taiwan
+- ROCKTWGlobal
+rodin:
+- Redmi Turbo 4 China
+- RODIN
+rodin_eea_global:
+- POCO X7 Pro EEA
+- RODINEEAGlobal
+rodin_global:
+- POCO X7 Pro Global
+- RODINGlobal
+rodin_id_global:
+- POCO X7 Pro Indonesia
+- RODINIDGlobal
+rodin_in_global:
+- POCO X7 Pro India
+- RODININGlobal
+rodin_ru_global:
+- POCO X7 Pro Russia
+- RODINRUGlobal
+rodin_tr_global:
+- POCO X7 Pro Turkey
+- RODINTRGlobal
+rodin_tw_global:
+- POCO X7 Pro Taiwan
+- RODINTWGlobal
+rolex:
+- Redmi 4A China
+- HM4A
+rolex_global:
+- Redmi 4A Global
+- HM4AGlobal
+rosemary_eea_global:
+- Redmi Note 10S EEA
+- ROSEMARYEEAGlobal
+rosemary_global:
+- Redmi Note 10S Global
+- ROSEMARYGlobal
+rosemary_id_global:
+- Redmi Note 10S Indonesia
+- ROSEMARYIDGlobal
+rosemary_in_global:
+- Redmi Note 10S / Redmi Note 11 SE India
+- ROSEMARYINGlobal
+rosemary_p_eea_global:
+- POCO M5S EEA
+- ROSEMARYPEEAGlobal
+rosemary_p_global:
+- POCO M5S Global
+- ROSEMARYPGlobal
+rosemary_p_id_global:
+- POCO M5S Indonesia
+- ROSEMARYPIDGlobal
+rosemary_p_ru_global:
+- POCO M5S Russia
+- ROSEMARYPRUGlobal
+rosemary_p_tr_global:
+- POCO M5S Turkey
+- ROSEMARYPTRGlobal
+rosemary_p_tw_global:
+- POCO M5S Taiwan
+- ROSEMARYPTWGlobal
+rosemary_ru_global:
+- Redmi Note 10S Russia
+- ROSEMARYRUGlobal
+rosemary_tr_global:
+- Redmi Note 10S Turkey
+- ROSEMARYTRGlobal
+rosemary_tw_global:
+- Redmi Note 10S Taiwan
+- ROSEMARYTWGlobal
+rosy:
+- Redmi 5 China
+- HM5
+rosy_global:
+- Redmi 5 Global
+- HM5Global
+rosy_ru_global:
+- Redmi 5 Russia
+- HM5RUGlobal
+rothko:
+- Redmi K70 Ultra China
+- ROTHKO
+rothko_eea_global:
+- Xiaomi 14T Pro EEA
+- ROTHKOEUGlobal
+rothko_global:
+- Xiaomi 14T Pro Global
+- ROTHKOGlobal
+rothko_id_global:
+- Xiaomi 14T Pro India
+- ROTHKOIDGlobal
+rothko_jp_global:
+- Xiaomi 14T Pro Japan
+- ROTHKOJPGlobal
+rothko_ru_global:
+- Xiaomi 14T Pro Russia
+- ROTHKORUGlobal
+rothko_tr_global:
+- Xiaomi 14T Pro Turkey
+- ROTHKOTRGlobal
+rothko_tw_global:
+- Xiaomi 14T Pro Taiwan
+- ROTHKOTWGlobal
+ruan:
+- Redmi Pad Pro 5G China
+- RUAN
+ruan_eea_global:
+- Redmi Pad Pro 5G / POCO Pad 5G EEA
+- RUANEUGlobal
+ruan_global:
+- Redmi Pad Pro 5G / POCO Pad 5G Global
+- RUANGlobal
+ruan_in_global:
+- Redmi Pad Pro 5G / POCO Pad 5G India
+- RUANINGlobal
+ruan_ru_global:
+- Redmi Pad Pro 5G / POCO Pad 5G Russia
+- RUANRUGlobal
+ruan_tw_global:
+- Redmi Pad Pro 5G / POCO Pad 5G Taiwan
+- RUANTWGlobal
+rubens:
+- Redmi K50 China
+- RUBENS
+ruby:
+- Redmi Note 12 Pro / Pro+ / Discovery 5G China
+- RUBY
+ruby_eea_global:
+- Redmi Note 12 Pro / Pro+ 5G EEA
+- RUBYEEAGlobal
+ruby_global:
+- Redmi Note 12 Pro / Pro+ 5G Global
+- RUBYGlobal
+ruby_id_global:
+- Redmi Note 12 Pro / Pro+ 5G Indonesia
+- RUBYIDGlobal
+ruby_in_global:
+- Redmi Note 12 Pro / Pro+ 5G India
+- RUBYINGlobal
+ruby_kr_global:
+- Redmi Note 12 Pro / Pro+ 5G South Korea
+- RUBYKRGlobal
+ruby_ru_global:
+- Redmi Note 12 Pro / Pro+ 5G Russia
+- RUBYRUGlobal
+ruby_tr_global:
+- Redmi Note 12 Pro / Pro+ 5G Turkey
+- RUBYTRGlobal
+ruby_tw_global:
+- Redmi Note 12 Pro / Pro+ 5G Taiwan
+- RUBYTWGlobal
+ruyi:
+- MIX Flip China
+- RUYI
+ruyi_eea_global:
+- MIX Flip EEA
+- RUYIEUGlobal
+ruyi_global:
+- MIX Flip Global
+- RUYIGlobal
+ruyi_ru_global:
+- MIX Flip Russia
+- RUYIRUGlobal
+ruyi_tr_global:
+- MIX Flip Turkey
+- RUYITRGlobal
+ruyi_tw_global:
+- MIX Flip Taiwan
+- RUYITWGlobal
+sagit:
+- Mi 6 China
+- MI6
+sagit_global:
+- Mi 6 Global
+- MI6Global
+sakura:
+- Redmi 6 Pro China
+- HM6Pro
+sakura_india_global:
+- Redmi 6 Pro India
+- HM6ProINGlobal
+santoni:
+- Redmi 4X China
+- HM4X
+santoni_global:
+- Redmi 4X Global
+- HM4XGlobal
+sapphire_global:
+- Redmi Note 13 Global
+- SAPPHIREGlobal
+sapphiren_eea_global:
+- Redmi Note 13 NFC EEA
+- SAPPHIRENEEAGlobal
+sapphiren_global:
+- Redmi Note 13 NFC Global
+- SAPPHIRENGlobal
+sapphiren_id_global:
+- Redmi Note 13 NFC Indonesia
+- SAPPHIRENIDGlobal
+sapphiren_ru_global:
+- Redmi Note 13 NFC Russia
+- SAPPHIRENRUGlobal
+sapphiren_tr_global:
+- Redmi Note 13 NFC Turkey
+- SAPPHIRENTRGlobal
+sapphiren_tw_global:
+- Redmi Note 13 NFC Taiwan
+- SAPPHIRENTWGlobal
+scorpio:
+- Mi Note 2 China
+- MINote2
+scorpio_global:
+- Mi Note 2 Global
+- MINote2Global
+sea_eea_global:
+- Redmi Note 12S EEA
+- SEAEEAGlobal
+sea_global:
+- Redmi Note 12S Global
+- SEAGlobal
+sea_ru_global:
+- Redmi Note 12S Russia
+- SEARUGlobal
+sea_tr_global:
+- Redmi Note 12S Turkey
+- SEATRGlobal
+sea_tw_global:
+- Redmi Note 12S Taiwan
+- SEATWGlobal
+selene:
+- Redmi 10 / Redmi 10 2022 China
+- SELENE
+selene_eea_global:
+- Redmi 10 / Redmi 10 2022 EEA
+- SELENEEEAGlobal
+selene_global:
+- Redmi 10 / Redmi 10 2022 Global
+- SELENEGlobal
+selene_id_global:
+- Redmi 10 / Redmi 10 2022 Indonesia
+- SELENEIDGlobal
+selene_in_global:
+- Redmi 10 Prime / Redmi 10 2022 India
+- SELENEINGlobal
+selene_ru_global:
+- Redmi 10 / Redmi 10 2022 Russia
+- SELENERUGlobal
+selene_tr_global:
+- Redmi 10 / Redmi 10 2022 Turkey
+- SELENETRGlobal
+selene_tw_global:
+- Redmi 10 / Redmi 10 2022 Taiwan
+- SELENETWGlobal
+selenes:
+- Redmi Note 11 4G China
+- SELENE
+selenes_eea_global:
+- Redmi 10 2022 EEA
+- SELENEEEAGlobal
+selenes_global:
+- Redmi 10 2022 Global
+- SELENEGlobal
+selenes_id_global:
+- Redmi 10 2022 Indonesia
+- SELENEIDGlobal
+selenes_in_global:
+- Redmi 10 2022 India
+- SELENEINGlobal
+selenes_ru_global:
+- Redmi 10 2022 Russia
+- SELENERUGlobal
+selenes_tr_global:
+- Redmi 10 2022 Turkey
+- SELENETRGlobal
+selenes_tw_global:
+- Redmi 10 2022 Taiwan
+- SELENETWGlobal
+serenity_eea_global:
+- Redmi A5 / A7 / POCO C71 / C81x EEA
+- SERENITYEUGlobal
+serenity_global:
+- Redmi A5 / A7 / POCO C71 / C81x Global
+- SERENITYGlobal
+serenity_id_global:
+- Redmi A5 / A7 / POCO C71 / C81x Indonesia
+- SERENITYIDGlobal
+serenity_in_global:
+- Redmi A5 / A7 / POCO C71 / C81x India
+- SERENITYINGlobal
+serenity_ru_global:
+- Redmi A5 / A7 / POCO C71 / C81x Russia
+- SERENITYRUGlobal
+sheng:
+- Xiaomi Pad 6S Pro 12.4 China
+- SHENG
+sheng_eea_global:
+- Xiaomi Pad 6S Pro 12.4 EEA
+- SHENGEEAGlobal
+sheng_global:
+- Xiaomi Pad 6S Pro 12.4 Global
+- SHENGGlobal
+sheng_id_global:
+- Xiaomi Pad 6S Pro 12.4 Indonesia
+- SHENGIDGlobal
+sheng_ru_global:
+- Xiaomi Pad 6S Pro 12.4 Russia
+- SHENGRUGlobal
+sheng_tw_global:
+- Xiaomi Pad 6S Pro 12.4 Taiwan
+- SHENGTWGlobal
+shennong:
+- Xiaomi 14 Pro / Ti China
+- SHENNONG
+shennong_eea_global:
+- Xiaomi 14 Pro EEA
+- SHENNONGEEAGlobal
+shennong_global:
+- Xiaomi 14 Pro Global
+- SHENNONGGlobal
+shennong_id_global:
+- Xiaomi 14 Pro Indonesia
+- SHENNONGIDGlobal
+shennong_in_global:
+- Xiaomi 14 Pro India
+- SHENNONGINGlobal
+shennong_ru_global:
+- Xiaomi 14 Pro Russia
+- SHENNONGRUGlobal
+shennong_t:
+- Xiaomi 14 Pro Ti Satellite China
+- SHENNONGT
+shennong_tr_global:
+- Xiaomi 14 Pro Turkey
+- SHENNONGTRGlobal
+shennong_tw_global:
+- Xiaomi 14 Pro Taiwan
+- SHENNONGTWGlobal
+shennongt:
+- Xiaomi 14 Pro Ti Satellite China
+- SHENNONGT
+shiva_in_global:
+- POCO M2 India
+- SHIVAINGlobal
+sirius:
+- Mi 8 SE China
+- MI8SE
+sky:
+- Redmi Note 12R China
+- SKY
+sky_eea_global:
+- Redmi 12 5G / POCO M6 Pro 5G EEA
+- SKYEEAGlobal
+sky_global:
+- Redmi 12 5G / POCO M6 Pro 5G Global
+- SKYGlobal
+sky_in_global:
+- Redmi 12 5G / POCO M6 Pro 5G India
+- SKYINGlobal
+sky_jp_global:
+- Redmi 12 5G Japan
+- SKYJPGlobal
+sky_tw_global:
+- Redmi 12 5G / POCO M6 Pro 5G Taiwan
+- SKYTWGlobal
+socrates:
+- Redmi K60 Pro China
+- SOCRATES
+somalia:
+- Redmi 17 5G / R70 5G / R70m 5G China
+- SOMALIA
+somalia_global:
+- Redmi A7 Pro 5G Global
+- SOMALIAGlobal
+somalia_in_global:
+- Redmi 15A/A7 Pro/POCO C85x 5G India
+- SOMALIAINGlobal
+songyuan:
+- Redmi K100 Pro Max China
+- SONGYUAN
+songyuan_eea_global:
+- POCO F9 Ultra EEA
+- SONGYUANEEAGlobal
+songyuan_global:
+- POCO F9 Ultra Global
+- SONGYUANGlobal
+songyuan_id_global:
+- POCO F9 Ultra Indonesia
+- SONGYUANIDGlobal
+songyuan_jp_global:
+- POCO F9 Ultra Japan
+- SONGYUANJPGlobal
+songyuan_ru_global:
+- POCO F9 Ultra Russia
+- SONGYUANRUGlobal
+songyuan_tr_global:
+- POCO F9 Ultra Turkey
+- SONGYUANTRGlobal
+songyuan_tw_global:
+- POCO F9 Ultra Taiwan
+- SONGYUANTWGlobal
+spark_eea_global:
+- Redmi Pad SE 8.7 4G EEA
+- SPARKEEAGlobal
+spark_global:
+- Redmi Pad SE 8.7 4G Global
+- SPARKGlobal
+spark_in_global:
+- Redmi Pad SE 8.7 4G India
+- SPARKINGlobal
+spark_ru_global:
+- Redmi Pad SE 8.7 4G Russia
+- SPARKRUGlobal
+spark_tr_global:
+- Redmi Pad SE 8.7 4G Turkey
+- SPARKTRGlobal
+spark_tw_global:
+- Redmi Pad SE 8.7 4G Taiwan
+- SPARKTWGlobal
+spes_global:
+- Redmi Note 11 Global
+- SPESGlobal
+spes_in_global:
+- Redmi Note 11 India
+- SPESINGlobal
+spes_tr_global:
+- Redmi Note 11 Turkey
+- SPESTRGlobal
+spesn_eea_global:
+- Redmi Note 11 NFC EEA
+- SPESNEEAGlobal
+spesn_global:
+- Redmi Note 11 NFC Global
+- SPESNGlobal
+spesn_id_global:
+- Redmi Note 11 NFC Indonesia
+- SPESNIDGlobal
+spesn_ru_global:
+- Redmi Note 11 NFC Russia
+- SPESNRUGlobal
+spinel_eea_global:
+- Redmi Note 15 4G EEA
+- SPINELEEAGlobal
+spinel_global:
+- Redmi Note 15 4G Global
+- SPINELGlobal
+spinel_id_global:
+- Redmi Note 15 4G Indonesia
+- SPINELIDGlobal
+spinel_ru_global:
+- Redmi Note 15 4G Russia
+- SPINELRUGlobal
+spinel_tr_global:
+- Redmi Note 15 4G Turkey
+- SPINELTRGlobal
+spinel_tw_global:
+- Redmi Note 15 4G Taiwan
+- SPINELTWGlobal
+spring:
+- Redmi 15R 5G China
+- SPRING
+spring_eea_global:
+- Redmi 15 5G / M7 Plus / M8s 5G EEA
+- SPRINGEEAGlobal
+spring_global:
+- Redmi 15 5G / M7 Plus / M8s 5G Global
+- SPRINGGlobal
+spring_in_global:
+- Redmi 15 5G / POCO M7 Plus 5G India
+- SPRINGINGlobal
+spring_jp_global:
+- Redmi 15 5G / POCO M7 Plus 5G Japan
+- SPRINGJPGlobal
+spring_ru_global:
+- Redmi 15 5G / POCO M7 Plus 5G Russia
+- SPRINGRUGlobal
+spring_tr_global:
+- Redmi 15 5G / POCO M7 Plus 5G Turkey
+- SPRINGTRGlobal
+spring_tw_global:
+- Redmi 15 5G / POCO M7 Plus 5G Taiwan
+- SPRINGTWGlobal
+star:
+- Mi 11 Pro / Ultra China
+- STAR
+star_eea_global:
+- Mi 11 Ultra EEA
+- STAREEAGlobal
+star_global:
+- Mi 11 Ultra Global
+- STARGlobal
+star_id_global:
+- Mi 11 Ultra Indonesia
+- STARIDGlobal
+star_in_global:
+- Mi 11 Ultra India
+- STARINGlobal
+star_ru_global:
+- Mi 11 Ultra Russia
+- STARRUGlobal
+steppe:
+- Redmi M100 China
+- STEPPE
+steppe_eea_global:
+- Redmi 17 5G EEA
+- STEPPEEEAGlobal
+steppe_global:
+- Redmi 17 5G Global
+- STEPPEGlobal
+steppe_id_global:
+- Redmi 17 5G Indonesia
+- STEPPEIDGlobal
+steppe_in_global:
+- Redmi 17 5G / POCO M8x 5G India
+- STEPPEINGlobal
+steppe_ru_global:
+- Redmi 17 5G Russia
+- STEPPERUGlobal
+steppe_tr_global:
+- Redmi 17 5G Turkey
+- STEPPETRGlobal
+steppe_tw_global:
+- Redmi 17 5G Taiwan
+- STEPPETWGlobal
+sunstone:
+- Redmi Note 12 5G / Note 12R Pro China
+- SUNSTONE
+sunstone_eea_global:
+- Redmi Note 12 5G EEA
+- SUNSTONEEEAGlobal
+sunstone_global:
+- Redmi Note 12 5G Global
+- SUNSTONEGlobal
+sunstone_in_global:
+- Redmi Note 12 5G India
+- SUNSTONEINGlobal
+sunstone_tw_global:
+- Redmi Note 12 5G Taiwan
+- SUNSTONETWGlobal
+surya_eea_global:
+- POCO X3 NFC EEA
+- SURYAEEAGlobal
+surya_global:
+- POCO X3 NFC Global
+- SURYAGlobal
+surya_id_global:
+- POCO X3 NFC Indonesia
+- SURYAIDGlobal
+surya_in_global:
+- POCO X3 India
+- SURYAINGlobal
+surya_ru_global:
+- POCO X3 NFC Russia
+- SURYARUGlobal
+surya_tr_global:
+- POCO X3 NFC Turkey
+- SURYATRGlobal
+sweet_eea_global:
+- Redmi Note 10 Pro EEA
+- SWEETEEAGlobal
+sweet_global:
+- Redmi Note 10 Pro Global
+- SWEETGlobal
+sweet_id_global:
+- Redmi Note 10 Pro Indonesia
+- SWEETIDGlobal
+sweet_k6a_eea_global:
+- Redmi Note 12 Pro 4G EEA
+- SWEETK6AEEAGlobal
+sweet_k6a_global:
+- Redmi Note 12 Pro 4G Global
+- SWEETK6AGlobal
+sweet_k6a_id_global:
+- Redmi Note 12 Pro 4G Indonesia
+- SWEETK6AIDGlobal
+sweet_k6a_ru_global:
+- Redmi Note 12 Pro 4G Russia
+- SWEETK6ARUGlobal
+sweet_k6a_tr_global:
+- Redmi Note 12 Pro 4G Turkey
+- SWEETK6ATRGlobal
+sweet_k6a_tw_global:
+- Redmi Note 12 Pro 4G Taiwan
+- SWEETK6ATWGlobal
+sweet_ru_global:
+- Redmi Note 10 Pro Russia
+- SWEETRUGlobal
+sweet_tr_global:
+- Redmi Note 10 Pro Turkey
+- SWEETTRGlobal
+sweet_tw_global:
+- Redmi Note 10 Pro Taiwan
+- SWEETTWGlobal
+sweetin_in_global:
+- Redmi Note 10 Pro / Pro Max India
+- SWEETININGlobal
+taiko:
+- Redmi Pad 2 China
+- TAIKO
+taiko_eea_global:
+- Redmi Pad 2 EEA
+- TAIKOEEAGlobal
+taiko_global:
+- Redmi Pad 2 Global
+- TAIKOGlobal
+taiko_id_global:
+- Redmi Pad 2 Indonesia
+- TAIKOIDGlobal
+taiko_in_global:
+- Redmi Pad 2 India
+- TAIKOINGlobal
+taiko_ru_global:
+- Redmi Pad 2 Russia
+- TAIKORUGlobal
+taiko_tr_global:
+- Redmi Pad 2 Turkey
+- TAIKOTRGlobal
+taiko_tw_global:
+- Redmi Pad 2 Taiwan
+- TAIKOTWGlobal
+tanzanite_eea_global:
+- Redmi Note 14 4G EEA
+- TANZANITEEEAGlobal
+tanzanite_global:
+- Redmi Note 14 4G Global
+- TANZANITEGlobal
+tanzanite_id_global:
+- Redmi Note 14 4G Indonesia
+- TANZANITEIDGlobal
+tanzanite_ru_global:
+- Redmi Note 14 4G Russia
+- TANZANITERUGlobal
+tanzanite_tr_global:
+- Redmi Note 14 4G Turkey
+- TANZANITETRGlobal
+tanzanite_tw_global:
+- Redmi Note 14 4G Taiwan
+- TANZANITETWGlobal
+taoyao_eea_global:
+- Xiaomi 12 Lite EEA
+- TAOYAOEEAGlobal
+taoyao_global:
+- Xiaomi 12 Lite Global
+- TAOYAOGlobal
+taoyao_id_global:
+- Xiaomi 12 Lite Indonesia
+- TAOYAOIDGlobal
+taoyao_ru_global:
+- Xiaomi 12 Lite Russia
+- TAOYAORUGlobal
+taoyao_tr_global:
+- Xiaomi 12 Lite Turkey
+- TAOYAOTRGlobal
+taoyao_tw_global:
+- Xiaomi 12 Lite Taiwan
+- TAOYAOTWGlobal
+tapas_global:
+- Redmi Note 12 4G Global
+- TAPASGlobal
+tapas_in_global:
+- Redmi Note 12 4G India
+- TAPASINGlobal
+tapas_tr_global:
+- Redmi Note 12 4G Turkey
+- TAPASTRGlobal
+taurus:
+- Mi 2A China
+- MI2A
+thor:
+- Xiaomi 12S Ultra China
+- THOR
+thyme:
+- Mi 10S China
+- THYME
+tiare_eea_global:
+- Redmi Go EEA
+- TIAREEEAGlobal
+tiare_global:
+- Redmi Go Global
+- TIAREGlobal
+tiare_in_global:
+- Redmi Go India
+- TIAREINGlobal
+tiare_ru_global:
+- Redmi Go Russia
+- TIARERUGlobal
+tiffany:
+- Mi 5X China
+- MI5X
+tissot:
+- Mi A1 Global
+- TISSOT
+toco_eea_global:
+- Mi Note 10 Lite EEA
+- TOCOEEAGlobal
+toco_global:
+- Mi Note 10 Lite Global
+- TOCOGlobal
+toco_ru_global:
+- Mi Note 10 Lite Russia
+- TOCORUGlobal
+toco_tr_global:
+- Mi Note 10 Lite Turkey
+- TOCOTRGlobal
+topaz_eea_global:
+- Redmi Note 12 4G NFC EEA
+- TOPAZEEAGlobal
+topaz_global:
+- Redmi Note 12 4G NFC Global
+- TOPAZGlobal
+topaz_id_global:
+- Redmi Note 12 4G NFC Indonesia
+- TOPAZIDGlobal
+topaz_ru_global:
+- Redmi Note 12 4G NFC Russia
+- TOPAZTRGlobal
+tornado:
+- Redmi 15C 5G / 15R 5G China
+- TORNADO
+tornado_eea_global:
+- Redmi 15C 5G / 15R 5G EEA
+- TORNADOEUGlobal
+tornado_global:
+- Redmi 15C 5G / 15R 5G / 17C 5G Global
+- TORNADOGlobal
+tornado_id_global:
+- Redmi 15C 5G / 15R 5G Indonesia
+- TORNADOIDGlobal
+tornado_in_global:
+- Redmi 15C 5G / POCO C85 5G India
+- TORNADOINGlobal
+tornado_jp_global:
+- TBD Japan
+- TORNADOJPGlobal
+tornado_tr_global:
+- Redmi 15C 5G / 15R 5G Turkey
+- TORNADOTRGlobal
+tucana:
+- Mi CC 9 Pro China
+- TUCANA
+tucana_eea_global:
+- Mi Note 10 / Note 10 Pro EEA
+- TUCANAEEAGlobal
+tucana_global:
+- Mi Note 10 / Note 10 Pro Global
+- TUCANAGlobal
+tucana_id_global:
+- Mi Note 10 / Note 10 Pro Indonesia
+- TUCANAIDGlobal
+tucana_ru_global:
+- Mi Note 10 / Note 10 Pro Russia
+- TUCANARUGlobal
+tulip_global:
+- Redmi Note 6 Pro Global
+- HMNote6ProGlobal
+tulip_ru_global:
+- Redmi Note 6 Pro Russia
+- HMNote6ProRUGlobal
+turner:
+- Redmi K Pad China
+- TURNER
+turner_global:
+- Xiaomi Pad Mini Global
+- TURNERGlobal
+turner_id_global:
+- Xiaomi Pad Mini Indonesia
+- TURNERIDGlobal
+turner_ru_global:
+- Xiaomi Pad Mini Russia
+- TURNERRUGlobal
+turner_tr_global:
+- Xiaomi Pad Mini Turkey
+- TURNERTRGlobal
+turner_tw_global:
+- Xiaomi Pad Mini Taiwan
+- TURNERTWGlobal
+ugg:
+- Redmi Note 5A Prime China
+- HMNote5A
+ugg_global:
+- Redmi Note 5A Prime Global
+- HMNote5AGlobal
+ugglite:
+- Redmi Note 5A (2GB) China
+- HMNote5ALITE
+ugglite_global:
+- Redmi Note 5A (2GB) Global
+- HMNote5ALITEGlobal
+uke:
+- Xiaomi Pad 7 China
+- UKE
+uke_eea_global:
+- Xiaomi Pad 7 / POCO Pad X1 EEA
+- UKEEEAGlobal
+uke_global:
+- Xiaomi Pad 7 / POCO Pad X1 Global
+- UKEGlobal
+uke_id_global:
+- Xiaomi Pad 7 / POCO Pad X1 Indonesia
+- UKEIDGlobal
+uke_in_global:
+- Xiaomi Pad 7 / POCO Pad X1 India
+- UKEINGlobal
+uke_ru_global:
+- Xiaomi Pad 7 / POCO Pad X1 Russia
+- UKERUGlobal
+uke_tw_global:
+- Xiaomi Pad 7 / POCO Pad X1 Taiwan
+- UKETWGlobal
+umi:
+- Mi 10 China
+- UMI
+umi_eea_global:
+- Mi 10 EEA
+- UMIEEAGlobal
+umi_global:
+- Mi 10 Global
+- UMIGlobal
+umi_id_global:
+- Mi 10 Indonesia
+- UMIIDGlobal
+umi_in_global:
+- Mi 10 India
+- UMIINGlobal
+umi_ru_global:
+- Mi 10 Russia
+- UMIRUGlobal
+umi_tr_global:
+- Mi 10 Turkey
+- UMITRGlobal
+unicorn:
+- Xiaomi 12S Pro China
+- UNICORN
+ursa:
+- Mi 8 Explorer China
+- MI8Explorer
+vangogh:
+- Mi 10 Lite Zoom China
+- VANGOGH
+vayu_eea_global:
+- POCO X3 Pro EEA
+- VAYUEEAGlobal
+vayu_global:
+- POCO X3 Pro Global
+- VAYUGlobal
+vayu_id_global:
+- POCO X3 Pro Indonesia
+- VAYUIDGlobal
+vayu_in_global:
+- POCO X3 Pro India
+- VAYUINGlobal
+vayu_ru_global:
+- POCO X3 Pro Russia
+- VAYURUGlobal
+vayu_tr_global:
+- POCO X3 Pro Turkey
+- VAYUTRGlobal
+vayu_tw_global:
+- POCO X3 Pro Taiwan
+- VAYUTWGlobal
+vela:
+- Mi CC 9 Meitu Edition China
+- VELA
+venus:
+- Mi 11 China
+- VENUS
+venus_eea_global:
+- Mi 11 EEA
+- VENUSEEAGlobal
+venus_global:
+- Mi 11 Global
+- VENUSGlobal
+venus_id_global:
+- Mi 11 Indonesia
+- VENUSIDGlobal
+venus_in_global:
+- Mi 11 India
+- VENUSINGlobal
+venus_ru_global:
+- Mi 11 Russia
+- VENUSRUGlobal
+venus_tr_global:
+- Mi 11 Turkey
+- VENUSTRGlobal
+venus_tw_global:
+- Mi 11 Taiwan
+- VENUSTWGlobal
+vermeer:
+- Redmi K70 China
+- VERMEER
+vermeer_eea_global:
+- POCO F6 Pro EEA
+- VERMEEREEAGlobal
+vermeer_global:
+- POCO F6 Pro Global
+- VERMEERGlobal
+vermeer_id_global:
+- POCO F6 Pro Indonesia
+- VERMEERIDGlobal
+vermeer_in_global:
+- POCO F6 Pro India
+- VERMEERINGlobal
+vermeer_ru_global:
+- POCO F6 Pro Russia
+- VERMEERRUGlobal
+vermeer_tr_global:
+- POCO F6 Pro Turkey
+- VERMEERTRGlobal
+vermeer_tw_global:
+- POCO F6 Pro Taiwan
+- VERMEERTWGlobal
+veux:
+- Redmi Note 11E Pro China
+- VEUX
+veux_eea_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G EEA
+- VEUXEEAGlobal
+veux_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G Global
+- VEUXGlobal
+veux_id_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G Indonesia
+- VEUXIDGlobal
+veux_in_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G India
+- VEUXINGlobal
+veux_jp_global:
+- Redmi Note 11 Pro 5G Japan
+- VEUXJPGlobal
+veux_ru_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G Russia
+- VEUXRUGlobal
+veux_tr_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G Turkey
+- VEUXTRGlobal
+veux_tw_global:
+- Redmi Note 11 Pro 5G / POCO X4 Pro 5G Taiwan
+- VEUXTWGlobal
+vida_in_global:
+- Redmi Note 11 Pro 4G India
+- VIDAINGlobal
+vili_eea_global:
+- Xiaomi 11T Pro EEA
+- VILIEEAGlobal
+vili_global:
+- Xiaomi 11T Pro Global
+- VILIGlobal
+vili_id_global:
+- Xiaomi 11T Pro Indonesia
+- VILIIDGlobal
+vili_in_global:
+- Xiaomi 11T Pro India
+- VILIINGlobal
+vili_jp_global:
+- Xiaomi 11T Pro Japan
+- VILIJPGlobal
+vili_ru_global:
+- Xiaomi 11T Pro Russia
+- VILIRUGlobal
+vili_tr_global:
+- Xiaomi 11T Pro Turkey
+- VILITRGlobal
+vili_tw_global:
+- Xiaomi 11T Pro Taiwan
+- VILITWGlobal
+vince:
+- Redmi 5 Plus China
+- HM5Plus
+vince_global:
+- Redmi 5 Plus / Note 5 Global
+- HM5PlusGlobal
+vince_ru_global:
+- Redmi 5 Plus Russia
+- HM5PlusRUGlobal
+violet:
+- Redmi Note 7 Pro China
+- VIOLET
+violet_in_global:
+- Redmi Note 7 Pro India
+- VIOLETINGlobal
+violin:
+- Xiaomi Pad 7S Pro 12.5 China
+- VIOLIN
+virgo:
+- Mi Note China
+- MINote
+virgo_global:
+- Mi Note Global
+- MINoteGlobal
+virgo_lte_ct:
+- Mi Note LTE CT China
+- MINoteCT
+viva_eea_global:
+- Redmi Note 11 Pro 4G EEA
+- VIVAEEAGlobal
+viva_global:
+- Redmi Note 11 Pro 4G Global
+- VIVAGlobal
+viva_id_global:
+- Redmi Note 11 Pro 4G Indonesia
+- VIVAIDGlobal
+viva_ru_global:
+- Redmi Note 11 Pro 4G Russia
+- VIVARUGlobal
+viva_tr_global:
+- Redmi Note 11 Pro 4G Turkey
+- VIVATRGlobal
+viva_tw_global:
+- Redmi Note 11 Pro 4G Taiwan
+- VIVATWGlobal
+warhol:
+- Xiaomi 17T Pro China
+- WARHOL
+warhol_eea_global:
+- Xiaomi 17T Pro EEA
+- WARHOLEEAGlobal
+warhol_global:
+- Xiaomi 17T Pro Global
+- WARHOLGlobal
+warhol_id_global:
+- Xiaomi 17T Pro Indonesia
+- WARHOLIDGlobal
+warhol_jp_global:
+- Xiaomi 17T Pro Japan
+- WARHOLJPGlobal
+warhol_ru_global:
+- Xiaomi 17T Pro Russia
+- WARHOLRUGlobal
+warhol_tr_global:
+- Xiaomi 17T Pro Turkey
+- WARHOLTRGlobal
+warhol_tw_global:
+- Xiaomi 17T Pro Taiwan
+- WARHOLTWGlobal
+warm_global:
+- Redmi A4 5G Global
+- WARMGlobal
+warm_in_global:
+- Redmi A4 5G / POCO C75 5G India
+- WARMINGlobal
+warsaw:
+- Redmi K90 Ultra China
+- WARSAW
+water_eea_global:
+- Redmi A2 / A2+ / POCO C51 EEA
+- WATEREEAGlobal
+water_global:
+- Redmi A2 / A2+ / POCO C51 Global
+- WATERGlobal
+water_id_global:
+- Redmi A2 / A2+ / POCO C51 Indonesia
+- WATERIDGlobal
+water_in_global:
+- Redmi A2 / A2+ / POCO C51 India
+- WATERINGlobal
+water_ru_global:
+- Redmi A2 / A2+ / POCO C51 Russia
+- WATERRUGlobal
+water_tw_global:
+- Redmi A2 / A2+ / POCO C51 Taiwan
+- WATERTWGlobal
+wayne:
+- Mi 6X China
+- MI6X
+whyred:
+- Redmi Note 5 China
+- HMNote5
+whyred_global:
+- Redmi Note 5 / Note 5 Pro Global
+- HMNote5Global
+whyred_ru_global:
+- Redmi Note 5 Russia
+- HMNote5RUGlobal
+willow_eea_global:
+- Redmi Note 8T EEA
+- WILLOWEEAGlobal
+willow_global:
+- Redmi Note 8T Global
+- WILLOWGlobal
+willow_ru_global:
+- Redmi Note 8T Russia
+- WILLOWRUGlobal
+wt86047:
+- Redmi 2 China
+- HM2XTD
+wt86047_pro:
+- Redmi 2 Pro China
+- HM2XTDPro
+wt88047:
+- Redmi 2 China
+- HM2XWC
+wt88047_global:
+- Redmi 2 Global
+- HM2XWCGlobal
+wt88047_pro:
+- Redmi 2 Pro China
+- HM2XWCPro
+wt88047_pro_global:
+- Redmi 2 Pro Global
+- HM2XWCProGlobal
+wt98007:
+- Redmi 1 China
+- HMW
+xaga:
+- Redmi Note 11T Pro / Pro+ China
+- XAGA
+xaga_eea_global:
+- Redmi Note 11T Pro / POCO X4 GT / Pro EEA
+- XAGAEEAGlobal
+xaga_global:
+- Redmi Note 11T Pro / POCO X4 GT / Pro Global
+- XAGAGlobal
+xaga_in_global:
+- Redmi K50i / Pro India
+- XAGAINGlobal
+xaga_ru_global:
+- Redmi Note 11T Pro / POCO X4 GT / Pro Russia
+- XAGARUGlobal
+xaga_tr_global:
+- Redmi Note 11T Pro / POCO X4 GT / Pro Turkey
+- XAGATRGlobal
+xaga_tw_global:
+- Redmi Note 11T Pro / POCO X4 GT / Pro Taiwan
+- XAGATWGlobal
+xuanyuan:
+- Xiaomi 15 Ultra China
+- XUANYUAN
+xuanyuan_eea_global:
+- Xiaomi 15 Ultra EEA
+- XUANYUANEUGlobal
+xuanyuan_global:
+- Xiaomi 15 Ultra Global
+- XUANYUANGlobal
+xuanyuan_id_global:
+- Xiaomi 15 Ultra Indonesia
+- XUANYUANIDGlobal
+xuanyuan_in_global:
+- Xiaomi 15 Ultra India
+- XUANYUANINGlobal
+xuanyuan_ru_global:
+- Xiaomi 15 Ultra Russia
+- XUANYUANRUGlobal
+xuanyuan_tr_global:
+- Xiaomi 15 Ultra Turkey
+- XUANYUANTRGlobal
+xuanyuan_tw_global:
+- Xiaomi 15 Ultra Taiwan
+- XUANYUANTWGlobal
+xun:
+- Redmi Pad SE China
+- XUN
+xun_eea_global:
+- Redmi Pad SE EEA
+- XUNEEAGlobal
+xun_global:
+- Redmi Pad SE Global
+- XUNGlobal
+xun_id_global:
+- Redmi Pad SE Indonesia
+- XUNIDGlobal
+xun_in_global:
+- Redmi Pad SE India
+- XUNINGlobal
+xun_ru_global:
+- Redmi Pad SE Russia
+- XUNRUGlobal
+xun_tr_global:
+- Redmi Pad SE Turkey
+- XUNTRGlobal
+xun_tw_global:
+- Redmi Pad SE Taiwan
+- XUNTWGlobal
+yili:
+- Redmi K Pad 2 China
+- YILI
+yingtian:
+- Xiaomi Pad 9 Pro Max China
+- YINGTIAN
+ysl:
+- Redmi S2 China
+- HMS2
+ysl_global:
+- Redmi S2/Y2 Global
+- HMS2Global
+ysl_ru_global:
+- Redmi S2 Russia
+- HMS2RUGlobal
+yudi:
+- Xiaomi Pad 6 Max 14 China
+- YUDI
+yuechu:
+- Xiaomi Civi 3 China
+- YUECHU
+yunluo:
+- Redmi Pad China
+- YUNLUO
+yunluo_eea_global:
+- Redmi Pad EEA
+- YUNLUOEEAGlobal
+yunluo_global:
+- Redmi Pad Global
+- YUNLUOGlobal
+yunluo_id_global:
+- Redmi Pad Indonesia
+- YUNLUOIDGlobal
+yunluo_in_global:
+- Redmi Pad India
+- YUNLUOINGlobal
+yunluo_ru_global:
+- Redmi Pad Russia
+- YUNLUORUGlobal
+yunluo_tr_global:
+- Redmi Pad Turkey
+- YUNLUOTRGlobal
+yunluo_tw_global:
+- Redmi Pad Taiwan
+- YUNLUOTWGlobal
+yupei:
+- Xiaomi Pad 8 / Xiaomi Pad 9 China
+- YUPEI
+yupei_eea_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 EEA
+- YUPEIEEAGlobal
+yupei_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 Global
+- YUPEIGlobal
+yupei_id_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 Indonesia
+- YUPEIIDGlobal
+yupei_in_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 India
+- YUPEIINGlobal
+yupei_ru_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 Russia
+- YUPEIRUGlobal
+yupei_tr_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 Turkey
+- YUPEITRGlobal
+yupei_tw_global:
+- Xiaomi Pad 8 / Xiaomi Pad 9 Taiwan
+- YUPEITWGlobal
+zephyr_eea_global:
+- Redmi Note 17 4G EEA
+- ZEPHYREEAGlobal
+zephyr_global:
+- Redmi Note 17 4G Global
+- ZEPHYRGlobal
+zephyr_id_global:
+- Redmi Note 17 4G Indonesia
+- ZEPHYRIDGlobal
+zephyr_ru_global:
+- Redmi Note 17 4G Russia
+- ZEPHYRRUGlobal
+zephyr_tr_global:
+- Redmi Note 17 4G Turkey
+- ZEPHYRTRGlobal
+zephyr_tw_global:
+- Redmi Note 17 4G Taiwan
+- ZEPHYRTWGlobal
+zeus:
+- Xiaomi 12 Pro China
+- ZEUS
+zeus_eea_global:
+- Xiaomi 12 Pro EEA
+- ZEUSEEAGlobal
+zeus_global:
+- Xiaomi 12 Pro Global
+- ZEUSGlobal
+zeus_id_global:
+- Xiaomi 12 Pro Indonesia
+- ZEUSIDGlobal
+zeus_in_global:
+- Xiaomi 12 Pro India
+- ZEUSINGlobal
+zeus_ru_global:
+- Xiaomi 12 Pro Russia
+- ZEUSRUGlobal
+zeus_tr_global:
+- Xiaomi 12 Pro Turkey
+- ZEUSTRGlobal
+zeus_tw_global:
+- Xiaomi 12 Pro Taiwan
+- ZEUSTWGlobal
+zijin:
+- Xiaomi Civi 1S China
+- ZIJIN
+zircon:
+- Redmi Note 13 Pro+ 5G China
+- ZIRCON
+zircon_eea_global:
+- Redmi Note 13 Pro+ 5G EEA
+- ZIRCONEEAGlobal
+zircon_global:
+- Redmi Note 13 Pro+ 5G Global
+- ZIRCONGlobal
+zircon_id_global:
+- Redmi Note 13 Pro+ 5G Indonesia
+- ZIRCONIDGlobal
+zircon_in_global:
+- Redmi Note 13 Pro+ 5G India
+- ZIRCONINGlobal
+zircon_ru_global:
+- Redmi Note 13 Pro+ 5G Russia
+- ZIRCONRUGlobal
+zircon_tr_global:
+- Redmi Note 13 Pro+ 5G Turkey
+- ZIRCONTRGlobal
+zircon_tw_global:
+- Redmi Note 13 Pro+ 5G Taiwan
+- ZIRCONTWGlobal
+ziyi:
+- Xiaomi Civi 2 China
+- ZIYI
+ziyi_eea_global:
+- Xiaomi Civi 2 / 13 Lite EEA
+- ZIYIEEAGlobal
+ziyi_global:
+- Xiaomi Civi 2 / 13 Lite Global
+- ZIYIGlobal
+ziyi_ru_global:
+- Xiaomi Civi 2 / 13 Lite Russia
+- ZIYIRUGlobal
+ziyi_tr_global:
+- Xiaomi 13 Lite Turkey
+- ZIYITRGlobal
+ziyi_tw_global:
+- Xiaomi Civi 2 / 13 Lite Taiwan
+- ZIYITWGlobal
+zizhan:
+- Xiaomi MIX Fold 2 China
+- ZIZHAN
+zorn:
+- Redmi K80 China
+- ZORN
+zorn_eea_global:
+- POCO F7 Pro EEA
+- ZORNEEAGlobal
+zorn_global:
+- POCO F7 Pro Global
+- ZORNGlobal
+zorn_id_global:
+- POCO F7 Pro Indonesia
+- ZORNIDGlobal
+zorn_ru_global:
+- POCO F7 Pro Russia
+- ZORNRUGlobal
+zorn_tr_global:
+- POCO F7 Pro Turkey
+- ZORNTRGlobal
+zorn_tw_global:
+- POCO F7 Pro Taiwan
+- ZORNTWGlobal

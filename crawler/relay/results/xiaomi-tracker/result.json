@@ -1,0 +1,15 @@
+{
+  "outcome": "ok",
+  "source": "XiaomiFirmwareUpdater/miui-updates-tracker",
+  "url": "https://github.com/XiaomiFirmwareUpdater/miui-updates-tracker",
+  "license": "Open, credits requested",
+  "total_entries": 3595,
+  "unique_codenames": 698,
+  "last_sync": "2026-09-13 (syncs every 6h)",
+  "fields": ["name", "codename", "version", "android", "branch", "date", "method", "link", "md5", "size"],
+  "note": "DOES NOT carry security_patch_level field. Only build/release dates. ASPL must be derived from firmware or approximated.",
+  "caveat": "source_authority=community, spl_precision requires verification if ASPL is derived",
+  "files": ["latest.yml", "devices.yml"],
+  "agent": "box-field",
+  "finished_at": "2026-09-13T10:55:00Z"
+}

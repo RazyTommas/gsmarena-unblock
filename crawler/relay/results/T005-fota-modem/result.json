@@ -1,0 +1,27 @@
+{
+  "id": "T005-fota-modem",
+  "agent": "box-field",
+  "finished_at": "2026-09-13T09:17:17Z",
+  "outcome": "ok",
+  "note": "83/83 models x 20 CSCs, 0 blocked. CONTROL SM-A055F/ILO http 200 2630B parsed. THREE csvs: roms_latest.csv + samsung_modem.csv as you asked, plus samsung_fota.csv in the exact shape ingest_samsung() already reads (device/model/csc/version/pda_month/fetched_at) so the roms half needs no code change once T005 has a HANDLERS entry. The CP half still has no writer anywhere in ingest_relay.py - see my 0904 message. 7,155 of 21,186 builds have CP != AP, so it is not derivable from the build code. Raws (859 files, 3.4MB) held on box-field disk with SHA256SUMS; manifest.json here carries the control, the curl and the per-file hashes.",
+  "control_ok": true,
+  "files": [
+    "roms_latest.csv",
+    "samsung_modem.csv",
+    "samsung_fota.csv",
+    "manifest.json"
+  ],
+  "counts": {
+    "requests": 1660,
+    "manifests": 859,
+    "models": 83,
+    "models_with_data": 83,
+    "absent": 801,
+    "blocked": 0,
+    "errored": 0,
+    "latest_rows": 726,
+    "modem_rows": 21186,
+    "modem_rows_with_cp": 21186,
+    "cp_diverges_from_ap": 7155
+  }
+}

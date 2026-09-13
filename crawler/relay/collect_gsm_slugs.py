@@ -23,8 +23,15 @@ from pathlib import Path
 
 BASE = "https://www.gsmarena.com/"
 MAKERS = BASE + "makers.php3"
-UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-      "Chrome/120.0.0.0 Safari/537.36")
+# Our own identity, not a browser's. This was a full Chrome 120 string, which claims
+# to be something we are not -- and it is the same claim the project refuses to make to
+# deviceinfohw.ru, whose collector sits disabled with a docstring saying a browser UA to
+# get past a 403 would misrepresent us. Applying that to the host that refused us and
+# not to the host that did not is a rationalisation, not a rule. Caught by code review.
+#
+# Practical note: probe() in common.py tests reachability with THIS string, so a
+# collector using a different one was verifying a door it would not then walk through.
+UA = "Mozilla/5.0 (compatible; device-crawler/1.0)"
 # The control: a brand page we know carries device links. If THIS is empty the run
 # measured the network, not gsmarena's catalogue.
 CONTROL_BRAND = "samsung-phones-9.php"

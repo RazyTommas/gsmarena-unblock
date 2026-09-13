@@ -86,6 +86,34 @@ def pda_month_display(pda):
 
 
 # --- crawl/pull run log (so the UI can show when data was last refreshed) ----
+def probe(url, timeout=25):
+    """Check reachability WITH THE IDENTITY WE ACTUALLY COLLECT UNDER.
+
+    Two of us independently green-lit deviceinfohw.ru after fetching it by hand, and
+    both hand-fetches sent a browser User-Agent because that is what every curl
+    example and every copy-paste gives you. The collector then used our honest
+    `device-crawler/1.0` and got 403. We had not verified the site was open; we had
+    both walked past a door without noticing it was there.
+
+    The defect is that verification and collection used different identities, so the
+    check could not predict the run. This helper exists so a reachability answer is
+    always about the client we will actually be. Returns
+    (status, bytes, ok) with ok meaning a 2xx under OUR UA — nothing else counts as
+    reachable, and a 403 here is the site declining automated access, which is an
+    answer to respect rather than a problem to route around.
+    """
+    import urllib.error, urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read()
+            return r.status, len(body), 200 <= r.status < 300
+    except urllib.error.HTTPError as e:
+        return e.code, 0, False
+    except Exception as e:
+        return None, 0, False
+
+
 def connect(path=None, timeout=60.0):
     """A SQLite connection that WAITS for a writer instead of failing on it.
 

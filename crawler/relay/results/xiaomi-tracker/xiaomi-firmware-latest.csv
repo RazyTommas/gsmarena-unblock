@@ -1,0 +1,1317 @@
+codename,name,android,version,branch,date
+HM2013022,Redmi 1 TD China,4.2,JHACNBH22.0,Stable,2015-03-26
+HM2013023,Redmi 1 W China,4.4,V7.3.1.0.KHBCNDD,Stable,2016-05-12
+HM2013023_sg_global,Redmi 1 W Singapore,4.4,V6.6.1.0.KHBMICF,Stable,2015-08-19
+HM2014011,Redmi 1S TD 3G China,4.4,V9.2.2.0.KHFCNEK,Stable,2018-09-07
+HM2014501,Redmi 1S TD 4G China,4.4,V9.2.2.0.KHHCNEK,Stable,2018-09-07
+HM2014811,Redmi 2 LTE China,4.4,V6.2.2.0.KHJMIBK,Stable,2015-10-17
+HM2014813,Redmi 2 LTE China,4.4,V6.2.1.0.KHJCNBK,Stable,2015-03-29
+agate_eea_global,Xiaomi 11T EEA,14.0,OS1.0.19.0.UKWEUXM,Stable,2025-09-12
+agate_global,Xiaomi 11T Global,14.0,OS1.0.17.0.UKWMIXM,Stable,2025-08-07
+agate_id_global,Xiaomi 11T Indonesia,14.0,OS1.0.14.0.UKWIDXM,Stable,2025-08-20
+agate_ru_global,Xiaomi 11T Russia,14.0,OS1.0.15.0.UKWRUXM,Stable,2025-08-04
+agate_tr_global,Xiaomi 11T Turkey,14.0,OS1.0.16.0.UKWTRXM,Stable,2025-10-13
+agate_tw_global,Xiaomi 11T Taiwan,14.0,OS1.0.15.0.UKWTWXM,Stable,2025-09-15
+air,Redmi 13R 5G / 13C 5G China,15.0,OS2.0.210.0.VGQCNXM,Stable,2026-08-14
+air_eea_global,Redmi 13R 5G / 13C 5G EEA,15.0,OS2.0.212.0.VGQEUXM,Stable,2026-07-10
+air_global,Redmi 13R 5G / 13C 5G Global,15.0,OS2.0.208.0.VGQMIXM,Stable,2026-08-07
+air_in_global,Redmi 13R 5G / POCO M6 5G India,15.0,OS2.0.208.0.VGQINXM,Stable,2026-08-14
+air_tw_global,Redmi 13R 5G / 13C 5G Taiwan,15.0,OS2.0.205.0.VGQTWXM,Stable,2026-07-10
+alioth,Redmi K40 China,13.0,OS1.0.10.0.TKHCNXM,Stable,2025-11-02
+alioth_eea_global,POCO F3 EEA,13.0,OS1.0.3.0.TKHEUXM,Stable,2024-08-15
+alioth_global,POCO F3 Global,13.0,OS1.0.5.0.TKHMIXM,Stable,2026-01-26
+alioth_id_global,POCO F3 Indonesia,13.0,OS1.0.3.0.TKHIDXM,Stable,2024-06-11
+alioth_in_global,Mi 11X India,13.0,OS1.0.2.0.TKHINXM,Stable,2024-07-08
+alioth_ru_global,POCO F3 Russia,13.0,OS1.0.3.0.TKHRUXM,Stable,2024-06-25
+alioth_tr_global,POCO F3 Turkey,13.0,OS1.0.2.0.TKHTRXM,Stable,2024-05-21
+alioth_tw_global,POCO F3 Taiwan,13.0,OS1.0.1.0.TKHTWXM,Stable,2024-05-20
+amethyst,Redmi Note 14 Pro+ 5G China,16.0,OS3.0.305.0.WOPCNXM,Stable,2026-07-18
+amethyst_eea_global,Redmi Note 14 Pro+ 5G EEA,16.0,OS3.0.304.0.WOPEUXM,Stable,2026-07-01
+amethyst_global,Redmi Note 14 Pro+ 5G Global,16.0,OS3.0.306.0.WOPMIXM,Stable,2026-08-28
+amethyst_id_global,Redmi Note 14 Pro+ 5G Indonesia,16.0,OS3.0.302.0.WOPIDXM,Stable,2026-07-06
+amethyst_in_global,Redmi Note 14 Pro+ 5G India,16.0,OS3.0.303.0.WOPINXM,Stable,2026-07-06
+amethyst_ru_global,Redmi Note 14 Pro+ 5G Russia,16.0,OS3.0.302.0.WOPRUXM,Stable,2026-07-06
+amethyst_tr_global,Redmi Note 14 Pro+ 5G Turkey,16.0,OS3.0.302.0.WOPTRXM,Stable,2026-07-06
+amethyst_tw_global,Redmi Note 14 Pro+ 5G Taiwan,16.0,OS3.0.302.0.WOPTWXM,Stable,2026-07-06
+andromeda,Mi MIX 3 5G China,9.0,V10.3.18.0.PEMCNXM,Stable,2019-11-22
+andromeda_eea_global,Mi MIX 3 5G EEA,9.0,V12.0.7.0.PEMEUXM,Stable,2021-05-31
+andromeda_global,Mi MIX 3 5G Global,9.0,V12.0.4.0.PEMMIXM,Stable,2021-03-29
+angelica_eea_global,Redmi 9C EEA,10.0,V12.0.14.0.QCREUXM,Stable,2022-08-22
+angelica_global,Redmi 9C Global,10.0,V12.0.23.0.QCRMIXM,Stable,2023-04-13
+angelica_id_global,Redmi 9C Indonesia,11.0,V12.5.3.0.RCRIDXM,Stable,2022-08-30
+angelica_tr_global,Redmi 9C Turkey,10.0,V12.0.15.0.QCRTRXM,Stable,2022-09-30
+angelicain_in_global,POCO C3 India,10.0,V12.0.19.0.QCRINXM,Stable,2022-09-06
+angelicain_in_rf_global,POCO C31 India,11.0,V12.5.5.0.RCRINRF,Stable,2023-08-07
+angelican_eea_global,Redmi 9C NFC EEA,10.0,V12.0.14.0.QCSEUXM,Stable,2022-08-25
+angelican_global,Redmi 9C NFC Global,10.0,V12.0.16.0.QCSMIXM,Stable,2022-10-10
+angelican_ru_global,Redmi 9C NFC Russia,11.0,V12.5.3.0.RCSRUXM,Stable,2022-08-30
+annibale,Redmi K90 China,16.0,OS3.0.307.0.WPKCNXM,Stable,2026-07-30
+annibale_eea_global,Redmi K90 / POCO F8 Pro EEA,16.0,OS3.0.301.0.WPKEUXM,Stable,2026-07-25
+annibale_global,Redmi K90 / POCO F8 Pro Global,16.0,OS3.0.301.0.WPKMIXM,Stable,2026-07-25
+annibale_id_global,Redmi K90 / POCO F8 Pro Indonesia,16.0,OS3.0.302.0.WPKIDXM,Stable,2026-08-14
+annibale_ru_global,Redmi K90 / POCO F8 Pro Russia,16.0,OS3.0.302.0.WPKRUXM,Stable,2026-08-07
+annibale_tr_global,Redmi K90 / POCO F8 Pro Turkey,16.0,OS3.0.302.0.WPKTRXM,Stable,2026-08-14
+annibale_tw_global,Redmi K90 / POCO F8 Pro Taiwan,16.0,OS3.0.302.0.WPKTWXM,Stable,2026-08-21
+apollo,Redmi K30S Ultra China,12.0,V14.0.5.0.SJDCNXM,Stable,2023-03-08
+apollo_eea_global,Mi 10T / Mi 10T Pro EEA,12.0,V14.0.3.0.SJDEUXM,Stable,2023-07-18
+apollo_global,Mi 10T / Mi 10T Pro Global,12.0,V14.0.4.0.SJDMIXM,Stable,2023-07-19
+apollo_id_global,Mi 10T / Mi 10T Pro Indonesia,12.0,V14.0.1.0.SJDIDXM,Stable,2023-04-13
+apollo_in_global,Mi 10T / Mi 10T Pro India,12.0,V14.0.1.0.SJDINXM,Stable,2023-05-22
+apollo_ru_global,Mi 10T / Mi 10T Pro Russia,12.0,V14.0.1.0.SJDRUXM,Stable,2023-04-06
+apollo_tr_global,Mi 10T / Mi 10T Pro Turkey,12.0,V14.0.1.0.SJDTRXM,Stable,2023-04-11
+apollo_tw_global,Mi 10T / Mi 10T Pro Taiwan,12.0,V14.0.1.0.SJDTWXM,Stable,2023-04-23
+aqua,MI 4S China,7.0,V10.1.1.0.NAJCNFI,Stable,2018-11-08
+arctic_eea_global,Redmi A7 Pro / POCO C81 / C81 Pro EEA,16.0,OS3.0.9.0.WBVEUXM,Stable,2026-08-27
+arctic_global,Redmi A7 Pro / POCO C81 / C81 Pro Global,16.0,OS3.0.12.0.WBVMIXM,Stable,2026-07-31
+arctic_id_global,Redmi A7 Pro / POCO C81 / C81 Pro Indonesia,16.0,OS3.0.5.0.WBVIDXM,Stable,2026-08-21
+arctic_in_global,Redmi A7 Pro / POCO C81 / C81 Pro India,16.0,OS3.0.4.0.WBVINXM,Stable,2026-07-21
+arctic_ru_global,Redmi A7 Pro / POCO C81 / C81 Pro Russia,16.0,OS3.0.7.0.WBVRUXM,Stable,2026-08-04
+arctic_tr_global,Redmi A7 Pro / POCO C81 / C81 Pro Turkey,16.0,OS3.0.2.0.WBVTRXM,Stable,2026-06-23
+ares,Redmi K40 Gaming China,13.0,OS1.0.2.0.TKJCNXM,Stable,2024-03-05
+ares_in_global,POCO F3 GT India,13.0,OS1.0.2.0.TKJINXM,Stable,2024-04-01
+aries,MI 2S China,5.0,V9.2.3.0.LXACNEK,Stable,2018-09-07
+aries_global,MI 2S Global,5.0,V9.2.2.0.LXAMIEK,Stable,2018-09-07
+aristotle_eea_global,Xiaomi 13T EEA,16.0,OS3.0.3.0.WMFEUXM,Stable,2026-08-06
+aristotle_global,Xiaomi 13T Global,16.0,OS3.0.5.0.WMFMIXM,Stable,2026-08-06
+aristotle_id_global,Xiaomi 13T Indonesia,16.0,OS3.0.2.0.WMFIDXM,Stable,2026-07-17
+aristotle_ru_global,Xiaomi 13T Russia,15.0,OS2.0.209.0.VMFRUXM,Stable,2026-03-19
+aristotle_tr_global,Xiaomi 13T Turkey,15.0,OS2.0.209.0.VMFTRXM,Stable,2026-03-19
+aristotle_tw_global,Xiaomi 13T Taiwan,15.0,OS2.0.210.0.VMFTWXM,Stable,2026-03-19
+armani,Redmi 1S China,4.4,V9.2.4.0.KHCCNEK,Stable,2018-09-07
+armani_global,Redmi 1S Global,4.4,V9.2.3.0.KHCMIEK,Stable,2018-09-07
+athens,Redmi K100 Pro China,16.0,OS3.0.306.0.WPICNXM,Stable,2026-08-11
+athens_eea_global,POCO F9 Pro EEA,16.0,OS3.0.304.0.WPIEUXM,Stable,2026-09-01
+athens_global,POCO F9 Pro Global,16.0,OS3.0.305.0.WPIMIXM,Stable,2026-09-09
+athens_id_global,POCO F9 Pro Indonesia,16.0,OS3.0.301.0.WPIIDXM,Stable,2026-09-01
+athens_ru_global,POCO F9 Pro Russia,16.0,OS3.0.303.0.WPIRUXM,Stable,2026-09-02
+athens_tr_global,POCO F9 Pro Turkey,16.0,OS3.0.301.0.WPITRXM,Stable,2026-09-01
+athens_tw_global,POCO F9 Pro Taiwan,16.0,OS3.0.301.0.WPITWXM,Stable,2026-09-01
+atom,Redmi 10X 5G China,12.0,V13.0.8.0.SJHCNXM,Stable,2023-07-20
+aurora,Xiaomi 14 Ultra China,16.0,OS3.0.306.0.WNACNXM,Stable,2026-08-14
+aurora_eea_global,Xiaomi 14 Ultra EEA,16.0,OS3.0.304.0.WNAEUXM,Stable,2026-07-08
+aurora_global,Xiaomi 14 Ultra Global,16.0,OS3.0.303.0.WNAMIXM,Stable,2026-07-14
+aurora_in_global,Xiaomi 14 Ultra India,16.0,OS3.0.303.0.WNAINXM,Stable,2026-09-03
+aurora_ru_global,Xiaomi 14 Ultra Russia,16.0,OS3.0.302.0.WNARUXM,Stable,2026-07-14
+aurora_tr_global,Xiaomi 14 Ultra Turkey,16.0,OS3.0.302.0.WNATRXM,Stable,2026-07-14
+aurora_tw_global,Xiaomi 14 Ultra Taiwan,16.0,OS3.0.302.0.WNATWXM,Stable,2026-07-14
+babylon,MIX Fold 3 China,16.0,OS3.0.304.0.WMVCNXM,Stable,2026-08-28
+begonia,Redmi Note 8 Pro China,11.0,V12.5.6.0.RGGCNXM,Stable,2022-06-13
+begonia_eea_global,Redmi Note 8 Pro EEA,11.0,V12.5.15.0.RGGEUXM,Stable,2022-09-16
+begonia_global,Redmi Note 8 Pro Global,11.0,V12.5.1.0.RGGMIXM,Stable,2021-07-08
+begonia_id_global,Redmi Note 8 Pro Indonesia,11.0,V12.5.6.0.RGGIDXM,Stable,2022-06-13
+begonia_ru_global,Redmi Note 8 Pro Russia,11.0,V12.5.3.0.RGGRUXM,Stable,2021-11-05
+begoniain_in_global,Redmi Note 8 Pro India,11.0,V12.5.5.0.RGGINXM,Stable,2021-10-22
+beryl,Redmi Note 14 5G China,16.0,OS3.0.306.0.WOQCNXM,Stable,2026-08-12
+beryl_eea_global,Redmi Note 14 5G / POCO M7 Pro 5G EEA,16.0,OS3.0.301.0.WOQEUXM,Stable,2026-06-26
+beryl_global,Redmi Note 14 5G / POCO M7 Pro 5G Global,16.0,OS3.0.302.0.WOQMIXM,Stable,2026-07-24
+beryl_id_global,Redmi Note 14 5G / POCO M7 Pro 5G Indonesia,16.0,OS3.0.302.0.WOQIDXM,Stable,2026-08-05
+beryl_in_global,Redmi Note 14 5G / POCO M7 Pro 5G India,16.0,OS3.0.301.0.WOQINXM,Stable,2026-06-26
+beryl_ru_global,Redmi Note 14 5G / POCO M7 Pro 5G Russia,16.0,OS3.0.302.0.WOQRUXM,Stable,2026-08-07
+beryl_tr_global,Redmi Note 14 5G / POCO M7 Pro 5G Turkey,16.0,OS3.0.302.0.WOQTRXM,Stable,2026-08-18
+beryl_tw_global,Redmi Note 14 5G / POCO M7 Pro 5G Taiwan,16.0,OS3.0.301.0.WOQTWXM,Stable,2026-06-26
+beryllium_global,POCO F1 Global,10.0,V12.0.3.0.QEJMIXM,Stable,2021-01-11
+beryllium_ru_global,POCO F1 Russia,10.0,V12.0.3.0.QEJRUXM,Stable,2021-01-29
+biloba_eea_global,Redmi Note 8 (2021) EEA,13.0,V14.0.4.0.TCUEUXM,Stable,2023-07-03
+biloba_global,Redmi Note 8 (2021) Global,13.0,V14.0.4.0.TCUMIXM,Stable,2023-05-17
+biloba_ru_global,Redmi Note 8 (2021) Russia,13.0,V14.0.4.0.TCURUXM,Stable,2023-04-19
+bixi,MIX Flip 2 China,16.0,OS3.0.304.0.WOHCNXM,Stable,2026-07-15
+blue_eea_global,Redmi A3 EEA,14.0,V816.0.4.0.UGREUXM,Stable,2024-02-27
+blue_global,Redmi A3 Global,14.0,V816.0.5.0.UGRMIXM,Stable,2024-03-28
+blue_id_global,Redmi A3 Indonesia,14.0,V816.0.4.0.UGRIDXM,Stable,2024-03-14
+blue_in_global,POCO C61/Redmi A3 India,14.0,V816.0.4.0.UGRINXM,Stable,2024-03-14
+blue_ru_global,Redmi A3 Russia,14.0,V816.0.6.0.UGRRUXM,Stable,2024-02-22
+bomb,Redmi 10X Pro China,12.0,V13.0.7.0.SJLCNXM,Stable,2023-07-20
+breeze,Redmi Note 13R China,16.0,OS3.0.303.0.WNUCNXM,Stable,2026-08-27
+breeze_in_global,Redmi 13 5G / POCO M6 Plus 5G India,16.0,OS3.0.303.0.WNUINXM,Stable,2026-08-27
+brussels_eea_global,Redmi Note 17 Pro Max 5G EEA,16.0,OS3.0.304.0.WDREUXM,Stable,2026-08-26
+brussels_global,Redmi Note 17 Pro Max 5G Global,16.0,OS3.0.306.0.WDRMIXM,Stable,2026-09-01
+brussels_jp_global,Redmi Note 17 Pro Max 5G Japan,16.0,OS3.0.304.0.WDRJPXM,Stable,2026-09-07
+brussels_tw_global,Redmi Note 17 Pro Max 5G Taiwan,16.0,OS3.0.304.0.WDRTWXM,Stable,2026-09-06
+byron,Xiaomi 17 Max China,16.0,OS3.0.308.0.WAFCNXM,Stable,2026-07-28
+cactus,Redmi 6A China,9.0,V11.0.5.0.PCBCNXM,Stable,2020-03-19
+cactus_global,Redmi 6A Global,9.0,V11.0.9.0.PCBMIXM,Stable,2020-09-22
+cactus_ru_global,Redmi 6A Russia,9.0,V11.0.4.0.PCBRUXM,Stable,2020-07-13
+camellia,Redmi Note 10 5G / Redmi Note 11SE China,13.0,V14.0.2.0.TKSCNXM,Stable,2023-03-17
+camellia_in_global,Redmi Note 10T 5G / POCO M3 Pro 5G India,13.0,V14.0.6.0.TKSINXM,Stable,2023-10-17
+camellian_eea_global,Redmi Note 10 5G EEA,13.0,V14.0.3.0.TKSEUXM,Stable,2023-07-07
+camellian_global,Redmi Note 10 5G Global,13.0,V14.0.5.0.TKSMIXM,Stable,2023-06-21
+camellian_id_global,Redmi Note 10 5G Indonesia,13.0,V14.0.4.0.TKSIDXM,Stable,2023-05-18
+camellian_ru_global,Redmi Note 10T / POCO M3 Pro Russia,13.0,V14.0.5.0.TKSRUXM,Stable,2023-07-07
+camellian_tr_global,Redmi Note 10 5G Turkey,13.0,V14.0.2.0.TKSTRXM,Stable,2023-05-24
+camellian_tw_global,Redmi Note 10 5G Taiwan,13.0,V14.0.2.0.TKSTWXM,Stable,2023-05-22
+cancro,MI 3 / Mi 4 China,6.0,V10.1.1.0.MXDCNFI,Stable,2018-11-07
+cancro_global,MI 3 / Mi 4 Global,6.0,V9.5.7.0.MXDMIFA,Stable,2018-08-30
+cancro_lte_ct,MI 4 LTE CT China,6.0,V10.1.1.0.MXGCNFI,Stable,2018-10-10
+cannon,Redmi Note 9 5G China,12.0,V14.0.6.0.SJECNXM,Stable,2023-10-25
+cannong_eea_global,Redmi Note 9T EEA,12.0,V14.0.4.0.SJEEUXM,Stable,2023-11-09
+cannong_global,Redmi Note 9T Global,12.0,V14.0.4.0.SJEMIXM,Stable,2023-11-08
+cannong_ru_global,Redmi Note 9T Russia,12.0,V14.0.2.0.SJERUXM,Stable,2023-05-17
+cannong_tr_global,Redmi Note 9T Turkey,12.0,V14.0.2.0.SJETRXM,Stable,2023-05-17
+cannong_tw_global,Redmi Note 9T Taiwan,12.0,V14.0.2.0.SJETWXM,Stable,2023-05-17
+cappu,Mi Pad 3 China,7.0,V10.2.1.0.NCICNXM,Stable,2019-01-14
+capricorn,Mi 5s China,8.0,V11.0.2.0.OAGCNXM,Stable,2019-11-11
+capricorn_global,Mi 5s Global,8.0,V10.2.3.0.OAGMIXM,Stable,2019-05-10
+cas,Mi 10 Ultra China,13.0,OS1.0.2.0.TJJCNXM,Stable,2024-04-15
+cattail_in_global,Redmi 9 / 9 Activ India,10.0,V12.0.18.0.QCTINXM,Stable,2022-09-02
+cepheus,Mi 9 China,11.0,V12.5.6.0.RFACNXM,Stable,2021-12-01
+cepheus_eea_global,Mi 9 EEA,11.0,V12.5.2.0.RFAEUXM,Stable,2021-11-26
+cepheus_global,Mi 9 Global,11.0,V12.5.1.0.RFAMIXM,Stable,2021-06-17
+cepheus_ru_global,Mi 9 Russia,11.0,V12.5.2.0.RFARUXM,Stable,2021-07-23
+cereus,Redmi 6 China,9.0,V11.0.4.0.PCGCNXM,Stable,2020-04-01
+cereus_global,Redmi 6 Global,9.0,V11.0.5.0.PCGMIXM,Stable,2020-09-22
+cereus_ru_global,Redmi 6 Russia,9.0,V11.0.5.0.PCGRUXM,Stable,2020-09-19
+cetus,Mi MIX Fold China,13.0,OS1.0.8.0.TJTCNXM,Stable,2025-10-20
+cezanne,Redmi K30 Ultra China,12.0,V14.0.5.0.SJNCNXM,Stable,2023-07-19
+chagall,Xiaomi 17T China,16.0,OS3.0.310.0.WPTCNXM,Stable,2026-08-07
+chagall_eea_global,Xiaomi 17T EEA,16.0,OS3.0.317.0.WPTEUXM,Stable,2026-08-27
+chagall_global,Xiaomi 17T Global,16.0,OS3.0.307.0.WPTMIXM,Stable,2026-08-21
+chagall_id_global,Xiaomi 17T Indonesia,16.0,OS3.0.303.0.WPTIDXM,Stable,2026-07-18
+chagall_in_global,Xiaomi 17T India,16.0,OS3.0.304.0.WPTINXM,Stable,2026-07-21
+chagall_ru_global,Xiaomi 17T Russia,16.0,OS3.0.304.0.WPTRUXM,Stable,2026-08-27
+chagall_tr_global,Xiaomi 17T Turkey,16.0,OS3.0.303.0.WPTTRXM,Stable,2026-07-02
+chagall_tw_global,Xiaomi 17T Taiwan,16.0,OS3.0.307.0.WPTTWXM,Stable,2026-07-02
+charoite_eea_global,Redmi Note 15 Pro 4G EEA,16.0,OS3.0.302.0.WPFEUXM,Stable,2026-07-31
+charoite_global,Redmi Note 15 Pro 4G Global,16.0,OS3.0.303.0.WPFMIXM,Stable,2026-07-20
+charoite_ru_global,Redmi Note 15 Pro 4G Russia,16.0,OS3.0.302.0.WPFRUXM,Stable,2026-07-31
+charoite_tr_global,Redmi Note 15 Pro 4G Turkey,16.0,OS3.0.302.0.WPFTRXM,Stable,2026-07-31
+chenfeng,Xiaomi Civi 4 Pro China,16.0,OS3.0.307.0.WNJCNXM,Stable,2026-07-22
+chenfeng_in_global,Xiaomi Civi 4 Pro India,16.0,OS3.0.302.0.WNJINXM,Stable,2026-07-15
+chiron,Mi MIX 2 China,9.0,V12.0.1.0.PDECNXM,Stable,2020-09-07
+chiron_global,Mi MIX 2 Global,9.0,V12.0.1.0.PDEMIXM,Stable,2020-10-10
+chopin,Redmi Note 10 Pro 5G China,13.0,V14.0.8.0.TKPCNXM,Stable,2023-11-14
+chopin_global,POCO X3 GT Global,13.0,V14.0.6.0.TKPMIXM,Stable,2024-06-06
+chopin_id_global,POCO X3 GT Indonesia,13.0,V14.0.5.0.TKPIDXM,Stable,2024-01-04
+chopin_tr_global,POCO X3 GT Turkey,13.0,V14.0.4.0.TKPTRXM,Stable,2023-12-28
+citrus_eea_global,POCO M3 EEA,12.0,V14.0.2.0.SJFEUXM,Stable,2023-05-19
+citrus_global,POCO M3 Global,12.0,V14.0.2.0.SJFMIXM,Stable,2023-04-07
+citrus_id_global,POCO M3 Indonesia,12.0,V14.0.2.0.SJFIDXM,Stable,2023-05-09
+citrus_in_global,POCO M3 India,12.0,V14.0.2.0.SJFINXM,Stable,2023-05-09
+citrus_ru_global,POCO M3 Russia,12.0,V14.0.1.0.SJFRUXM,Stable,2023-05-10
+citrus_tr_global,POCO M3 Turkey,12.0,V14.0.2.0.SJFTRXM,Stable,2023-04-28
+citrus_tw_global,POCO M3 Taiwan,12.0,V14.0.2.0.SJFTWXM,Stable,2023-05-06
+clover,Mi Pad 4 (Plus) China,8.1,V10.3.2.0.ODJCNXM,Stable,2019-05-24
+cmi,Mi 10 Pro China,13.0,OS1.0.9.0.TJACNXM,Stable,2025-09-16
+cmi_eea_global,Mi 10 Pro EEA,13.0,V14.0.3.0.TJAEUXM,Stable,2023-05-26
+cmi_global,Mi 10 Pro Global,13.0,OS1.0.2.0.TJAMIXM,Stable,2024-04-26
+corot,Redmi K60 Ultra China,16.0,OS3.0.303.0.WMLCNXM,Stable,2026-06-30
+corot_eea_global,Xiaomi 13T Pro EEA,16.0,OS3.0.306.0.WMLEUXM,Stable,2026-08-25
+corot_global,Xiaomi 13T Pro Global,16.0,OS3.0.301.0.WMLMIXM,Stable,2026-07-22
+corot_jp_global,Xiaomi 13T Pro Japan,15.0,OS2.0.210.0.VMLJPXM,Stable,2026-05-08
+corot_ru_global,Xiaomi 13T Pro Russia,16.0,OS3.0.301.0.WMLRUXM,Stable,2026-08-13
+corot_tr_global,Xiaomi 13T Pro Turkey,16.0,OS3.0.301.0.WMLTRXM,Stable,2026-08-13
+corot_tw_global,Xiaomi 13T Pro Taiwan,16.0,OS3.0.301.0.WMLTWXM,Stable,2026-08-13
+courbet_eea_global,Mi 11 Lite 4G EEA,13.0,V14.0.2.0.TKQEUXM,Stable,2023-04-24
+courbet_global,Mi 11 Lite 4G Global,13.0,V14.0.4.0.TKQMIXM,Stable,2023-10-31
+courbet_id_global,Mi 11 Lite 4G Indonesia,13.0,V14.0.3.0.TKQIDXM,Stable,2023-04-28
+courbet_in_global,Mi 11 Lite 4G India,13.0,V14.0.2.0.TKQINXM,Stable,2023-04-17
+courbet_ru_global,Mi 11 Lite 4G Russia,13.0,V14.0.2.0.TKQRUXM,Stable,2023-08-08
+courbet_tr_global,Mi 11 Lite 4G Turkey,13.0,V14.0.1.0.TKQTRXM,Stable,2023-04-11
+creek_eea_global,Redmi 15 / POCO M7 EEA,16.0,OS3.0.302.0.WBOEUXM,Stable,2026-08-14
+creek_global,Redmi 15 / POCO M7 Global,16.0,OS3.0.304.0.WBOMIXM,Stable,2026-07-13
+creek_id_global,Redmi 15 / POCO M7 Indonesia,16.0,OS3.0.301.0.WBOIDXM,Stable,2026-06-18
+creek_ru_global,Redmi 15 / POCO M7 Russia,16.0,OS3.0.302.0.WBORUXM,Stable,2026-07-29
+creek_tr_global,Redmi 15 / POCO M7 Turkey,16.0,OS3.0.301.0.WBOTRXM,Stable,2026-06-22
+creek_tw_global,Redmi 15 / POCO M7 Taiwan,16.0,OS3.0.301.0.WBOTWXM,Stable,2026-06-22
+crux,Mi 9 Pro 5G China,11.0,V13.0.1.0.RFXCNXM,Stable,2022-04-11
+cupid,Xiaomi 12 China,15.0,OS3.0.3.0.VLCCNXM,Stable,2026-05-15
+cupid_eea_global,Xiaomi 12 EEA,15.0,OS3.0.3.0.VLCEUXM,Stable,2026-05-28
+cupid_global,Xiaomi 12 Global,15.0,OS3.0.4.0.VLCMIXM,Stable,2026-05-15
+cupid_id_global,Xiaomi 12 Indonesia,15.0,OS3.0.3.0.VLCIDXM,Stable,2026-05-26
+cupid_ru_global,Xiaomi 12 Russia,15.0,OS3.0.4.0.VLCRUXM,Stable,2026-05-26
+cupid_tr_global,Xiaomi 12 Turkey,15.0,OS3.0.3.0.VLCTRXM,Stable,2026-05-26
+cupid_tw_global,Xiaomi 12 Taiwan,15.0,OS3.0.3.0.VLCTWXM,Stable,2026-05-26
+curtana_eea_global,Redmi Note 9S EEA,12.0,V14.0.4.0.SJWEUXM,Stable,2023-04-18
+curtana_global,Redmi Note 9S Global,12.0,V14.0.4.0.SJWMIXM,Stable,2023-06-12
+curtana_in_global,Redmi Note 9 Pro India,12.0,V14.0.3.0.SJWINXM,Stable,2023-04-28
+curtana_in_rf_global,Redmi Note 10 Lite India,12.0,V14.0.6.0.SJWINRF,Stable,2023-09-25
+curtana_ru_global,Redmi Note 9S Russia,12.0,V14.0.1.0.SJWRUXM,Stable,2023-04-28
+curtana_tr_global,Redmi Note 9S Turkey,12.0,V14.0.1.0.SJWTRXM,Stable,2023-04-28
+dada,Xiaomi 15 China,16.0,OS3.0.305.0.WOCCNXM,Stable,2026-07-23
+dada_eea_global,Xiaomi 15 EEA,16.0,OS3.0.303.0.WOCEUXM,Stable,2026-06-24
+dada_global,Xiaomi 15 Global,16.0,OS3.0.303.0.WOCMIXM,Stable,2026-08-28
+dada_id_global,Xiaomi 15 Indonesia,16.0,OS3.0.302.0.WOCIDXM,Stable,2026-07-07
+dada_in_global,Xiaomi 15 India,16.0,OS3.0.304.0.WOCINXM,Stable,2026-08-28
+dada_ru_global,Xiaomi 15 Russia,16.0,OS3.0.302.0.WOCRUXM,Stable,2026-07-07
+dada_tw_global,Xiaomi 15 Taiwan,16.0,OS3.0.302.0.WOCTWXM,Stable,2026-07-07
+dagu,Xiaomi Pad 5 Pro 12.4 China,14.0,OS2.0.10.0.ULZCNXM,Stable,2025-07-09
+daisy_global,Mi A2 Lite Global,10.0,V11.0.21.0.QDLMIXM,Stable,2021-07-13
+dali,Redmi K80 Ultra China,16.0,OS3.0.305.0.WONCNXM,Stable,2026-07-17
+dandelion,Redmi 9A China,11.0,V12.5.21.0.RCDCNXM,Stable,2023-04-20
+dandelion_c3l2,Redmi 10A China,11.0,V12.5.13.0.RCZCNXM,Stable,2023-04-24
+dandelion_c3l2_eea_global,Redmi 10A EEA,11.0,V12.5.18.0.RCZEUXM,Stable,2024-09-09
+dandelion_c3l2_global,Redmi 10A Global,11.0,V12.5.16.0.RCZMIXM,Stable,2024-03-21
+dandelion_c3l2_id_global,Redmi 10A Indonesia,11.0,V12.5.16.0.RCZIDXM,Stable,2024-05-08
+dandelion_c3l2_in_global,Redmi 10A / 10A Sport India,11.0,V12.5.18.0.RCZINXM,Stable,2024-03-21
+dandelion_c3l2_ru_global,Redmi 10A Russia,11.0,V12.5.17.0.RCZRUXM,Stable,2024-09-09
+dandelion_c3l2_tw_global,Redmi 10A Taiwan,11.0,V12.5.6.0.RCZTWXM,Stable,2024-02-27
+dandelion_eea_global,Redmi 9A / 9AT EEA,10.0,V12.0.21.0.QCDEUXM,Stable,2023-03-20
+dandelion_global,Redmi 9A Global,10.0,V12.0.22.0.QCDMIXM,Stable,2023-04-10
+dandelion_id_global,Redmi 9A Indonesia,10.0,V12.0.15.0.QCDIDXM,Stable,2023-02-28
+dandelion_in_global,Redmi 9A / 9i / 9A Sport India,10.0,V12.0.26.0.QCDINXM,Stable,2023-02-17
+dandelion_ru_global,Redmi 9A Russia,11.0,V12.5.7.0.RCDRUXM,Stable,2022-10-11
+dandelion_tr_global,Redmi 9A Turkey,10.0,V12.0.7.0.QCDTRXM,Stable,2021-09-02
+dash,Redmi Turbo 5 Max China,16.0,OS3.0.305.0.WPLCNXM,Stable,2026-07-09
+dash_eea_global,POCO X8 Pro Max EEA,16.0,OS3.0.303.0.WPLEUXM,Stable,2026-08-14
+dash_global,POCO X8 Pro Max Global,16.0,OS3.0.303.0.WPLMIXM,Stable,2026-08-01
+dash_id_global,POCO X8 Pro Max Indonesia,16.0,OS3.0.303.0.WPLIDXM,Stable,2026-08-17
+dash_in_global,POCO X8 Pro Max India,16.0,OS3.0.303.0.WPLINXM,Stable,2026-08-17
+dash_ru_global,POCO X8 Pro Max Russia,16.0,OS3.0.304.0.WPLRUXM,Stable,2026-08-25
+dash_tr_global,POCO X8 Pro Max Turkey,16.0,OS3.0.1.0.WPLTRXM,Stable,2026-03-17
+dash_tw_global,POCO X8 Pro Max Taiwan,16.0,OS3.0.303.0.WPLTWXM,Stable,2026-08-19
+daumier,Xiaomi 12 Pro Dimensity China,14.0,OS2.0.6.0.ULGCNXM,Stable,2025-06-26
+davinci,Redmi K20 China,11.0,V12.5.2.0.RFJCNXM,Stable,2021-11-21
+davinci_eea_global,Mi 9T EEA,11.0,V12.1.1.0.RFJEUXM,Stable,2021-09-16
+davinci_global,Mi 9T Global,11.0,V12.1.4.0.RFJMIXM,Stable,2021-08-06
+davinci_ru_global,Mi 9T Russia,11.0,V12.1.2.0.RFJRUXM,Stable,2021-09-03
+davinciin_in_global,Redmi K20 India,11.0,V12.1.4.0.RFJINXM,Stable,2021-07-17
+degas_eea_global,Xiaomi 14T EEA,16.0,OS3.0.305.0.WNEEUXM,Stable,2026-09-08
+degas_global,Xiaomi 14T Global,16.0,OS3.0.303.0.WNEMIXM,Stable,2026-08-21
+degas_id_global,Xiaomi 14T Indonesia,16.0,OS3.0.304.0.WNEIDXM,Stable,2026-07-21
+degas_ru_global,Xiaomi 14T Russia,16.0,OS3.0.303.0.WNERUXM,Stable,2026-08-21
+degas_tr_global,Xiaomi 14T Turkey,16.0,OS3.0.303.0.WNETRXM,Stable,2026-08-21
+degas_tw_global,Xiaomi 14T Taiwan,16.0,OS3.0.303.0.WNETWXM,Stable,2026-08-21
+dew_eea_global,Redmi 15C / POCO C85 EEA,16.0,OS3.0.301.0.WBNEUXM,Stable,2026-08-14
+dew_global,Redmi 15C / POCO C85 Global,16.0,OS3.0.306.0.WBNMIXM,Stable,2026-07-31
+dew_id_global,Redmi 15C / POCO C85 Indonesia,16.0,OS3.0.301.0.WBNIDXM,Stable,2026-07-21
+dew_ru_global,Redmi 15C / POCO C85 Russia,16.0,OS3.0.305.0.WBNRUXM,Stable,2026-08-13
+dew_tr_global,Redmi 15C / POCO C85 Turkey,16.0,OS3.0.301.0.WBNTRXM,Stable,2026-07-31
+dew_tw_global,Redmi 15C / POCO C85 Taiwan,15.0,OS2.0.208.0.VBNTWXM,Stable,2026-09-03
+dijun,Xiaomi 15S Pro China,16.0,OS3.0.303.0.WODCNXM,Stable,2026-07-30
+dior,Redmi Note 4G China,4.4,V9.2.4.0.KHICNEK,Stable,2018-09-07
+dior_global,Redmi Note 4G Global,4.4,V9.2.3.0.KHIMIEK,Stable,2018-09-07
+dipper,Mi 8 China,10.0,V12.5.2.0.QEACNXM,Stable,2021-11-05
+dipper_global,Mi 8 Global,10.0,V12.0.3.0.QEAMIXM,Stable,2021-12-21
+dipper_ru_global,Mi 8 Russia,10.0,V12.0.2.0.QEARUXM,Stable,2021-12-21
+diting,Redmi K50 Ultra China,15.0,OS3.0.3.0.VLFCNXM,Stable,2026-06-24
+diting_eea_global,Xiaomi 12T Pro EEA,15.0,OS3.0.4.0.VLFEUXM,Stable,2026-07-23
+diting_global,Xiaomi 12T Pro Global,15.0,OS3.0.5.0.VLFMIXM,Stable,2026-07-23
+diting_jp_global,Xiaomi 12T Pro Japan,14.0,OS1.0.27.0.ULFJPXM,Stable,2026-08-05
+diting_ru_global,Xiaomi 12T Pro Russia,15.0,OS3.0.4.0.VLFRUXM,Stable,2026-07-29
+diting_tr_global,Xiaomi 12T Pro Turkey,15.0,OS3.0.4.0.VLFTRXM,Stable,2026-07-29
+diting_tw_global,Xiaomi 12T Pro Taiwan,15.0,OS3.0.4.0.VLFTWXM,Stable,2026-08-05
+dizi,Redmi Pad Pro China,16.0,OS3.0.307.0.WNSCNXM,Stable,2026-08-11
+dizi_eea_global,Redmi Pad Pro / POCO Pad EEA,16.0,OS3.0.303.0.WNSEUXM,Stable,2026-08-18
+dizi_global,Redmi Pad Pro / POCO Pad Global,16.0,OS3.0.303.0.WNSMIXM,Stable,2026-08-18
+dizi_id_global,Redmi Pad Pro / POCO Pad Indonesia,16.0,OS3.0.302.0.WNSIDXM,Stable,2026-08-04
+dizi_in_global,Redmi Pad Pro / POCO Pad India,16.0,OS3.0.303.0.WNSINXM,Stable,2026-08-18
+dizi_ru_global,Redmi Pad Pro / POCO Pad Russia,16.0,OS3.0.303.0.WNSRUXM,Stable,2026-08-11
+dizi_tr_global,Redmi Pad Pro / POCO Pad Turkey,16.0,OS3.0.303.0.WNSTRXM,Stable,2026-07-31
+dizi_tw_global,Redmi Pad Pro / POCO Pad Taiwan,16.0,OS3.0.302.0.WNSTWXM,Stable,2026-08-04
+duchamp,Redmi K70E China,16.0,OS3.0.304.0.WNLCNXM,Stable,2026-07-03
+duchamp_eea_global,POCO X6 Pro 5G EEA,16.0,OS3.0.302.0.WNLEUXM,Stable,2026-06-22
+duchamp_global,POCO X6 Pro 5G Global,16.0,OS3.0.9.0.WNLMIXM,Stable,2026-08-10
+duchamp_id_global,POCO X6 Pro 5G Indonesia,16.0,OS3.0.302.0.WNLIDXM,Stable,2026-08-27
+duchamp_in_global,POCO X6 Pro 5G India,16.0,OS3.0.7.0.WNLINXM,Stable,2026-05-28
+duchamp_ru_global,POCO X6 Pro 5G Russia,16.0,OS3.0.302.0.WNLRUXM,Stable,2026-08-27
+duchamp_tw_global,POCO X6 Pro 5G Taiwan,16.0,OS3.0.301.0.WNLTWXM,Stable,2026-08-27
+earth,Redmi 12C China,14.0,OS1.0.8.0.UCVCNXM,Stable,2025-08-27
+earth_eea_global,Redmi 12C / POCO C55 EEA,14.0,OS1.0.17.0.UCVEUXM,Stable,2026-08-13
+earth_global,Redmi 12C / POCO C55 Global,14.0,OS1.0.16.0.UCVMIXM,Stable,2026-03-13
+earth_id_global,Redmi 12C / POCO C55 Indonesia,14.0,OS1.0.10.0.UCVIDXM,Stable,2026-04-15
+earth_in_global,Redmi 12C / POCO C55 India,14.0,OS1.0.13.0.UCVINXM,Stable,2026-04-10
+earth_ru_global,Redmi 12C / POCO C55 Russia,14.0,OS1.0.11.0.UCVRUXM,Stable,2026-04-14
+earth_tr_global,Redmi 12C / POCO C55 Turkey,14.0,OS1.0.9.0.UCVTRXM,Stable,2025-07-02
+earth_tw_global,Redmi 12C / POCO C55 Taiwan,14.0,OS1.0.9.0.UCVTWXM,Stable,2025-07-02
+elish,Xiaomi Pad 5 Pro Wi-Fi China,13.0,OS1.0.2.0.TKYCNXM,Stable,2024-05-17
+emerald_eea_global,Redmi Note 13 Pro 4G / POCO M6 Pro EEA,16.0,OS3.0.302.0.WNFEUXM,Stable,2026-08-04
+emerald_global,Redmi Note 13 Pro 4G / POCO M6 Pro Global,16.0,OS3.0.305.0.WNFMIXM,Stable,2026-08-26
+emerald_id_global,Redmi Note 13 Pro 4G / POCO M6 Pro Indonesia,16.0,OS3.0.302.0.WNFIDXM,Stable,2026-08-17
+emerald_r_eea_global,Redmi Note 14S EEA,16.0,OS3.0.302.0.WFOEUXM,Stable,2026-07-30
+emerald_r_global,Redmi Note 14S Global,16.0,OS3.0.304.0.WFOMIXM,Stable,2026-07-07
+emerald_r_ru_global,Redmi Note 14S Russia,16.0,OS3.0.302.0.WFORUXM,Stable,2026-07-23
+emerald_r_tr_global,Redmi Note 14S Turkey,16.0,OS3.0.301.0.WFOTRXM,Stable,2026-05-22
+emerald_ru_global,Redmi Note 13 Pro 4G / POCO M6 Pro Russia,16.0,OS3.0.302.0.WNFRUXM,Stable,2026-07-22
+emerald_tr_global,Redmi Note 13 Pro 4G / POCO M6 Pro Turkey,16.0,OS3.0.302.0.WNFTRXM,Stable,2026-08-17
+enuma,Xiaomi Pad 5 Pro 5G China,13.0,OS1.0.3.0.TKZCNXM,Stable,2024-05-17
+equuleus,Mi 8 Pro China,10.0,V12.5.2.0.QECCNXM,Stable,2021-11-26
+equuleus_global,Mi 8 Pro Global,10.0,V12.0.2.0.QECMIXM,Stable,2022-01-11
+equuleus_ru_global,Mi 8 Pro Russia,10.0,V12.0.2.0.QECRUXM,Stable,2022-01-14
+erhu,Redmi Pad 2 SE 4G China,16.0,OS3.0.302.0.WDOCNXM,Stable,2026-08-24
+erhu_global,Redmi Pad 2 SE 4G Global,16.0,OS3.0.303.0.WDOMIXM,Stable,2026-05-18
+erhu_id_global,Redmi Pad 2 SE 4G Indonesia,16.0,OS3.0.301.0.WDOIDXM,Stable,2026-04-28
+erhu_ru_global,Redmi Pad 2 SE 4G Russia,16.0,OS3.0.302.0.WDORUXM,Stable,2026-05-08
+erhu_tw_global,Redmi Pad 2 SE 4G Taiwan,16.0,OS3.0.301.0.WDOTWXM,Stable,2026-04-28
+evergo,Redmi Note 11 5G China,13.0,OS1.0.1.0.TGBCNXM,Stable,2024-02-26
+evergo_in_global,Redmi Note 11T 5G India,13.0,OS1.0.1.0.TGBINXM,Stable,2024-04-09
+evergreen_eea_global,POCO M4 Pro 5G EEA,13.0,OS1.0.2.0.TGBEUXM,Stable,2024-09-03
+evergreen_global,POCO M4 Pro 5G Global,13.0,OS1.0.1.0.TGBMIXM,Stable,2024-03-25
+evergreen_ru_global,POCO M4 Pro 5G Russia,13.0,OS1.0.1.0.TGBRUXM,Stable,2024-04-07
+evergreen_tr_global,POCO M4 Pro 5G Turkey,13.0,OS1.0.1.0.TGBTRXM,Stable,2024-04-07
+evergreen_tw_global,POCO M4 Pro 5G Taiwan,13.0,OS1.0.1.0.TGBTWXM,Stable,2024-03-18
+excalibur_in_global,Redmi Note 9 Pro Max India,12.0,V14.0.2.0.SJXINXM,Stable,2023-05-06
+ferrari,MI 4i China,5.0,V7.5.1.0.LXICNDE,Stable,2018-10-14
+ferrari_global,MI 4i Global,5.0,V9.2.3.0.LXIMIEK,Stable,2018-09-07
+fire_eea_global,Redmi 12 EEA,15.0,OS2.0.211.0.VMXEUXM,Stable,2026-07-28
+fire_global,Redmi 12 Global,15.0,OS2.0.209.0.VMXMIXM,Stable,2026-07-29
+fire_id_global,Redmi 12 Indonesia,15.0,OS2.0.204.0.VMXIDXM,Stable,2026-07-27
+fire_in_global,Redmi 12 India,15.0,OS2.0.207.0.VMXINXM,Stable,2026-07-30
+fire_ru_global,Redmi 12 Russia,15.0,OS2.0.204.0.VMXRUXM,Stable,2026-07-27
+fire_tr_global,Redmi 12 Turkey,15.0,OS2.0.204.0.VMXTRXM,Stable,2026-07-30
+flame,Redmi 14R 5G China,16.0,OS3.0.302.0.WGUCNXM,Stable,2026-07-22
+flame_in_global,Redmi 14C 5G / POCO M7 5G India,16.0,OS3.0.302.0.WGUINXM,Stable,2026-07-22
+flare_eea_global,Redmi Pad SE 8.7 5G EEA,16.0,OS3.0.302.0.WHXEUXM,Stable,2026-07-01
+flare_global,Redmi Pad SE 8.7 5G Global,16.0,OS3.0.302.0.WHXMIXM,Stable,2026-07-29
+flare_id_global,Redmi Pad SE 8.7 5G Indonesia,16.0,OS3.0.302.0.WHXIDXM,Stable,2026-07-15
+flare_ru_global,Redmi Pad SE 8.7 5G Russia,16.0,OS3.0.301.0.WHXRUXM,Stable,2026-06-23
+flare_tr_global,Redmi Pad SE 8.7 5G Turkey,16.0,OS3.0.302.0.WHXTRXM,Stable,2026-07-15
+flare_tw_global,Redmi Pad SE 8.7 5G Taiwan,16.0,OS3.0.302.0.WHXTWXM,Stable,2026-07-27
+fleur_eea_global,Redmi Note 11S 4G / POCO M4 Pro 4G EEA,13.0,OS1.0.11.0.TKEEUXM,Stable,2024-12-17
+fleur_global,Redmi Note 11S 4G / POCO M4 Pro 4G Global,13.0,OS1.0.9.0.TKEMIXM,Stable,2024-12-16
+fleur_id_global,Redmi Note 11S 4G / POCO M4 Pro 4G Indonesia,13.0,OS1.0.8.0.TKEIDXM,Stable,2024-12-24
+fleur_in_global,Redmi Note 11S 4G / POCO M4 Pro 4G India,13.0,OS1.0.10.0.TKEINXM,Stable,2024-12-24
+fleur_ru_global,Redmi Note 11S 4G / POCO M4 Pro 4G Russia,13.0,OS1.0.8.0.TKERUXM,Stable,2024-12-30
+fleur_tr_global,Redmi Note 11S 4G / POCO M4 Pro 4G Turkey,13.0,OS1.0.8.0.TKETRXM,Stable,2024-12-30
+fleur_tw_global,Redmi Note 11S 4G / POCO M4 Pro 4G Taiwan,13.0,OS1.0.8.0.TKETWXM,Stable,2024-12-30
+flourite,Redmi Note 15 Pro+ 5G China,16.0,OS3.0.317.0.WPRCNXM,Stable,2026-08-25
+flourite_eea_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G EEA,16.0,OS3.0.306.0.WPREUXM,Stable,2026-07-17
+flourite_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Global,16.0,OS3.0.304.0.WPRMIXM,Stable,2026-07-17
+flourite_id_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Indonesia,16.0,OS3.0.1.0.WPRIDXM,Stable,2026-04-14
+flourite_in_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G India,16.0,OS3.0.303.0.WPRINXM,Stable,2026-07-21
+flourite_ru_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Russia,16.0,OS3.0.1.0.WPRRUXM,Stable,2026-04-14
+flourite_tr_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Turkey,16.0,OS3.0.1.0.WPRTRXM,Stable,2026-04-14
+flourite_tw_global,Redmi Note 15 Pro+ 5G / POCO M8 Pro 5G Taiwan,15.0,OS2.0.205.0.VPRTWXM,Stable,2026-03-31
+flute,Redmi Pad 2 Pro China,16.0,OS3.0.308.0.WPWCNXM,Stable,2026-08-10
+flute_eea_global,Redmi Pad 2 Pro / POCO Pad M1 EEA,16.0,OS3.0.303.0.WPWEUXM,Stable,2026-08-07
+flute_global,Redmi Pad 2 Pro / POCO Pad M1 Global,16.0,OS3.0.303.0.WPWMIXM,Stable,2026-08-03
+flute_id_global,Redmi Pad 2 Pro / POCO Pad M1 Indonesia,16.0,OS3.0.302.0.WPWIDXM,Stable,2026-08-21
+flute_in_global,Redmi Pad 2 Pro / POCO Pad M1 India,16.0,OS3.0.302.0.WPWINXM,Stable,2026-08-12
+flute_ru_global,Redmi Pad 2 Pro / POCO Pad M1 Russia,16.0,OS3.0.302.0.WPWRUXM,Stable,2026-09-01
+flute_tr_global,Redmi Pad 2 Pro / POCO Pad M1 Turkey,16.0,OS3.0.302.0.WPWTRXM,Stable,2026-08-21
+flute_tw_global,Redmi Pad 2 Pro / POCO Pad M1 Taiwan,16.0,OS3.0.302.0.WPWTWXM,Stable,2026-08-21
+fog_eea_global,Redmi 10C EEA,13.0,V14.0.10.0.TGEEUXM,Stable,2025-03-10
+fog_global,Redmi 10C Global,13.0,V14.0.9.0.TGEMIXM,Stable,2025-03-04
+fog_id_global,Redmi 10C Indonesia,13.0,V14.0.6.0.TGEIDXM,Stable,2024-10-21
+fog_in_global,Redmi 10C India,13.0,V14.0.7.0.TGEINXM,Stable,2024-09-05
+fog_ru_global,Redmi 10C Russia,13.0,V14.0.7.0.TGERUXM,Stable,2024-09-13
+fog_tr_global,Redmi 10C Turkey,13.0,V14.0.7.0.TGETRXM,Stable,2025-04-01
+fog_tw_global,Redmi 10C Taiwan,13.0,V14.0.7.0.TGETWXM,Stable,2025-04-01
+frost_eea_global,POCO C40 EEA,11.0,V13.0.12.0.RGFEUXM,Stable,2024-03-12
+frost_global,POCO C40 Global,11.0,V13.0.26.0.RGFMIXM,Stable,2024-03-12
+frost_id_global,POCO C40 Indonesia,11.0,V13.0.12.0.RGFIDXM,Stable,2023-08-08
+frost_ru_global,POCO C40 Russia,11.0,V13.0.17.0.RGFRUXM,Stable,2024-03-15
+frost_tr_global,POCO C40 Turkey,11.0,V13.0.20.0.RGFTRXM,Stable,2024-02-20
+frost_tw_global,POCO C40 Taiwan,11.0,V13.0.7.0.RGFTWXM,Stable,2024-01-24
+fuxi,Xiaomi 13 China,13.0,V14.0.32.0.TMCCNXM,Stable,2026-08-06
+fuxi_eea_global,Xiaomi 13 EEA,16.0,OS3.0.302.0.WMCEUXM,Stable,2026-06-26
+fuxi_global,Xiaomi 13 Global,16.0,OS3.0.304.0.WMCMIXM,Stable,2026-07-14
+fuxi_ru_global,Xiaomi 13 Russia,16.0,OS3.0.302.0.WMCRUXM,Stable,2026-07-14
+fuxi_tr_global,Xiaomi 13 Turkey,13.0,V14.0.3.0.TMCTRXM,Stable,2023-02-27
+fuxi_tw_global,Xiaomi 13 Taiwan,16.0,OS3.0.302.0.WMCTWXM,Stable,2026-07-14
+gale_eea_global,Redmi 13C / POCO C65 EEA,15.0,OS2.0.211.0.VGPEUXM,Stable,2026-07-29
+gale_global,Redmi 13C / POCO C65 Global,15.0,OS2.0.208.0.VGPMIXM,Stable,2026-07-22
+gale_id_global,Redmi 13C / POCO C65 Indonesia,15.0,OS2.0.208.0.VGPIDXM,Stable,2026-08-21
+gale_in_global,Redmi 13C / POCO C65 India,15.0,OS2.0.208.0.VGPINXM,Stable,2026-08-21
+gale_ru_global,Redmi 13C / POCO C65 Russia,15.0,OS2.0.204.0.VGPRUXM,Stable,2026-02-22
+gale_tr_global,Redmi 13C / POCO C65 Turkey,15.0,OS2.0.203.0.VGPTRXM,Stable,2025-12-22
+gale_tw_global,Redmi 13C / POCO C65 Taiwan,15.0,OS2.0.201.0.VGPTWXM,Stable,2025-09-25
+garnet,Redmi Note 13 Pro 5G China,16.0,OS3.0.306.0.WNRCNXM,Stable,2026-07-23
+garnet_eea_global,Redmi Note 13 Pro 5G / POCO X6 5G EEA,16.0,OS3.0.302.0.WNREUXM,Stable,2026-08-14
+garnet_global,Redmi Note 13 Pro 5G / POCO X6 5G Global,16.0,OS3.0.302.0.WNRMIXM,Stable,2026-07-29
+garnet_id_global,Redmi Note 13 Pro 5G / POCO X6 5G Indonesia,16.0,OS3.0.302.0.WNRIDXM,Stable,2026-08-14
+garnet_in_global,Redmi Note 13 Pro 5G / POCO X6 5G India,16.0,OS3.0.301.0.WNRINXM,Stable,2026-07-06
+garnet_ru_global,Redmi Note 13 Pro 5G / POCO X6 5G Russia,16.0,OS3.0.302.0.WNRRUXM,Stable,2026-08-14
+garnet_tr_global,Redmi Note 13 Pro 5G / POCO X6 5G Turkey,16.0,OS3.0.302.0.WNRTRXM,Stable,2026-08-14
+garnet_tw_global,Redmi Note 13 Pro 5G / POCO X6 5G Taiwan,16.0,OS3.0.302.0.WNRTWXM,Stable,2026-08-14
+gauguin,Redmi Note 9 Pro 5G China,12.0,V14.0.2.0.SJSCNXM,Stable,2023-03-24
+gauguin_eea_global,Mi 10T Lite EEA,12.0,V14.0.4.0.SJSEUXM,Stable,2023-06-27
+gauguin_global,Mi 10T Lite Global,12.0,V14.0.2.0.SJSMIXM,Stable,2023-05-09
+gauguin_in_global,Mi 10i India,12.0,V14.0.3.0.SJSINXM,Stable,2023-07-03
+gauguin_tr_global,Mi 10T Lite Turkey,12.0,V14.0.2.0.SJSTRXM,Stable,2023-05-08
+gauguin_tw_global,Mi 10T Lite Taiwan,12.0,V14.0.1.0.SJSTWXM,Stable,2023-05-08
+gemini,MI 5 China,8.0,V10.2.1.0.OAACNXM,Stable,2019-01-08
+gemini_global,MI 5 Global,8.0,V10.2.2.0.OAAMIXM,Stable,2019-02-04
+ginkgo,Redmi Note 8 China,11.0,V12.5.5.0.RCOCNXM,Stable,2022-08-10
+ginkgo_eea_global,Redmi Note 8 EEA,11.0,V12.5.12.0.RCOEUXM,Stable,2022-12-01
+ginkgo_global,Redmi Note 8 Global,11.0,V12.5.2.0.RCOMIXM,Stable,2022-02-25
+ginkgo_id_global,Redmi Note 8 Indonesia,11.0,V12.5.3.0.RCOIDXM,Stable,2022-07-29
+ginkgo_in_global,Redmi Note 8 India,11.0,V12.5.2.0.RCOINXM,Stable,2022-08-30
+ginkgo_ru_global,Redmi Note 8 Russia,11.0,V12.5.3.0.RCORUXM,Stable,2022-06-01
+goku,MIX Fold 4 China,16.0,OS3.0.307.0.WNVCNXM,Stable,2026-07-02
+gold,Redmi Note 13 5G / 13R Pro China,15.0,OS3.0.10.0.VNQCNXM,Stable,2026-07-27
+gold_eea_global,Redmi Note 13 5G / POCO X6 Neo 5G EEA,15.0,OS3.0.6.0.VNQEUXM,Stable,2026-08-20
+gold_global,Redmi Note 13 5G / POCO X6 Neo 5G Global,15.0,OS3.0.5.0.VNQMIXM,Stable,2026-08-20
+gold_id_global,Redmi Note 13 5G / POCO X6 Neo 5G Indonesia,15.0,OS3.0.3.0.VNQIDXM,Stable,2026-08-24
+gold_in_global,Redmi Note 13 5G / POCO X6 Neo 5G India,15.0,OS3.0.4.0.VNQINXM,Stable,2026-08-20
+gold_tr_global,Redmi Note 13 5G / POCO X6 Neo 5G Turkey,15.0,OS3.0.4.0.VNQTRXM,Stable,2026-08-24
+gold_tw_global,Redmi Note 13 5G / POCO X6 Neo 5G Taiwan,15.0,OS3.0.4.0.VNQTWXM,Stable,2026-08-24
+goya_eea_global,Xiaomi 15T EEA,16.0,OS3.0.307.0.WOEEUXM,Stable,2026-08-21
+goya_global,Xiaomi 15T Global,16.0,OS3.0.301.0.WOEMIXM,Stable,2026-07-03
+goya_id_global,Xiaomi 15T Indonesia,16.0,OS3.0.301.0.WOEIDXM,Stable,2026-07-14
+goya_ru_global,Xiaomi 15T Russia,16.0,OS3.0.302.0.WOERUXM,Stable,2026-09-03
+goya_tr_global,Xiaomi 15T Turkey,16.0,OS3.0.301.0.WOETRXM,Stable,2026-07-14
+goya_tw_global,Xiaomi 15T Taiwan,16.0,OS3.0.301.0.WOETWXM,Stable,2026-07-22
+gram_in_global,POCO M2 Pro India,12.0,V14.0.5.0.SJPINXM,Stable,2023-07-20
+grus,Mi 9 SE China,11.0,V12.5.4.0.RFBCNXM,Stable,2021-11-22
+grus_eea_global,Mi 9 SE EEA,11.0,V12.5.1.0.RFBEUXM,Stable,2021-06-04
+grus_global,Mi 9 SE Global,11.0,V12.5.1.0.RFBMIXM,Stable,2021-05-25
+grus_ru_global,Mi 9 SE Russia,11.0,V12.5.1.0.RFBRUXM,Stable,2021-06-04
+gucci,Redmi Note 1S 4G China,4.4,V9.2.2.0.KHKCNEK,Stable,2018-09-07
+gucci_global,Redmi Note 1S 4G Global,4.4,V8.5.2.0.KHKMIED,Stable,2018-09-07
+guitar,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 China,16.0,OS3.0.303.0.WDNCNXM,Stable,2026-07-20
+guitar_eea_global,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 EEA,16.0,OS3.0.303.0.WDNEUXM,Stable,2026-08-14
+guitar_global,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Global,16.0,OS3.0.306.0.WDNMIXM,Stable,2026-08-05
+guitar_id_global,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Indonesia,16.0,OS3.0.303.0.WDNIDXM,Stable,2026-08-14
+guitar_ru_global,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Russia,16.0,OS3.0.306.0.WDNRUXM,Stable,2026-08-19
+guitar_tr_global,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Turkey,16.0,OS3.0.304.0.WDNTRXM,Stable,2026-08-14
+guitar_tw_global,Redmi Pad 2 SE / Pad 2 9.7 / POCO Pad C1 Taiwan,16.0,OS3.0.303.0.WDNTWXM,Stable,2026-08-19
+haotian,Xiaomi 15 Pro China,16.0,OS3.0.308.0.WOBCNXM,Stable,2026-08-02
+haydn,Redmi K40 Pro / Pro+ China,14.0,OS1.0.13.0.UKKCNXM,Stable,2025-04-07
+haydn_eea_global,Mi 11i EEA,14.0,OS1.0.18.0.UKKEUXM,Stable,2025-04-07
+haydn_global,Mi 11i Global,14.0,OS1.0.18.0.UKKMIXM,Stable,2025-04-07
+haydn_in_global,Mi 11X Pro India,14.0,OS1.0.15.0.UKKINXM,Stable,2025-04-07
+helium,Mi Max Prime China,7.0,V10.3.2.0.NBDCNXM,Stable,2019-06-18
+helium_global,Mi Max Prime Global,7.0,V10.2.2.0.NBDMIXM,Stable,2019-05-13
+hennessy,Redmi Note 3 (MTK) China,5.0,V9.6.1.0.LHNCNFD,Stable,2018-09-07
+hermes,Redmi Note 2 China,5.0,V9.6.1.0.LHMCNFD,Stable,2018-09-07
+hermes_global,Redmi Note 2 Global,5.0,V9.6.3.0.LHMMIFD,Stable,2018-09-07
+houji,Xiaomi 14 China,16.0,OS3.0.305.0.WNCCNXM,Stable,2026-08-05
+houji_eea_global,Xiaomi 14 EEA,16.0,OS3.0.303.0.WNCEUXM,Stable,2026-07-29
+houji_global,Xiaomi 14 Global,16.0,OS3.0.303.0.WNCMIXM,Stable,2026-08-05
+houji_id_global,Xiaomi 14 Indonesia,16.0,OS3.0.303.0.WNCIDXM,Stable,2026-08-10
+houji_in_global,Xiaomi 14 India,16.0,OS3.0.303.0.WNCINXM,Stable,2026-08-10
+houji_ru_global,Xiaomi 14 Russia,16.0,OS3.0.304.0.WNCRUXM,Stable,2026-08-10
+houji_tr_global,Xiaomi 14 Turkey,14.0,OS1.0.1.0.UNCTRXM,Stable,2024-02-29
+houji_tw_global,Xiaomi 14 Taiwan,16.0,OS3.0.303.0.WNCTWXM,Stable,2026-08-10
+hydrogen,Mi Max China,7.0,V10.3.2.0.NBCCNXM,Stable,2019-06-18
+hydrogen_global,Mi Max Global,7.0,V10.2.2.0.NBCMIXM,Stable,2019-05-13
+ice_eea_global,Redmi A1 / POCO C50 EEA,12.0,V13.0.18.0.SGMEUXM,Stable,2024-09-10
+ice_global,Redmi A1 / POCO C50 Global,12.0,V13.0.24.0.SGMMIXM,Stable,2024-09-10
+ice_id_global,Redmi A1 / POCO C50 Indonesia,12.0,V13.0.14.0.SGMIDXM,Stable,2024-09-13
+ice_in_global,Redmi A1 / A1+ / POCO C50 India,12.0,V13.0.17.0.SGMINXM,Stable,2024-12-10
+ice_ru_global,Redmi A1 / POCO C50 Russia,12.0,V13.0.15.0.SGMRUXM,Stable,2024-09-13
+ice_tw_global,Redmi A1 / POCO C50 Taiwan,12.0,V13.0.3.0.SGMTWXM,Stable,2022-11-09
+ido_xhdpi,Redmi 3 China,5.1,V9.6.1.0.LAICNFD,Stable,2018-09-08
+ido_xhdpi_global,Redmi 3/3 Pro Global,5.1,V9.6.2.0.LAIMIFD,Stable,2018-09-08
+ingres,Redmi K50G China,14.0,OS2.0.5.0.ULJCNXM,Stable,2025-05-07
+ingres_eea_global,POCO F4 GT EEA,14.0,OS2.0.2.0.ULJEUXM,Stable,2025-04-30
+ingres_global,POCO F4 GT Global,14.0,OS2.0.2.0.ULJMIXM,Stable,2025-04-30
+ingres_id_global,POCO F4 GT Indonesia,14.0,OS2.0.2.0.ULJIDXM,Stable,2025-05-07
+ingres_ru_global,POCO F4 GT Russia,14.0,OS2.0.2.0.ULJRUXM,Stable,2025-05-07
+ingres_tr_global,POCO F4 GT Turkey,14.0,OS2.0.2.0.ULJTRXM,Stable,2025-04-30
+ingres_tw_global,POCO F4 GT Taiwan,14.0,OS2.0.2.0.ULJTWXM,Stable,2025-04-30
+iolite,Redmi Note 17 Pro 5G China,16.0,OS3.0.311.0.WDQCNXM,Stable,2026-08-31
+iolite_eea_global,Redmi Note 17 Pro 5G / POCO X8 EEA,16.0,OS3.0.306.0.WDQEUXM,Stable Beta,2026-08-11
+iolite_global,Redmi Note 17 Pro 5G / POCO X8 Global,16.0,OS3.0.304.0.WDQMIXM,Stable,2026-08-27
+iolite_tw_global,Redmi Note 17 Pro 5G / POCO X8 Taiwan,16.0,OS3.0.303.0.WDQTWXM,Stable,2026-08-30
+ishtar,Xiaomi 13 Ultra China,16.0,OS3.0.307.0.WMACNXM,Stable,2026-09-03
+ishtar_eea_global,Xiaomi 13 Ultra EEA,16.0,OS3.0.303.0.WMAEUXM,Stable,2026-09-04
+ishtar_global,Xiaomi 13 Ultra Global,16.0,OS3.0.303.0.WMAMIXM,Stable,2026-09-03
+ishtar_ru_global,Xiaomi 13 Ultra Russia,16.0,OS3.0.303.0.WMARUXM,Stable,2026-09-04
+ishtar_tw_global,Xiaomi 13 Ultra Taiwan,16.0,OS3.0.303.0.WMATWXM,Stable,2026-09-04
+jasmine_global,Mi A2 Global,10.0,V11.0.28.0.QDIMIXM,Stable,2021-07-15
+jason,Mi Note 3 China,9.0,V12.0.1.0.PCHCNXM,Stable,2020-08-20
+jason_global,Mi Note 3 Global,9.0,V12.0.1.0.PCHMIXM,Stable,2020-09-21
+jinghu,Xiaomi Pad 7 Ultra China,16.0,OS3.0.302.0.WOXCNXM,Stable,2026-07-30
+joyeuse_eea_global,Redmi Note 9 Pro EEA,12.0,V14.0.5.0.SJZEUXM,Stable,2023-08-09
+joyeuse_global,Redmi Note 9 Pro Global,12.0,V14.0.3.0.SJZMIXM,Stable,2023-03-27
+joyeuse_id_global,Redmi Note 9 Pro Indonesia,12.0,V14.0.1.0.SJZIDXM,Stable,2023-03-31
+joyeuse_ru_global,Redmi Note 9 Pro Russia,12.0,V14.0.1.0.SJZRUXM,Stable,2023-04-28
+joyeuse_tr_global,Redmi Note 9 Pro Turkey,12.0,V14.0.1.0.SJZTRXM,Stable,2023-04-28
+joyeuse_tw_global,Redmi Note 9 Pro Taiwan,12.0,V14.0.4.0.SJZTWXM,Stable,2023-09-27
+kate_global,Redmi Note 3 SE Global,6.0,V10.2.1.0.MHRMIXM,Stable,2019-01-25
+kenzo,Redmi Note 3 Pro China,6.0,V10.2.1.0.MHOCNXM,Stable,2019-01-16
+kenzo_global,Redmi Note 3 Pro Global,6.0,V10.2.1.0.MHOMIXM,Stable,2019-01-25
+klee,Redmi Turbo 5 China,16.0,OS3.0.306.0.WPJCNXM,Stable,2026-08-21
+klee_eea_global,POCO X8 Pro EEA,16.0,OS3.0.304.0.WPJEUXM,Stable,2026-08-28
+klee_global,POCO X8 Pro Global,16.0,OS3.0.307.0.WPJMIXM,Stable,2026-08-24
+klee_id_global,POCO X8 Pro Indonesia,16.0,OS3.0.303.0.WPJIDXM,Stable,2026-07-16
+klee_in_global,POCO X8 Pro India,16.0,OS3.0.304.0.WPJINXM,Stable,2026-09-03
+klee_ru_global,POCO X8 Pro Russia,16.0,OS3.0.304.0.WPJRUXM,Stable,2026-08-28
+klee_tr_global,POCO X8 Pro Turkey,16.0,OS3.0.2.0.WPJTRXM,Stable,2026-03-17
+klee_tw_global,POCO X8 Pro Taiwan,16.0,OS3.0.303.0.WPJTWXM,Stable,2026-07-13
+klein_global,Redmi A3x Global,16.0,V816.0.4.0.WGSMIXM,Stable,2026-07-22
+klein_in_global,Redmi A3x India,16.0,V816.0.5.0.WGSINXM,Stable,2026-07-29
+klein_ru_global,Redmi A3x Russia,16.0,V816.0.4.0.WGSRUXM,Stable,2026-07-29
+klimt_eea_global,Xiaomi 15T Pro EEA,16.0,OS3.0.307.0.WOSEUXM,Stable,2026-08-27
+klimt_global,Xiaomi 15T Pro Global,17.0,OS3.0.335.0.XOSMIXM,Stable,2026-08-13
+klimt_id_global,Xiaomi 15T Pro Indonesia,16.0,OS3.0.302.0.WOSIDXM,Stable,2026-08-06
+klimt_jp_global,Xiaomi 15T Pro Japan,16.0,OS3.0.302.0.WOSJPXM,Stable,2026-08-19
+klimt_ru_global,Xiaomi 15T Pro Russia,17.0,OS3.0.336.0.XOSRUXM,Stable,2026-08-13
+klimt_tr_global,Xiaomi 15T Pro Turkey,16.0,OS3.0.302.0.WOSTRXM,Stable,2026-08-19
+klimt_tw_global,Xiaomi 15T Pro Taiwan,16.0,OS3.0.302.0.WOSTWXM,Stable,2026-08-27
+koto_eea_global,Redmi Pad 2 4G EEA,16.0,OS3.0.303.0.WOWEUXM,Stable,2026-09-02
+koto_global,Redmi Pad 2 4G Global,16.0,OS3.0.304.0.WOWMIXM,Stable,2026-08-04
+koto_id_global,Redmi Pad 2 4G Indonesia,16.0,OS3.0.302.0.WOWIDXM,Stable,2026-08-28
+koto_in_global,Redmi Pad 2 4G India,16.0,OS3.0.301.0.WOWINXM,Stable,2026-07-17
+koto_ru_global,Redmi Pad 2 4G Russia,16.0,OS3.0.302.0.WOWRUXM,Stable,2026-08-07
+koto_tw_global,Redmi Pad 2 4G Taiwan,16.0,OS3.0.302.0.WOWTWXM,Stable,2026-08-07
+kunzite,Redmi Note 15 5G China,16.0,OS3.0.302.0.WPQCNXM,Stable,2026-04-14
+kunzite_eea_global,Redmi Note 15 5G / POCO M8 5G EEA,16.0,OS3.0.302.0.WPQEUXM,Stable,2026-08-19
+kunzite_global,Redmi Note 15 5G / POCO M8 5G Global,16.0,OS3.0.302.0.WPQMIXM,Stable,2026-06-30
+kunzite_id_global,Redmi Note 15 5G / POCO M8 5G Indonesia,16.0,OS3.0.302.0.WPQIDXM,Stable,2026-08-19
+kunzite_in_global,Redmi Note 15 / 15 SE 5G India,16.0,OS3.0.303.0.WPQINXM,Stable,2026-08-18
+kunzite_ru_global,Redmi Note 15 5G / POCO M8 5G Russia,16.0,OS3.0.301.0.WPQRUXM,Stable,2026-06-09
+kunzite_tw_global,Redmi Note 15 5G / POCO M8 5G Taiwan,16.0,OS3.0.301.0.WPQTWXM,Stable,2026-06-11
+lake_eea_global,Redmi 14C/17C/A3 Pro/POCO C75 EEA,16.0,OS3.0.302.0.WGTEUXM,Stable,2026-07-10
+lake_global,Redmi 14C/17C/A3 Pro/POCO C75 Global,16.0,OS3.0.306.0.WGTMIXM,Stable,2026-07-17
+lake_id_global,Redmi 14C/17C/A3 Pro/POCO C75 Indonesia,16.0,OS3.0.301.0.WGTIDXM,Stable,2026-07-24
+lake_ru_global,Redmi 14C/17C/A3 Pro/POCO C75 Russia,16.0,OS3.0.302.0.WGTRUXM,Stable,2026-08-11
+lake_tr_global,Redmi 14C/17C/A3 Pro/POCO C75 Turkey,16.0,OS3.0.301.0.WGTTRXM,Stable,2026-07-24
+lake_tw_global,Redmi 14C/17C/A3 Pro/POCO C75 Taiwan,16.0,OS3.0.302.0.WGTTWXM,Stable,2026-08-26
+lancelot,Redmi 9 China,12.0,V13.0.5.0.SJCCNXM,Stable,2022-09-26
+lancelot_eea_global,Redmi 9 EEA,12.0,V13.0.3.0.SJCEUXM,Stable,2023-01-31
+lancelot_global,Redmi 9 Global,12.0,V13.0.4.0.SJCMIXM,Stable,2023-01-31
+lancelot_id_global,Redmi 9 Indonesia,12.0,V13.0.1.0.SJCIDXM,Stable,2022-11-30
+lancelot_in_global,Redmi 9 Prime India,12.0,V13.0.3.0.SJCINXM,Stable,2022-12-23
+lancelot_ru_global,Redmi 9 Russia,12.0,V13.0.3.0.SJCRUXM,Stable,2023-02-08
+lancelot_tr_global,Redmi 9 Turkey,11.0,V12.5.6.0.RJCTRXM,Stable,2022-08-29
+land,Redmi 3S China,6.0,V10.2.2.0.MALCNXM,Stable,2019-05-21
+land_global,Redmi 3S Global,6.0,V10.2.2.0.MALMIXM,Stable,2019-05-28
+lapis,Redmi Note 15 Pro 5G China,16.0,OS3.0.308.0.WPPCNXM,Stable,2026-09-01
+lapis_eea_global,Redmi Note 15 Pro 5G EEA,16.0,OS3.0.302.0.WPPEUXM,Stable,2026-07-23
+lapis_global,Redmi Note 15 Pro 5G Global,16.0,OS3.0.308.0.WPPMIXM,Stable,2026-09-01
+lapis_id_global,Redmi Note 15 Pro 5G Indonesia,16.0,OS3.0.302.0.WPPIDXM,Stable,2026-07-21
+lapis_in_global,Redmi Note 15 Pro 5G India,16.0,OS3.0.303.0.WPPINXM,Stable,2026-07-15
+lapis_jp_global,Redmi Note 15 Pro 5G Japan,16.0,OS3.0.302.0.WPPJPXM,Stable,2026-08-04
+lapis_ru_global,Redmi Note 15 Pro 5G Russia,16.0,OS3.0.302.0.WPPRUXM,Stable,2026-08-04
+lapis_tr_global,Redmi Note 15 Pro 5G Turkey,16.0,OS3.0.302.0.WPPTRXM,Stable,2026-07-21
+lapis_tw_global,Redmi Note 15 Pro 5G Taiwan,16.0,OS3.0.302.0.WPPTWXM,Stable,2026-07-21
+latte,MiPad 2 China,5.1,V9.6.2.0.LACCNFD,Stable,2018-09-07
+laurel_sprout_eea_global,Mi A3 EEA,11.0,V12.0.23.0.RFQEUXM,Stable,2022-08-15
+laurel_sprout_global,Mi A3 Global,11.0,V12.0.26.0.RFQMIXM,Stable,2022-08-15
+laurus,Mi CC 9e China,10.0,V12.5.5.0.QFMCNXM,Stable,2021-11-26
+lavender,Redmi Note 7 China,10.0,V12.5.7.0.QFGCNXM,Stable,2021-11-17
+lavender_eea_global,Redmi Note 7 EEA,10.0,V12.5.1.0.QFGEUXM,Stable,2021-09-13
+lavender_global,Redmi Note 7 Global,10.0,V12.5.3.0.QFGMIXM,Stable,2021-12-15
+lavender_in_global,Redmi Note 7/7S India,10.0,V12.5.1.0.QFGINXM,Stable,2021-09-29
+lavender_ru_global,Redmi Note 7 Russia,10.0,V12.5.1.0.QFGRUXM,Stable,2021-09-13
+lcsh92_wet_jb9,Redmi Note 3G China,4.4,V7.5.1.0.KHDCNDE,Stable,2018-08-03
+lcsh92_wet_jb9_global,Redmi Note 3G Global,4.4,V7.5.2.0.KHDMIDE,Stable,2018-08-03
+lcsh92_wet_tdd,Redmi Note 1 TD China,4.4,V7.5.1.0.KHECNDE,Stable,2018-08-03
+leedsa_eea_global,Redmi 17 / POCO C95 Pro EEA,16.0,OS3.0.307.0.WDTEUXM,Stable,2026-09-05
+leedsa_global,Redmi 17 / POCO C95 Pro Global,16.0,OS3.0.308.0.WDTMIXM,Stable,2026-08-27
+leedsa_id_global,Redmi 17 / POCO C95 Pro Indonesia,16.0,OS3.0.304.0.WDTIDXM,Stable,2026-09-06
+leedsa_jp_global,Redmi 17 Japan,16.0,OS3.0.303.0.WDTJPXM,Stable,2026-08-31
+leedsa_ru_global,Redmi 17 / POCO C95 Pro Russia,16.0,OS3.0.302.0.WDTRUXM,Stable,2026-08-14
+leedsa_tw_global,Redmi 17 / POCO C95 Pro Taiwan,16.0,OS3.0.302.0.WDTTWXM,Stable,2026-09-01
+leo,Mi Note Pro China,7.0,V9.2.3.0.NXHCNEK,Stable,2018-09-07
+lhasa,Xiaomi 18 Fold China,17.0,OS4.0.11.0.XPNCNXM,Stable,2026-09-09
+libra,Mi 4c China,7.0,V10.1.1.0.NXKCNFI,Stable,2018-10-30
+light,Redmi Note 11E China,14.0,OS1.0.9.0.ULSCNXM,Stable,2024-09-29
+light_eea_global,Redmi 10 5G / POCO M4 5G EEA,14.0,OS1.0.8.0.ULSEUXM,Stable,2025-09-23
+light_global,Redmi 10 5G / POCO M4 5G Global,14.0,OS1.0.7.0.ULSMIXM,Stable,2024-11-11
+light_id_global,Redmi 10 5G / POCO M4 5G Indonesia,14.0,OS1.0.4.0.ULSIDXM,Stable,2024-09-06
+light_in_global,Redmi 11 Prime 5G / POCO M4 5G India,14.0,OS1.0.4.0.ULSINXM,Stable,2024-05-14
+light_ru_global,Redmi 10 5G / POCO M4 5G Russia,14.0,OS1.0.2.0.ULSRUXM,Stable,2024-09-29
+light_tr_global,Redmi 10 5G / POCO M4 5G Turkey,14.0,OS1.0.1.0.ULSTRXM,Stable,2024-03-25
+light_tw_global,Redmi 10 5G / POCO M4 5G Taiwan,14.0,OS1.0.2.0.ULSTWXM,Stable,2024-09-29
+lightcm,Redmi Note 11R China,14.0,OS1.0.10.0.ULSCNXM,Stable,2024-09-29
+lilac_jp_global,Redmi Note 10T Japan,13.0,V14.0.34.0.TKNJPXM,Stable,2025-03-12
+lime,Redmi Note 9 4G China,12.0,V14.0.2.0.SJQCNXM,Stable,2023-03-07
+lime_eea_global,Redmi 9T EEA,12.0,V14.0.5.0.SJQEUXM,Stable,2023-07-18
+lime_global,Redmi 9T Global,12.0,V13.0.6.0.SJQMIXM,Stable,2023-07-24
+lime_id_global,Redmi 9T Indonesia,12.0,V14.0.2.0.SJQIDXM,Stable,2023-05-06
+lime_in_global,Redmi 9 Power India,12.0,V14.0.2.0.SJQINXM,Stable,2023-05-04
+lime_ru_global,Redmi 9T Russia,12.0,V14.0.2.0.SJQRUXM,Stable,2023-05-12
+lime_tr_global,Redmi 9T Turkey,12.0,V14.0.3.0.SJQTRXM,Stable,2023-05-19
+lime_tw_global,Redmi 9T Taiwan,12.0,V14.0.2.0.SJQTWXM,Stable,2023-05-06
+lisa,Mi 11 LE China,14.0,OS2.0.16.0.UKOCNXM,Stable,2025-12-25
+lisa_eea_global,Xiaomi 11 Lite 5G NE EEA,14.0,OS2.0.6.0.UKOEUXM,Stable,2025-11-26
+lisa_global,Xiaomi 11 Lite 5G NE Global,14.0,OS2.0.8.0.UKOMIXM,Stable,2025-08-22
+lisa_in_global,Xiaomi 11 Lite 5G NE India,14.0,OS2.0.5.0.UKOINXM,Stable,2025-08-27
+lisa_ru_global,Xiaomi 11 Lite 5G NE Russia,14.0,OS2.0.5.0.UKORUXM,Stable,2025-08-28
+lisa_tr_global,Xiaomi 11 Lite 5G NE Turkey,14.0,OS2.0.5.0.UKOTRXM,Stable,2025-09-08
+lisa_tw_global,Xiaomi 11 Lite 5G NE Taiwan,14.0,OS2.0.5.0.UKOTWXM,Stable,2025-09-08
+lithium,Mi MIX China,8.0,V11.0.2.0.OAHCNXM,Stable,2019-11-08
+lithium_global,Mi MIX Global,8.0,V11.0.2.0.OAHMIXM,Stable,2019-11-13
+liuqin,Xiaomi Pad 6 Pro China,15.0,OS3.0.7.0.VMYCNXM,Stable,2026-05-25
+lmi,Redmi K30 Pro China,12.0,V14.0.5.0.SJKCNXM,Stable,2023-05-12
+lmi_eea_global,POCO F2 Pro EEA,12.0,V14.0.1.0.SJKEUXM,Stable,2023-03-13
+lmi_global,POCO F2 Pro Global,12.0,V14.0.1.0.SJKMIXM,Stable,2023-03-24
+lmi_id_global,POCO F2 Pro Indonesia,12.0,V14.0.1.0.SJKIDXM,Stable,2023-03-29
+lmi_ru_global,POCO F2 Pro Russia,12.0,V14.0.1.0.SJKRUXM,Stable,2023-04-06
+lmi_tr_global,POCO F2 Pro Turkey,12.0,V14.0.1.0.SJKTRXM,Stable,2023-03-29
+lotus,Mi Play China,8.1,V11.0.8.0.OFICNXM,Stable,2020-11-26
+lotus_global,Mi Play Global,8.1,V11.0.10.0.OFIMIXM,Stable,2021-01-14
+lotus_ru_global,Mi Play Russia,8.1,V11.0.11.0.OFIRUXM,Stable,2021-01-20
+lte26007,Redmi 2A China,4.4,V9.2.3.0.KHLCNEK,Stable,2018-09-07
+luming,Xiaomi Civi 5 Pro China,16.0,OS3.0.303.0.WOICNXM,Stable,2026-06-25
+malachite,Redmi Note 14 Pro 5G / POCO X7 China,16.0,OS3.0.306.0.WOOCNXM,Stable,2026-07-09
+malachite_eea_global,Redmi Note 14 Pro 5G / POCO X7 EEA,16.0,OS3.0.302.0.WOOEUXM,Stable,2026-07-22
+malachite_global,Redmi Note 14 Pro 5G / POCO X7 Global,16.0,OS3.0.304.0.WOOMIXM,Stable,2026-07-07
+malachite_id_global,Redmi Note 14 Pro 5G / POCO X7 Indonesia,16.0,OS3.0.302.0.WOOIDXM,Stable,2026-07-11
+malachite_in_global,Redmi Note 14 Pro 5G / POCO X7 India,16.0,OS3.0.302.0.WOOINXM,Stable,2026-07-11
+malachite_ru_global,Redmi Note 14 Pro 5G / POCO X7 Russia,16.0,OS3.0.302.0.WOORUXM,Stable,2026-07-17
+malachite_tr_global,Redmi Note 14 Pro 5G / POCO X7 Turkey,16.0,OS3.0.302.0.WOOTRXM,Stable,2026-07-10
+malachite_tw_global,Redmi Note 14 Pro 5G / POCO X7 Taiwan,16.0,OS3.0.302.0.WOOTWXM,Stable,2026-07-11
+manet,Redmi K70 Pro China,16.0,OS3.0.305.0.WNMCNXM,Stable,2026-07-23
+marble,Redmi Note 12 Turbo China,15.0,OS3.0.4.0.VMRCNXM,Stable,2026-04-23
+marble_eea_global,POCO F5 EEA,15.0,OS3.0.4.0.VMREUXM,Stable,2026-05-28
+marble_global,POCO F5 Global,15.0,OS3.0.4.0.VMRMIXM,Stable,2026-05-28
+marble_id_global,POCO F5 Indonesia,15.0,OS3.0.3.0.VMRIDXM,Stable,2026-05-28
+marble_in_global,POCO F5 India,15.0,OS3.0.2.0.VMRINXM,Stable,2026-05-28
+marble_ru_global,POCO F5 Russia,15.0,OS3.0.2.0.VMRRUXM,Stable,2026-05-28
+marble_tr_global,POCO F5 Turkey,15.0,OS3.0.2.0.VMRTRXM,Stable,2026-05-28
+marble_tw_global,POCO F5 Taiwan,15.0,OS3.0.2.0.VMRTWXM,Stable,2026-05-28
+markw,Redmi 4 Prime China,6.0,V10.2.2.0.MBECNXM,Stable,2019-05-21
+markw_global,Redmi 4 Prime Global,6.0,V10.2.2.0.MBEMIXM,Stable,2019-05-20
+matisse,Redmi K50 Pro China,14.0,OS2.0.2.0.ULKCNXM,Stable,2025-04-08
+mayfly,Xiaomi 12S China,15.0,OS3.0.3.0.VLTCNXM,Stable,2026-03-23
+meri,Mi 5C China,7.1,V11.0.3.0.NCJCNXM,Stable,2019-12-10
+merlin,Redmi 10X 4G China,12.0,V13.0.1.0.SJOCNXM,Stable,2022-06-17
+merlin_eea_global,Redmi Note 9 EEA,12.0,V13.0.3.0.SJOEUXM,Stable,2022-12-12
+merlin_global,Redmi Note 9 Global,12.0,V13.0.2.0.SJOMIXM,Stable,2022-10-25
+merlin_id_global,Redmi Note 9 Indonesia,12.0,V13.0.3.0.SJOIDXM,Stable,2022-12-12
+merlin_in_global,Redmi Note 9 India,12.0,V13.0.5.0.SJOINXM,Stable,2022-12-26
+merlin_ru_global,Redmi Note 9 Russia,11.0,V12.5.5.0.RJORUXM,Stable,2022-05-20
+merlin_tr_global,Redmi Note 9 Turkey,11.0,V12.5.5.0.RJOTRXM,Stable,2022-07-23
+merlin_tw_global,Redmi Note 9 Taiwan,12.0,V13.0.3.0.SJOTWXM,Stable,2023-02-03
+mido,Redmi Note 4 China,7.0,V11.0.2.0.NCFCNXM,Stable,2019-11-25
+mido_global,Redmi Note 4 Global,7.0,V11.0.2.0.NCFMIXM,Stable,2019-11-19
+mione_plus,MI 1S China,4.1,JMACNBL18.0,Stable,2015-04-12
+miro,Redmi K80 Pro China,16.0,OS3.0.304.0.WOMCNXM,Stable,2026-08-10
+miro_eea_global,Redmi K80 Pro / POCO F7 Ultra EEA,16.0,OS3.0.302.0.WOMEUXM,Stable,2026-08-12
+miro_global,Redmi K80 Pro / POCO F7 Ultra Global,16.0,OS3.0.302.0.WOMMIXM,Stable,2026-08-12
+miro_id_global,Redmi K80 Pro / POCO F7 Ultra Indonesia,16.0,OS3.0.302.0.WOMIDXM,Stable,2026-08-12
+miro_ru_global,Redmi K80 Pro / POCO F7 Ultra Russia,16.0,OS3.0.302.0.WOMRUXM,Stable,2026-08-12
+miro_tr_global,Redmi K80 Pro / POCO F7 Ultra Turkey,16.0,OS3.0.3.0.WOMTRXM,Stable,2025-12-24
+miro_tw_global,Redmi K80 Pro / POCO F7 Ultra Taiwan,16.0,OS3.0.302.0.WOMTWXM,Stable,2026-08-12
+mist,Redmi Note 17 5G China,16.0,OS3.0.311.0.WPUCNXM,Stable,2026-08-20
+mist_eea_global,Redmi Note 17 5G EEA,16.0,OS3.0.303.0.WPUEUXM,Stable Beta,2026-07-31
+mist_global,Redmi Note 17 5G Global,16.0,OS3.0.302.0.WPUMIXM,Stable,2026-08-28
+mist_in_global,POCO M8 Power 5G / Redmi Note 17 5G India,16.0,OS3.0.305.0.WPUINXM,Stable,2026-08-21
+mist_tw_global,Redmi Note 17 5G Taiwan,16.0,OS3.0.302.0.WPUTWXM,Stable,2026-09-03
+mocha,MiPad 1 China,4.4,V9.2.4.0.KXFCNEK,Stable,2018-09-07
+mocha_global,MiPad 1 Global,4.4,V7.5.2.0.KXFMIDE,Stable,2018-09-07
+mojito_eea_global,Redmi Note 10 EEA,12.0,V14.0.6.0.SKGEUXM,Stable,2023-12-08
+mojito_global,Redmi Note 10 Global,12.0,V14.0.8.0.SKGMIXM,Stable,2023-10-27
+mojito_id_global,Redmi Note 10 Indonesia,12.0,V14.0.6.0.SKGIDXM,Stable,2023-11-02
+mojito_in_global,Redmi Note 10 India,12.0,V14.0.5.0.SKGINXM,Stable,2023-11-21
+mojito_ru_global,Redmi Note 10 Russia,12.0,V14.0.4.0.SKGRUXM,Stable,2023-04-18
+mojito_tr_global,Redmi Note 10 Turkey,12.0,V14.0.4.0.SKGTRXM,Stable,2023-11-21
+mona,Xiaomi Civi China,13.0,OS1.0.2.0.TKVCNXM,Stable,2024-03-04
+mondrian,Redmi K60 China,15.0,OS3.0.8.0.VMNCNXM,Stable,2026-06-09
+mondrian_eea_global,POCO F5 Pro EEA,15.0,OS3.0.2.0.VMNEUXM,Stable,2026-03-28
+mondrian_global,POCO F5 Pro Global,15.0,OS3.0.5.0.VMNMIXM,Stable,2026-03-21
+mondrian_ru_global,POCO F5 Pro Russia,15.0,OS3.0.2.0.VMNRUXM,Stable,2026-03-28
+mondrian_tr_global,POCO F5 Pro Turkey,15.0,OS3.0.2.0.VMNTRXM,Stable,2026-03-28
+mondrian_tw_global,POCO F5 Pro Taiwan,15.0,OS3.0.2.0.VMNTWXM,Stable,2026-03-28
+monet_eea_global,Mi 10 Lite EEA,12.0,V13.0.4.0.SJIEUXM,Stable,2022-11-08
+monet_global,Mi 10 Lite Global,12.0,V13.0.4.0.SJIMIXM,Stable,2022-11-14
+monet_tw_global,Mi 10 Lite Taiwan,12.0,V13.0.3.0.SJITWXM,Stable,2022-11-14
+moon_eea_global,Redmi 13 / POCO M6 EEA,16.0,OS3.0.302.0.WNTEUXM,Stable,2026-07-24
+moon_global,Redmi 13 / POCO M6 Global,16.0,OS3.0.303.0.WNTMIXM,Stable,2026-07-10
+moon_id_global,Redmi 13 / POCO M6 Indonesia,16.0,OS3.0.302.0.WNTIDXM,Stable,2026-07-14
+moon_ru_global,Redmi 13 / POCO M6 Russia,16.0,OS3.0.302.0.WNTRUXM,Stable,2026-07-22
+moon_tr_global,Redmi 13 / POCO M6 Turkey,16.0,OS3.0.302.0.WNTTRXM,Stable,2026-07-16
+moon_tw_global,Redmi 13 / POCO M6 Taiwan,16.0,OS3.0.302.0.WNTTWXM,Stable,2026-07-16
+moonstone_eea_global,POCO X5 5G EEA,14.0,OS1.0.25.0.UMPEUXM,Stable,2026-01-04
+moonstone_global,POCO X5 5G Global,14.0,OS1.0.26.0.UMPMIXM,Stable,2025-12-26
+moonstone_id_global,POCO X5 5G Indonesia,14.0,OS1.0.21.0.UMPIDXM,Stable,2025-12-04
+moonstone_in_global,POCO X5 5G India,14.0,OS1.0.22.0.UMPINXM,Stable,2025-12-04
+moonstone_ru_global,POCO X5 5G Russia,14.0,OS1.0.21.0.UMPRUXM,Stable,2025-12-04
+moonstone_tr_global,POCO X5 5G Turkey,14.0,OS1.0.20.0.UMPTRXM,Stable,2025-12-04
+moonstone_tw_global,POCO X5 5G Taiwan,14.0,OS1.0.21.0.UMPTWXM,Stable,2025-12-04
+munch,Redmi K40S China,14.0,OS1.0.15.0.ULMCNXM,Stable,2026-03-24
+munch_eea_global,POCO F4 EEA,14.0,OS1.0.8.0.ULMEUXM,Stable,2025-04-22
+munch_global,POCO F4 Global,14.0,OS1.0.9.0.ULMMIXM,Stable,2025-04-12
+munch_id_global,POCO F4 Indonesia,14.0,OS1.0.8.0.ULMIDXM,Stable,2025-04-29
+munch_in_global,POCO F4 India,14.0,OS1.0.7.0.ULMINXM,Stable,2025-04-21
+munch_ru_global,POCO F4 Russia,14.0,OS1.0.7.0.ULMRUXM,Stable,2025-05-07
+munch_tr_global,POCO F4 Turkey,14.0,OS1.0.7.0.ULMTRXM,Stable,2025-05-07
+munch_tw_global,POCO F4 Taiwan,14.0,OS1.0.8.0.ULMTWXM,Stable,2025-05-14
+muyu,Xiaomi Pad 7 Pro China,16.0,OS3.0.302.0.WOYCNXM,Stable,2026-06-18
+muyu_eea_global,Xiaomi Pad 7 Pro EEA,16.0,OS3.0.304.0.WOYEUXM,Stable,2026-08-04
+muyu_global,Xiaomi Pad 7 Pro Global,16.0,OS3.0.303.0.WOYMIXM,Stable,2026-07-13
+muyu_id_global,Xiaomi Pad 7 Pro Indonesia,16.0,OS3.0.304.0.WOYIDXM,Stable,2026-08-04
+muyu_ru_global,Xiaomi Pad 7 Pro Russia,16.0,OS3.0.304.0.WOYRUXM,Stable,2026-08-14
+muyu_tr_global,Xiaomi Pad 7 Pro Turkey,16.0,OS3.0.304.0.WOYTRXM,Stable,2026-08-15
+muyu_tw_global,Xiaomi Pad 7 Pro Taiwan,16.0,OS3.0.304.0.WOYTWXM,Stable,2026-08-15
+myron,Redmi K90 Pro Max China,16.0,OS3.0.308.0.WPMCNXM,Stable,2026-07-24
+myron_eea_global,Redmi K90 Pro Max / POCO F8 Ultra EEA,16.0,OS3.0.302.0.WPMEUXM,Stable,2026-07-27
+myron_global,Redmi K90 Pro Max / POCO F8 Ultra Global,16.0,OS3.0.302.0.WPMMIXM,Stable,2026-08-14
+myron_id_global,Redmi K90 Pro Max / POCO F8 Ultra Indonesia,16.0,OS3.0.302.0.WPMIDXM,Stable,2026-08-14
+myron_tw_global,Redmi K90 Pro Max / POCO F8 Ultra Taiwan,16.0,OS3.0.302.0.WPMTWXM,Stable,2026-08-14
+nabu,Xiaomi Pad 5 China,13.0,OS1.0.3.0.TKXCNXM,Stable,2024-05-28
+nabu_eea_global,Xiaomi Pad 5 EEA,13.0,OS1.0.6.0.TKXEUXM,Stable,2024-09-29
+nabu_global,Xiaomi Pad 5 Global,13.0,OS1.0.6.0.TKXMIXM,Stable,2024-09-29
+nabu_in_global,Xiaomi Pad 5 India,13.0,OS1.0.17.0.TKXINXM,Stable,2025-03-06
+nabu_ru_global,Xiaomi Pad 5 Russia,13.0,OS1.0.5.0.TKXRUXM,Stable,2024-09-29
+nabu_tr_global,Xiaomi Pad 5 Turkey,13.0,OS1.0.6.0.TKXTRXM,Stable,2024-09-29
+nabu_tw_global,Xiaomi Pad 5 Taiwan,13.0,OS1.0.6.0.TKXTWXM,Stable,2024-09-29
+natrium,Mi 5s Plus China,8.0,V11.0.2.0.OBGCNXM,Stable,2019-11-08
+natrium_global,Mi 5s Plus Global,8.0,V10.2.4.0.OBGMIXM,Stable,2019-05-13
+nezha,Xiaomi 17 Ultra China,16.0,OS3.0.309.0.WPACNXM,Stable,2026-07-23
+nezha_eea_global,Xiaomi 17 Ultra EEA,17.0,OS3.0.336.0.XPAEUXM,Stable,2026-08-28
+nezha_global,Xiaomi 17 Ultra Global,16.0,OS3.0.303.0.WPAMIXM,Stable,2026-05-25
+nezha_id_global,Xiaomi 17 Ultra Indonesia,16.0,OS3.0.305.0.WPAIDXM,Stable,2026-07-23
+nezha_in_global,Xiaomi 17 Ultra India,17.0,OS3.0.334.0.XPAINXM,Stable,2026-09-02
+nezha_ru_global,Xiaomi 17 Ultra Russia,16.0,OS3.0.305.0.WPARUXM,Stable,2026-07-23
+nezha_tr_global,Xiaomi 17 Ultra Turkey,16.0,OS3.0.305.0.WPATRXM,Stable,2026-07-23
+nezha_tw_global,Xiaomi 17 Ultra Taiwan,16.0,OS3.0.305.0.WPATWXM,Stable,2026-07-23
+nikel,Redmi Note 4 MTK China,6.0,V10.2.2.0.MBFCNXM,Stable,2019-05-22
+nikel_global,Redmi Note 4 MTK Global,6.0,V10.2.1.0.MBFMIXM,Stable,2019-02-15
+nitrogen,Mi Max 3 China,10.0,V12.5.1.0.QEDCNXM,Stable,2021-06-23
+nitrogen_global,Mi Max 3 Global,10.0,V12.0.1.0.QEDMIXM,Stable,2020-10-16
+nitrogen_ru_global,Mi Max 3 Russia,10.0,V12.0.1.0.QEDRUXM,Stable,2020-10-16
+nuwa,Xiaomi 13 Pro China,16.0,OS3.0.310.0.WMBCNXM,Stable,2026-07-14
+nuwa_eea_global,Xiaomi 13 Pro EEA,16.0,OS3.0.303.0.WMBEUXM,Stable,2026-09-08
+nuwa_global,Xiaomi 13 Pro Global,16.0,OS3.0.302.0.WMBMIXM,Stable,2026-07-24
+nuwa_in_global,Xiaomi 13 Pro India,16.0,OS3.0.302.0.WMBINXM,Stable,2026-07-24
+nuwa_ru_global,Xiaomi 13 Pro Russia,16.0,OS3.0.302.0.WMBRUXM,Stable,2026-07-24
+nuwa_tr_global,Xiaomi 13 Pro Turkey,13.0,V14.0.3.0.TMBTRXM,Stable,2023-02-27
+nuwa_tw_global,Xiaomi 13 Pro Taiwan,16.0,OS3.0.302.0.WMBTWXM,Stable,2026-07-30
+obsidian_eea_global,Redmi Note 14 Pro 4G EEA,16.0,OS3.0.303.0.WOFEUXM,Stable,2026-08-31
+obsidian_global,Redmi Note 14 Pro 4G Global,16.0,OS3.0.304.0.WOFMIXM,Stable,2026-07-07
+obsidian_ru_global,Redmi Note 14 Pro 4G Russia,16.0,OS3.0.302.0.WOFRUXM,Stable,2026-07-22
+obsidian_tr_global,Redmi Note 14 Pro 4G Turkey,16.0,OS3.0.302.0.WOFTRXM,Stable,2026-08-04
+odin,MIX 4 China,14.0,OS1.0.3.0.UKMCNXM,Stable,2024-06-20
+olive,Redmi 8 China,10.0,V12.5.5.0.QCNCNXM,Stable,2022-01-10
+olive_eea_global,Redmi 8 EEA,10.0,V12.5.2.0.QCNEUXM,Stable,2021-10-27
+olive_global,Redmi 8 Global,10.0,V12.5.3.0.QCNMIXM,Stable,2021-11-01
+olive_id_global,Redmi 8 Indonesia,10.0,V12.5.3.0.QCNIDXM,Stable,2022-08-23
+olive_in_global,Redmi 8 India,10.0,V12.5.2.0.QCNINXM,Stable,2021-11-05
+olive_ru_global,Redmi 8 Russia,10.0,V12.5.3.0.QCNRUXM,Stable,2021-11-01
+olivelite,Redmi 8A China,10.0,V12.5.3.0.QCPCNXM,Stable,2021-12-08
+olivelite_eea_global,Redmi 8A EEA,10.0,V12.5.3.0.QCPEUXM,Stable,2021-11-01
+olivelite_global,Redmi 8A Global,10.0,V12.5.2.0.QCPMIXM,Stable,2021-11-01
+olivelite_id_global,Redmi 8A Indonesia,10.0,V12.5.3.0.QCPIDXM,Stable,2022-08-23
+olivelite_in_global,Redmi 8A India,10.0,V12.5.2.0.QCPINXM,Stable,2021-10-20
+olivelite_ru_global,Redmi 8A Russia,10.0,V12.5.2.0.QCPRUXM,Stable,2021-10-19
+olivewood_id_global,Redmi 8A Pro Indonesia,10.0,V12.5.4.0.QCQIDXM,Stable,2022-09-09
+olivewood_in_global,Redmi 8A Dual India,10.0,V12.5.6.0.QCQINXM,Stable,2022-02-07
+omega,Redmi Pro China,6.0,V10.2.1.0.MHQCNXM,Stable,2019-01-04
+onc_in_global,Redmi Y3 India,10.0,V11.0.6.0.QFFINXM,Stable,2021-04-14
+onclite,Redmi 7 China,10.0,V12.5.3.0.QFLCNXM,Stable,2021-11-11
+onclite_eea_global,Redmi 7 EEA,10.0,V11.0.3.0.QFLEUXM,Stable,2021-08-19
+onclite_global,Redmi 7 Global,10.0,V11.0.2.0.QFLMIXM,Stable,2021-03-12
+onclite_in_global,Redmi 7 India,10.0,V11.0.4.0.QFLINXM,Stable,2021-04-07
+onclite_ru_global,Redmi 7 Russia,10.0,V11.0.2.0.QFLRUXM,Stable,2021-03-19
+onyx,Redmi Turbo 4 Pro China,16.0,OS3.0.305.0.WOLCNXM,Stable,2026-08-05
+onyx_eea_global,POCO F7 EEA,16.0,OS3.0.303.0.WOLEUXM,Stable,2026-08-29
+onyx_global,POCO F7 Global,16.0,OS3.0.303.0.WOLMIXM,Stable,2026-08-01
+onyx_id_global,POCO F7 Indonesia,16.0,OS3.0.301.0.WOLIDXM,Stable,2026-06-10
+onyx_in_global,POCO F7 India,16.0,OS3.0.303.0.WOLINXM,Stable,2026-08-27
+onyx_ru_global,POCO F7 Russia,16.0,OS3.0.301.0.WOLRUXM,Stable,2026-06-26
+onyx_tw_global,POCO F7 Taiwan,16.0,OS3.0.301.0.WOLTWXM,Stable,2026-06-26
+opal_eea_global,Redmi Note 11S 5G EEA,13.0,OS1.0.4.0.TGLEUXM,Stable,2024-09-20
+opal_global,Redmi Note 11S 5G Global,13.0,OS1.0.1.0.TGLMIXM,Stable,2024-03-25
+opal_ru_global,Redmi Note 11S 5G Russia,13.0,OS1.0.1.0.TGLRUXM,Stable,2024-04-07
+opal_tw_global,Redmi Note 11S 5G Taiwan,13.0,OS1.0.1.0.TGLTWXM,Stable,2024-03-18
+organ,Redmi Pad 2 Pro 5G China,16.0,OS3.0.305.0.WPXCNXM,Stable,2026-08-10
+organ_eea_global,Redmi Pad 2 Pro 5G EEA,16.0,OS3.0.303.0.WPXEUXM,Stable,2026-08-07
+organ_global,Redmi Pad 2 Pro 5G Global,16.0,OS3.0.303.0.WPXMIXM,Stable,2026-08-03
+organ_in_global,Redmi Pad 2 Pro 5G India,16.0,OS3.0.302.0.WPXINXM,Stable,2026-08-12
+organ_ru_global,Redmi Pad 2 Pro 5G Russia,16.0,OS3.0.302.0.WPXRUXM,Stable,2026-08-31
+organ_tw_global,Redmi Pad 2 Pro 5G Taiwan,16.0,OS3.0.302.0.WPXTWXM,Stable,2026-08-21
+oxygen,Mi Max 2 China,7.1,V11.0.2.0.NDDCNXM,Stable,2019-11-06
+oxygen_global,Mi Max 2 Global,7.1,V11.0.2.0.NDDMIXM,Stable,2019-11-06
+pandora,Xiaomi 17 Pro China,16.0,OS3.0.318.0.WBLCNXM,Stable,2026-08-07
+pearl,Redmi Note 12T Pro China,15.0,OS3.0.3.0.VLHCNXM,Stable,2026-04-15
+peridot,Redmi Turbo 3 China,16.0,OS3.0.304.0.WNPCNXM,Stable,2026-07-01
+peridot_eea_global,POCO F6 EEA,16.0,OS3.0.303.0.WNPEUXM,Stable,2026-08-20
+peridot_global,POCO F6 Global,16.0,OS3.0.303.0.WNPMIXM,Stable,2026-08-12
+peridot_id_global,POCO F6 Indonesia,16.0,OS3.0.304.0.WNPIDXM,Stable,2026-08-12
+peridot_in_global,POCO F6 India,16.0,OS3.0.303.0.WNPINXM,Stable,2026-08-12
+peridot_ru_global,POCO F6 Russia,16.0,OS3.0.304.0.WNPRUXM,Stable,2026-08-12
+peridot_tw_global,POCO F6 Taiwan,16.0,OS3.0.303.0.WNPTWXM,Stable,2026-08-12
+perseus,Mi MIX 3 China,10.0,V12.5.1.0.QEECNXM,Stable,2021-07-15
+perseus_global,Mi MIX 3 Global,10.0,V12.0.2.0.QEEMIXM,Stable,2020-11-20
+perseus_ru_global,Mi MIX 3 Russia,10.0,V12.0.3.0.QEERUXM,Stable,2020-11-27
+phoenix,Redmi K30 4G China,12.0,V13.0.6.0.SGHCNXM,Stable,2022-10-09
+phoenixin_in_global,POCO X2 India,11.0,V12.5.6.0.RGHINXM,Stable,2021-11-30
+piano,Xiaomi Pad 8 Pro China,16.0,OS3.0.308.0.WPYCNXM,Stable,2026-08-25
+piano_eea_global,Xiaomi Pad 8 Pro EEA,16.0,OS3.0.305.0.WPYEUXM,Stable,2026-08-03
+piano_global,Xiaomi Pad 8 Pro Global,16.0,OS3.0.303.0.WPYMIXM,Stable,2026-07-08
+piano_id_global,Xiaomi Pad 8 Pro Indonesia,16.0,OS3.0.303.0.WPYIDXM,Stable,2026-08-10
+piano_ru_global,Xiaomi Pad 8 Pro Russia,16.0,OS3.0.304.0.WPYRUXM,Stable,2026-08-10
+piano_tr_global,Xiaomi Pad 8 Pro Turkey,16.0,OS3.0.303.0.WPYTRXM,Stable,2026-08-10
+piano_tw_global,Xiaomi Pad 8 Pro Taiwan,16.0,OS3.0.303.0.WPYTWXM,Stable,2026-08-10
+picasso,Redmi K30 5G China,12.0,V13.0.5.0.SGICNXM,Stable,2022-11-04
+picasso_48m,Redmi K30i 5G China,12.0,V13.0.4.0.SGICMXM,Stable,2022-10-19
+pine,Redmi 7A China,10.0,V12.5.5.0.QCMCNXM,Stable,2022-01-06
+pine_eea_global,Redmi 7A EEA,10.0,V12.5.3.0.QCMEUXM,Stable,2021-10-12
+pine_global,Redmi 7A Global,10.0,V12.5.2.0.QCMMIXM,Stable,2021-12-27
+pine_in_global,Redmi 7A India,10.0,V12.5.1.0.QCMINXM,Stable,2022-01-20
+pine_ru_global,Redmi 7A Russia,10.0,V12.5.2.0.QCMRUXM,Stable,2022-01-10
+pipa,Xiaomi Pad 6 China,14.0,OS2.0.20.0.UMZCNXM,Stable,2026-06-08
+pipa_eea_global,Xiaomi Pad 6 EEA,14.0,OS2.0.14.0.UMZEUXM,Stable,2026-05-09
+pipa_global,Xiaomi Pad 6 Global,14.0,OS2.0.16.0.UMZMIXM,Stable,2026-05-09
+pipa_id_global,Xiaomi Pad 6 Indonesia,14.0,OS2.0.15.0.UMZIDXM,Stable,2026-05-10
+pipa_in_global,Xiaomi Pad 6 India,14.0,OS2.0.14.0.UMZINXM,Stable,2026-05-09
+pipa_ru_global,Xiaomi Pad 6 Russia,14.0,OS2.0.15.0.UMZRUXM,Stable,2026-05-12
+pipa_tr_global,Xiaomi Pad 6 Turkey,14.0,OS2.0.13.0.UMZTRXM,Stable,2026-05-09
+pipa_tw_global,Xiaomi Pad 6 Taiwan,14.0,OS2.0.13.0.UMZTWXM,Stable,2026-05-10
+pisces,MI 3 TD China,4.4,V9.2.3.0.KXCCNEK,Stable,2018-09-07
+pissarro,Redmi Note 11 Pro / Pro+ China,13.0,OS1.0.24.0.TKTCNXM,Stable,2026-03-18
+pissarro_eea_global,Redmi Note 11 Pro+ 5G EEA,13.0,OS1.0.14.0.TKTEUXM,Stable,2025-04-18
+pissarro_global,Redmi Note 11 Pro+ 5G Global,13.0,OS1.0.17.0.TKTMIXM,Stable,2025-04-10
+pissarro_in_fk_global,Xiaomi 11i 5G India,12.0,V13.0.2.0.SKTINFK,Stable,2022-11-29
+pissarro_in_global,Xiaomi 11i / Hypercharge India,13.0,OS1.0.10.0.TKTINXM,Stable,2025-01-13
+pissarro_ru_global,Redmi Note 11 Pro+ 5G Russia,13.0,OS1.0.11.0.TKTRUXM,Stable,2025-04-10
+pissarro_tr_global,Redmi Note 11 Pro+ 5G Turkey,13.0,OS1.0.10.0.TKTTRXM,Stable,2025-03-31
+pissarro_tw_global,Redmi Note 11 Pro+ 5G Taiwan,13.0,OS1.0.12.0.TKTTWXM,Stable,2025-05-08
+platina,Mi 8 Lite China,10.0,V12.5.1.0.QDTCNXM,Stable,2021-06-25
+platina_global,Mi 8 Lite Global,10.0,V12.0.3.0.QDTMIXM,Stable,2020-09-21
+platina_ru_global,Mi 8 Lite Russia,10.0,V12.0.1.0.QDTRUXM,Stable,2020-09-12
+plato_eea_global,Xiaomi 12T EEA,15.0,OS2.0.216.0.VLQEUXM,Stable,2026-06-26
+plato_global,Xiaomi 12T Global,15.0,OS2.0.215.0.VLQMIXM,Stable,2026-06-26
+plato_id_global,Xiaomi 12T Indonesia,15.0,OS2.0.211.0.VLQIDXM,Stable,2026-09-02
+plato_ru_global,Xiaomi 12T Russia,15.0,OS2.0.211.0.VLQRUXM,Stable,2026-09-02
+plato_tr_global,Xiaomi 12T Turkey,15.0,OS2.0.211.0.VLQTRXM,Stable,2026-09-02
+plato_tw_global,Xiaomi 12T Taiwan,15.0,OS2.0.211.0.VLQTWXM,Stable,2026-09-02
+polaris,Mi MIX 2S China,10.0,V12.5.1.0.QDGCNXM,Stable,2021-07-16
+polaris_global,Mi MIX 2S Global,10.0,V12.0.3.0.QDGMIXM,Stable,2021-01-04
+polaris_ru_global,Mi MIX 2S Russia,10.0,V12.0.2.0.QDGRUXM,Stable,2020-12-22
+popsicle,Xiaomi 17 Pro Max China,16.0,OS3.0.318.0.WPBCNXM,Stable,2026-08-07
+prada,Redmi 4 China,6.0,V10.2.2.0.MCECNXM,Stable,2019-05-21
+prada_global,Redmi 4 Global,6.0,V10.2.2.0.MCEMIXM,Stable,2019-05-21
+prague,Redmi K90 Max China,16.0,OS3.0.316.0.WAACNXM,Stable,2026-08-04
+psyche,Xiaomi 12X China,13.0,OS1.0.15.0.TLDCNXM,Stable,2026-03-21
+psyche_eea_global,Xiaomi 12X EEA,13.0,OS1.0.8.0.TLDEUXM,Stable,2024-12-11
+psyche_global,Xiaomi 12X Global,13.0,OS1.0.8.0.TLDMIXM,Stable,2024-12-10
+psyche_ru_global,Xiaomi 12X Russia,13.0,OS1.0.7.0.TLDRUXM,Stable,2024-12-10
+psyche_tw_global,Xiaomi 12X Taiwan,13.0,OS1.0.6.0.TLDTWXM,Stable,2024-12-11
+pudding,Xiaomi 17 China,16.0,OS3.0.318.0.WPCCNXM,Stable,2026-08-07
+pudding_eea_global,Xiaomi 17 EEA,16.0,OS3.0.303.0.WPCEUXM,Stable,2026-08-05
+pudding_global,Xiaomi 17 Global,16.0,OS3.0.303.0.WPCMIXM,Stable,2026-07-22
+pudding_id_global,Xiaomi 17 Indonesia,16.0,OS3.0.303.0.WPCIDXM,Stable,2026-08-14
+pudding_in_global,Xiaomi 17 India,16.0,OS3.0.304.0.WPCINXM,Stable,2026-08-05
+pudding_ru_global,Xiaomi 17 Russia,16.0,OS3.0.303.0.WPCRUXM,Stable,2026-08-14
+pudding_tr_global,Xiaomi 17 Turkey,16.0,OS3.0.303.0.WPCTRXM,Stable,2026-08-19
+pudding_tw_global,Xiaomi 17 Taiwan,16.0,OS3.0.303.0.WPCTWXM,Stable,2026-08-17
+pyxis,Mi CC 9 China,11.0,V12.5.5.0.RFCCNXM,Stable,2021-11-11
+pyxis_eea_global,Mi 9 Lite EEA,11.0,V12.5.3.0.RFCEUXM,Stable,2022-08-09
+pyxis_global,Mi 9 Lite Global,11.0,V12.5.2.0.RFCMIXM,Stable,2021-07-20
+pyxis_ru_global,Mi 9 Lite Russia,11.0,V12.5.6.0.RFCRUXM,Stable,2022-06-28
+raphael,Redmi K20 Pro China,11.0,V12.5.6.0.RFKCNXM,Stable,2021-11-09
+raphael_eea_global,Mi 9T Pro EEA,11.0,V12.5.1.0.RFKEUXM,Stable,2021-07-06
+raphael_global,Mi 9T Pro Global,11.0,V12.5.2.0.RFKMIXM,Stable,2021-08-13
+raphael_ru_global,Mi 9T Pro Russia,11.0,V12.5.1.0.RFKRUXM,Stable,2021-07-15
+raphaelin_in_global,Redmi K20 Pro India,11.0,V12.5.1.0.RFKINXM,Stable,2021-07-09
+raphaels,Redmi K20 Pro Premium Edition China,9.0,V10.4.2.0.PFKCNXM,Stable,2019-09-29
+redwood,Redmi Note 12 Pro Speed China,14.0,OS2.0.20.0.UMSCNXM,Stable,2025-11-07
+redwood_eea_global,POCO X5 Pro 5G EEA,14.0,OS2.0.14.0.UMSEUXM,Stable,2026-01-05
+redwood_global,POCO X5 Pro 5G Global,14.0,OS2.0.17.0.UMSMIXM,Stable,2026-01-14
+redwood_id_global,POCO X5 Pro 5G Indonesia,14.0,OS2.0.15.0.UMSIDXM,Stable,2026-04-10
+redwood_in_global,POCO X5 Pro 5G India,14.0,OS2.0.15.0.UMSINXM,Stable,2026-01-14
+redwood_ru_global,POCO X5 Pro 5G Russia,14.0,OS2.0.11.0.UMSRUXM,Stable,2026-01-14
+redwood_tr_global,POCO X5 Pro 5G Turkey,14.0,OS2.0.12.0.UMSTRXM,Stable,2026-01-14
+redwood_tw_global,POCO X5 Pro 5G Taiwan,14.0,OS2.0.12.0.UMSTWXM,Stable,2026-01-14
+rembrandt,Redmi K60E China,14.0,OS2.0.25.0.UMMCNXM,Stable,2026-05-06
+renoir,Mi 11 Lite 5G China,13.0,V14.0.16.0.TKICNXM,Stable,2025-12-22
+renoir_eea_global,Mi 11 Lite 5G EEA,13.0,V14.0.9.0.TKIEUXM,Stable,2023-12-26
+renoir_global,Mi 11 Lite 5G Global,13.0,V14.0.7.0.TKIMIXM,Stable,2024-01-04
+renoir_jp_global,Mi 11 Lite 5G Japan,13.0,V14.0.4.0.TKIJPXM,Stable,2024-01-26
+renoir_ru_global,Mi 11 Lite 5G Russia,13.0,V14.0.6.0.TKIRUXM,Stable,2024-01-04
+renoir_tw_global,Mi 11 Lite 5G Taiwan,13.0,V14.0.6.0.TKITWXM,Stable,2024-01-31
+riva,Redmi 5A China,8.1,V11.0.6.0.OCKCNXM,Stable,2019-12-25
+riva_global,Redmi 5A Global,8.1,V11.0.2.0.OCKMIXM,Stable,2019-11-12
+rock_eea_global,POCO M5 EEA,14.0,OS1.0.5.0.ULUEUXM,Stable,2024-08-30
+rock_global,POCO M5 Global,14.0,OS1.0.12.0.ULUMIXM,Stable,2024-10-18
+rock_id_global,POCO M5 Indonesia,14.0,OS1.0.7.0.ULUIDXM,Stable,2024-11-11
+rock_in_global,POCO M5 / Redmi 11 Prime 4G India,14.0,OS1.0.8.0.ULUINXM,Stable,2024-11-11
+rock_ru_global,POCO M5 Russia,14.0,OS1.0.6.0.ULURUXM,Stable,2024-11-11
+rock_tr_global,POCO M5 Turkey,14.0,OS1.0.2.0.ULUTRXM,Stable,2024-07-04
+rock_tw_global,POCO M5 Taiwan,14.0,OS1.0.4.0.ULUTWXM,Stable,2024-05-14
+rodin,Redmi Turbo 4 China,16.0,OS3.0.304.0.WOJCNXM,Stable,2026-07-22
+rodin_eea_global,POCO X7 Pro EEA,16.0,OS3.0.301.0.WOJEUXM,Stable,2026-06-26
+rodin_global,POCO X7 Pro Global,16.0,OS3.0.301.0.WOJMIXM,Stable,2026-07-09
+rodin_id_global,POCO X7 Pro Indonesia,16.0,OS3.0.301.0.WOJIDXM,Stable,2026-07-22
+rodin_in_global,POCO X7 Pro India,16.0,OS3.0.302.0.WOJINXM,Stable,2026-07-22
+rodin_ru_global,POCO X7 Pro Russia,16.0,OS3.0.301.0.WOJRUXM,Stable,2026-06-26
+rodin_tr_global,POCO X7 Pro Turkey,16.0,OS3.0.301.0.WOJTRXM,Stable,2026-07-09
+rodin_tw_global,POCO X7 Pro Taiwan,16.0,OS3.0.301.0.WOJTWXM,Stable,2026-07-30
+rolex,Redmi 4A China,6.0,V10.2.2.0.MCCCNXM,Stable,2019-05-21
+rolex_global,Redmi 4A Global,7.1,V10.2.3.0.NCCMIXM,Stable,2019-07-03
+rosemary_eea_global,Redmi Note 10S EEA,13.0,V14.0.11.0.TKLEUXM,Stable,2024-08-02
+rosemary_global,Redmi Note 10S Global,13.0,V14.0.11.0.TKLMIXM,Stable,2024-07-22
+rosemary_id_global,Redmi Note 10S Indonesia,13.0,V14.0.5.0.TKLIDXM,Stable,2024-05-20
+rosemary_in_global,Redmi Note 10S / Redmi Note 11 SE India,13.0,V14.0.11.0.TKLINXM,Stable,2024-09-02
+rosemary_p_eea_global,POCO M5S EEA,13.0,V14.0.15.0.TFFEUXM,Stable,2024-12-13
+rosemary_p_global,POCO M5S Global,13.0,V14.0.17.0.TFFMIXM,Stable,2025-01-03
+rosemary_p_id_global,POCO M5S Indonesia,13.0,V14.0.8.0.TFFIDXM,Stable,2025-01-13
+rosemary_p_ru_global,POCO M5S Russia,13.0,V14.0.13.0.TFFRUXM,Stable,2025-01-14
+rosemary_p_tr_global,POCO M5S Turkey,13.0,V14.0.5.0.TFFTRXM,Stable,2025-01-21
+rosemary_p_tw_global,POCO M5S Taiwan,13.0,V14.0.9.0.TFFTWXM,Stable,2025-01-22
+rosemary_ru_global,Redmi Note 10S Russia,13.0,V14.0.4.0.TKLRUXM,Stable,2024-08-01
+rosemary_tr_global,Redmi Note 10S Turkey,13.0,V14.0.6.0.TKLTRXM,Stable,2024-08-06
+rosemary_tw_global,Redmi Note 10S Taiwan,13.0,V14.0.3.0.TKLTWXM,Stable,2024-08-12
+rosy,Redmi 5 China,8.1,V11.0.4.0.ODACNXM,Stable,2019-12-25
+rosy_global,Redmi 5 Global,8.1,V11.0.2.0.ODAMIXM,Stable,2020-01-09
+rosy_ru_global,Redmi 5 Russia,8.1,V11.0.1.0.ODARUXM,Stable,2019-11-07
+rothko,Redmi K70 Ultra China,16.0,OS3.0.303.0.WNNCNXM,Stable,2026-06-17
+rothko_eea_global,Xiaomi 14T Pro EEA,16.0,OS3.0.302.0.WNNEUXM,Stable,2026-06-10
+rothko_global,Xiaomi 14T Pro Global,16.0,OS3.0.301.0.WNNMIXM,Stable,2026-06-30
+rothko_id_global,Xiaomi 14T Pro India,16.0,OS3.0.301.0.WNNIDXM,Stable,2026-07-13
+rothko_jp_global,Xiaomi 14T Pro Japan,16.0,OS3.0.4.0.WNNJPXM,Stable,2026-08-27
+rothko_ru_global,Xiaomi 14T Pro Russia,16.0,OS3.0.302.0.WNNRUXM,Stable,2026-07-20
+rothko_tr_global,Xiaomi 14T Pro Turkey,16.0,OS3.0.301.0.WNNTRXM,Stable,2026-07-06
+rothko_tw_global,Xiaomi 14T Pro Taiwan,16.0,OS3.0.302.0.WNNTWXM,Stable,2026-09-03
+ruan,Redmi Pad Pro 5G China,16.0,OS3.0.307.0.WFSCNXM,Stable,2026-07-29
+ruan_eea_global,Redmi Pad Pro 5G / POCO Pad 5G EEA,16.0,OS3.0.302.0.WFSEUXM,Stable,2026-07-31
+ruan_global,Redmi Pad Pro 5G / POCO Pad 5G Global,16.0,OS3.0.303.0.WFSMIXM,Stable,2026-08-20
+ruan_in_global,Redmi Pad Pro 5G / POCO Pad 5G India,16.0,OS3.0.305.0.WFSINXM,Stable,2026-08-25
+ruan_ru_global,Redmi Pad Pro 5G / POCO Pad 5G Russia,16.0,OS3.0.305.0.WFSRUXM,Stable,2026-08-20
+rubens,Redmi K50 China,14.0,OS2.0.5.0.ULNCNXM,Stable,2025-05-08
+ruby,Redmi Note 12 Pro / Pro+ / Discovery 5G China,14.0,OS2.0.20.0.UMOCNXM,Stable,2026-05-19
+ruby_eea_global,Redmi Note 12 Pro / Pro+ 5G EEA,14.0,OS2.0.16.0.UMOEUXM,Stable,2026-08-25
+ruby_global,Redmi Note 12 Pro / Pro+ 5G Global,14.0,OS2.0.15.0.UMOMIXM,Stable,2026-08-25
+ruby_id_global,Redmi Note 12 Pro / Pro+ 5G Indonesia,14.0,OS2.0.15.0.UMOIDXM,Stable,2026-06-29
+ruby_in_global,Redmi Note 12 Pro / Pro+ 5G India,14.0,OS2.0.13.0.UMOINXM,Stable,2026-06-29
+ruby_kr_global,Redmi Note 12 Pro / Pro+ 5G South Korea,14.0,OS2.0.5.0.UMOKRXM,Stable,2026-07-15
+ruby_ru_global,Redmi Note 12 Pro / Pro+ 5G Russia,14.0,OS2.0.10.0.UMORUXM,Stable,2026-02-23
+ruby_tr_global,Redmi Note 12 Pro / Pro+ 5G Turkey,14.0,OS2.0.8.0.UMOTRXM,Stable,2026-02-03
+ruby_tw_global,Redmi Note 12 Pro / Pro+ 5G Taiwan,14.0,OS2.0.8.0.UMOTWXM,Stable,2026-02-03
+ruyi,MIX Flip China,16.0,OS3.0.305.0.WNICNXM,Stable,2026-06-15
+ruyi_eea_global,MIX Flip EEA,16.0,OS3.0.303.0.WNIEUXM,Stable,2026-08-19
+ruyi_global,MIX Flip Global,16.0,OS3.0.303.0.WNIMIXM,Stable,2026-08-19
+ruyi_ru_global,MIX Flip Russia,16.0,OS3.0.302.0.WNIRUXM,Stable,2026-07-17
+ruyi_tw_global,MIX Flip Taiwan,16.0,OS3.0.301.0.WNITWXM,Stable,2026-05-29
+sagit,Mi 6 China,9.0,V11.0.5.0.PCACNXM,Stable,2020-03-10
+sagit_global,Mi 6 Global,9.0,V11.0.6.0.PCAMIXM,Stable,2020-03-23
+sakura,Redmi 6 Pro China,9.0,V12.0.1.0.PDICNXM,Stable,2020-08-05
+sakura_india_global,Redmi 6 Pro India,9.0,V12.0.4.0.PDMMIXM,Stable,2020-11-12
+santoni,Redmi 4X China,7.1,V11.0.1.0.NAMCNXM,Stable,2019-11-12
+santoni_global,Redmi 4X Global,7.1,V11.0.2.0.NAMMIXM,Stable,2019-11-21
+sapphire_global,Redmi Note 13 Global,15.0,OS2.0.212.0.VNGMIXM,Stable,2026-08-25
+sapphiren_eea_global,Redmi Note 13 NFC EEA,15.0,OS2.0.214.0.VNHEUXM,Stable,2026-08-07
+sapphiren_global,Redmi Note 13 NFC Global,15.0,OS2.0.211.0.VNHMIXM,Stable,2026-08-25
+sapphiren_id_global,Redmi Note 13 NFC Indonesia,15.0,OS2.0.211.0.VNHIDXM,Stable,2026-08-25
+sapphiren_ru_global,Redmi Note 13 NFC Russia,15.0,OS2.0.213.0.VNHRUXM,Stable,2026-08-25
+sapphiren_tr_global,Redmi Note 13 NFC Turkey,15.0,OS2.0.210.0.VNHTRXM,Stable,2026-04-22
+sapphiren_tw_global,Redmi Note 13 NFC Taiwan,15.0,OS2.0.211.0.VNHTWXM,Stable,2026-08-25
+scorpio,Mi Note 2 China,8.0,V11.0.2.0.OADCNXM,Stable,2019-12-04
+scorpio_global,Mi Note 2 Global,8.0,V11.0.2.0.OADMIXM,Stable,2019-11-13
+sea_eea_global,Redmi Note 12S EEA,15.0,OS2.0.211.0.VHZEUXM,Stable,2026-08-31
+sea_global,Redmi Note 12S Global,15.0,OS2.0.212.0.VHZMIXM,Stable,2026-04-09
+sea_ru_global,Redmi Note 12S Russia,15.0,OS2.0.209.0.VHZRUXM,Stable,2026-02-02
+sea_tr_global,Redmi Note 12S Turkey,15.0,OS2.0.208.0.VHZTRXM,Stable,2026-02-02
+sea_tw_global,Redmi Note 12S Taiwan,15.0,OS2.0.209.0.VHZTWXM,Stable,2026-02-02
+selene,Redmi 10 / Redmi 10 2022 China,13.0,V14.0.5.0.TKUCNXM,Stable,2024-07-25
+selene_eea_global,Redmi 10 / Redmi 10 2022 EEA,13.0,V14.0.9.0.TKUEUXM,Stable,2024-06-07
+selene_global,Redmi 10 / Redmi 10 2022 Global,13.0,V14.0.7.0.TKUMIXM,Stable,2024-05-09
+selene_id_global,Redmi 10 / Redmi 10 2022 Indonesia,13.0,V14.0.5.0.TKUIDXM,Stable,2024-05-09
+selene_in_global,Redmi 10 Prime / Redmi 10 2022 India,13.0,V14.0.8.0.TKUINXM,Stable,2024-05-09
+selene_ru_global,Redmi 10 / Redmi 10 2022 Russia,13.0,V14.0.2.0.TKURUXM,Stable,2023-10-13
+selene_tr_global,Redmi 10 / Redmi 10 2022 Turkey,13.0,V14.0.3.0.TKUTRXM,Stable,2023-12-18
+selene_tw_global,Redmi 10 / Redmi 10 2022 Taiwan,13.0,V14.0.2.0.TKUTWXM,Stable,2023-12-25
+selenes,Redmi Note 11 4G China,13.0,V14.0.2.0.TKUCNXM,Stable,2023-05-16
+serenity_eea_global,Redmi A5 / A7 / POCO C71 / C81x EEA,15.0,A15.0.17.0.VGWEUXM,Stable,2026-09-05
+serenity_global,Redmi A5 / A7 / POCO C71 / C81x Global,15.0,A15.0.31.0.VGWMIXM,Stable,2026-08-25
+serenity_id_global,Redmi A5 / A7 / POCO C71 / C81x Indonesia,15.0,A15.0.12.0.VGWIDXM,Stable,2026-08-31
+serenity_in_global,Redmi A5 / A7 / POCO C71 / C81x India,15.0,A15.0.20.0.VGWINXM,Stable,2026-09-03
+serenity_ru_global,Redmi A5 / A7 / POCO C71 / C81x Russia,15.0,A15.0.16.0.VGWRUXM,Stable,2026-09-03
+sheng,Xiaomi Pad 6S Pro 12.4 China,16.0,OS3.0.304.0.WNXCNXM,Stable,2026-07-13
+sheng_eea_global,Xiaomi Pad 6S Pro 12.4 EEA,16.0,OS3.0.302.0.WNXEUXM,Stable,2026-08-05
+sheng_global,Xiaomi Pad 6S Pro 12.4 Global,16.0,OS3.0.303.0.WNXMIXM,Stable,2026-07-17
+sheng_id_global,Xiaomi Pad 6S Pro 12.4 Indonesia,16.0,OS3.0.302.0.WNXIDXM,Stable,2026-08-17
+sheng_ru_global,Xiaomi Pad 6S Pro 12.4 Russia,16.0,OS3.0.302.0.WNXRUXM,Stable,2026-08-14
+shennong,Xiaomi 14 Pro / Ti China,16.0,OS3.0.308.0.WNBCNXM,Stable,2026-08-28
+shennong_t,Xiaomi 14 Pro Ti Satellite China,15.0,OS2.0.6.0.VNBCNXM,Stable,2024-11-09
+shiva_in_global,POCO M2 India,11.0,V12.5.7.0.RJRINXM,Stable,2022-08-01
+sirius,Mi 8 SE China,10.0,V12.5.1.0.QEBCNXM,Stable,2021-07-12
+sky,Redmi Note 12R China,15.0,OS2.0.205.0.VMWCNXM,Stable,2025-09-18
+sky_eea_global,Redmi 12 5G / POCO M6 Pro 5G EEA,15.0,OS2.0.217.0.VMWEUXM,Stable,2026-08-17
+sky_global,Redmi 12 5G / POCO M6 Pro 5G Global,15.0,OS2.0.210.0.VMWMIXM,Stable,2026-08-17
+sky_in_global,Redmi 12 5G / POCO M6 Pro 5G India,15.0,OS2.0.203.0.VMWINXM,Stable,2026-07-02
+sky_jp_global,Redmi 12 5G Japan,15.0,OS2.0.204.0.VMWJPXM,Stable,2026-07-27
+sky_tw_global,Redmi 12 5G / POCO M6 Pro 5G Taiwan,15.0,OS2.0.209.0.VMWTWXM,Stable,2026-09-03
+socrates,Redmi K60 Pro China,16.0,OS3.0.304.0.WMKCNXM,Stable,2026-07-17
+somalia,Redmi 17 5G / R70 5G / R70m 5G China,16.0,OS3.0.13.0.WBWCNXM,Stable,2026-08-27
+somalia_in_global,Redmi 15A/A7 Pro/POCO C85x 5G India,16.0,OS3.0.12.0.WBWINXM,Stable,2026-08-18
+songyuan,Redmi K100 Pro Max China,16.0,OS3.0.306.0.WGNCNXM,Stable,2026-08-11
+songyuan_eea_global,POCO F9 Ultra EEA,16.0,OS3.0.303.0.WGNEUXM,Stable,2026-09-01
+songyuan_global,POCO F9 Ultra Global,16.0,OS3.0.301.0.WGNMIXM,Stable,2026-09-01
+songyuan_jp_global,POCO F9 Ultra Japan,16.0,OS3.0.302.0.WGNJPXM,Stable,2026-09-01
+songyuan_ru_global,POCO F9 Ultra Russia,16.0,OS3.0.302.0.WGNRUXM,Stable,2026-09-01
+songyuan_tr_global,POCO F9 Ultra Turkey,16.0,OS3.0.301.0.WGNTRXM,Stable,2026-09-01
+songyuan_tw_global,POCO F9 Ultra Taiwan,16.0,OS3.0.301.0.WGNTWXM,Stable,2026-09-04
+spark_eea_global,Redmi Pad SE 8.7 4G EEA,16.0,OS3.0.302.0.WHYEUXM,Stable,2026-07-09
+spark_global,Redmi Pad SE 8.7 4G Global,16.0,OS3.0.303.0.WHYMIXM,Stable,2026-07-29
+spark_in_global,Redmi Pad SE 8.7 4G India,16.0,OS3.0.302.0.WHYINXM,Stable,2026-07-09
+spark_ru_global,Redmi Pad SE 8.7 4G Russia,16.0,OS3.0.302.0.WHYRUXM,Stable,2026-07-15
+spark_tw_global,Redmi Pad SE 8.7 4G Taiwan,16.0,OS3.0.302.0.WHYTWXM,Stable,2026-07-21
+spes_global,Redmi Note 11 Global,13.0,OS1.0.8.0.TGCMIXM,Stable,2024-10-17
+spes_in_global,Redmi Note 11 India,13.0,OS1.0.6.0.TGCINXM,Stable,2025-03-31
+spes_tr_global,Redmi Note 11 Turkey,13.0,OS1.0.6.0.TGCTRXM,Stable,2025-07-01
+spesn_eea_global,Redmi Note 11 NFC EEA,13.0,OS1.0.11.0.TGKEUXM,Stable,2025-04-02
+spesn_global,Redmi Note 11 NFC Global,13.0,OS1.0.11.0.TGKMIXM,Stable,2025-05-14
+spesn_id_global,Redmi Note 11 NFC Indonesia,13.0,OS1.0.2.0.TGKIDXM,Stable,2024-07-13
+spesn_ru_global,Redmi Note 11 NFC Russia,13.0,OS1.0.6.0.TGKRUXM,Stable,2025-05-14
+spinel_eea_global,Redmi Note 15 4G EEA,16.0,OS3.0.301.0.WPGEUXM,Stable,2026-07-10
+spinel_global,Redmi Note 15 4G Global,16.0,OS3.0.302.0.WPGMIXM,Stable,2026-08-04
+spinel_id_global,Redmi Note 15 4G Indonesia,16.0,OS3.0.301.0.WPGIDXM,Stable,2026-07-17
+spinel_ru_global,Redmi Note 15 4G Russia,16.0,OS3.0.301.0.WPGRUXM,Stable,2026-07-17
+spinel_tr_global,Redmi Note 15 4G Turkey,16.0,OS3.0.301.0.WPGTRXM,Stable,2026-08-04
+spinel_tw_global,Redmi Note 15 4G Taiwan,16.0,OS3.0.301.0.WPGTWXM,Stable,2026-08-15
+spring,Redmi 15R 5G China,16.0,OS3.0.302.0.WOUCNXM,Stable,2026-04-27
+spring_eea_global,Redmi 15 5G / M7 Plus / M8s 5G EEA,16.0,OS3.0.301.0.WOUEUXM,Stable,2026-07-13
+spring_global,Redmi 15 5G / M7 Plus / M8s 5G Global,16.0,OS3.0.303.0.WOUMIXM,Stable,2026-08-13
+spring_in_global,Redmi 15 5G / POCO M7 Plus 5G India,16.0,OS3.0.303.0.WOUINXM,Stable,2026-08-07
+spring_jp_global,Redmi 15 5G / POCO M7 Plus 5G Japan,16.0,OS3.0.301.0.WOUJPXM,Stable,2026-07-22
+spring_tr_global,Redmi 15 5G / POCO M7 Plus 5G Turkey,16.0,OS3.0.302.0.WOUTRXM,Stable,2026-08-11
+spring_tw_global,Redmi 15 5G / POCO M7 Plus 5G Taiwan,16.0,OS3.0.301.0.WOUTWXM,Stable,2026-07-29
+star,Mi 11 Pro / Ultra China,14.0,OS2.0.1.0.UKACNXM,Stable,2025-03-25
+star_eea_global,Mi 11 Ultra EEA,14.0,OS2.0.3.0.UKAEUXM,Stable,2025-06-30
+star_global,Mi 11 Ultra Global,14.0,OS2.0.6.0.UKAMIXM,Stable,2025-06-30
+star_id_global,Mi 11 Ultra Indonesia,14.0,OS2.0.2.0.UKAIDXM,Stable,2025-05-27
+star_in_global,Mi 11 Ultra India,14.0,OS2.0.2.0.UKAINXM,Stable,2025-05-27
+steppe,Redmi M100 China,16.0,OS3.0.304.0.WAVCNXM,Stable,2026-08-27
+steppe_eea_global,Redmi 17 5G EEA,16.0,OS3.0.308.0.WAVEUXM,Stable,2026-09-04
+steppe_global,Redmi 17 5G Global,16.0,OS3.0.310.0.WAVMIXM,Stable,2026-08-24
+steppe_id_global,Redmi 17 5G Indonesia,16.0,OS3.0.301.0.WAVIDXM,Stable,2026-09-03
+steppe_in_global,Redmi 17 5G / POCO M8x 5G India,16.0,OS3.0.302.0.WAVINXM,Stable,2026-09-03
+steppe_tr_global,Redmi 17 5G Turkey,16.0,OS3.0.301.0.WAVTRXM,Stable,2026-09-03
+steppe_tw_global,Redmi 17 5G Taiwan,16.0,OS3.0.303.0.WAVTWXM,Stable,2026-09-03
+sunstone,Redmi Note 12 5G / Note 12R Pro China,14.0,OS2.0.6.0.UMQCNXM,Stable,2025-08-22
+sunstone_eea_global,Redmi Note 12 5G EEA,14.0,OS2.0.9.0.UMQEUXM,Stable,2026-03-02
+sunstone_global,Redmi Note 12 5G Global,14.0,OS2.0.5.0.UMQMIXM,Stable,2025-10-28
+sunstone_in_global,Redmi Note 12 5G India,14.0,OS2.0.6.0.UMQINXM,Stable,2025-08-28
+sunstone_tw_global,Redmi Note 12 5G Taiwan,14.0,OS2.0.6.0.UMQTWXM,Stable,2025-08-28
+surya_eea_global,POCO X3 NFC EEA,12.0,V14.0.5.0.SJGEUXM,Stable,2023-08-17
+surya_global,POCO X3 NFC Global,12.0,V14.0.2.0.SJGMIXM,Stable,2023-07-25
+surya_id_global,POCO X3 NFC Indonesia,12.0,V14.0.2.0.SJGIDXM,Stable,2023-07-21
+surya_in_global,POCO X3 India,12.0,V13.0.1.0.SJGINXM,Stable,2022-08-25
+surya_ru_global,POCO X3 NFC Russia,12.0,V14.0.2.0.SJGRUXM,Stable,2023-07-21
+surya_tr_global,POCO X3 NFC Turkey,12.0,V14.0.2.0.SJGTRXM,Stable,2023-07-21
+sweet_eea_global,Redmi Note 10 Pro EEA,13.0,V14.0.9.0.TKFEUXM,Stable,2023-12-11
+sweet_global,Redmi Note 10 Pro Global,13.0,V14.0.8.0.TKFMIXM,Stable,2023-11-01
+sweet_id_global,Redmi Note 10 Pro Indonesia,13.0,V14.0.2.0.TKFIDXM,Stable,2023-03-30
+sweet_k6a_eea_global,Redmi Note 12 Pro 4G EEA,13.0,OS1.0.37.0.THGEUXM,Stable,2026-07-01
+sweet_k6a_global,Redmi Note 12 Pro 4G Global,13.0,OS1.0.34.0.THGMIXM,Stable,2026-06-18
+sweet_k6a_id_global,Redmi Note 12 Pro 4G Indonesia,13.0,OS1.0.25.0.THGIDXM,Stable,2026-07-10
+sweet_k6a_ru_global,Redmi Note 12 Pro 4G Russia,13.0,OS1.0.28.0.THGRUXM,Stable,2026-07-01
+sweet_k6a_tr_global,Redmi Note 12 Pro 4G Turkey,13.0,OS1.0.25.0.THGTRXM,Stable,2026-07-10
+sweet_ru_global,Redmi Note 10 Pro Russia,13.0,V14.0.2.0.TKFRUXM,Stable,2023-08-16
+sweet_tr_global,Redmi Note 10 Pro Turkey,13.0,V14.0.2.0.TKFTRXM,Stable,2023-08-16
+sweet_tw_global,Redmi Note 10 Pro Taiwan,13.0,V14.0.4.0.TKFTWXM,Stable,2023-11-27
+sweetin_in_global,Redmi Note 10 Pro / Pro Max India,13.0,V14.0.1.0.TKFINXM,Stable,2023-04-07
+taiko,Redmi Pad 2 China,16.0,OS3.0.307.0.WOVCNXM,Stable,2026-08-13
+taiko_eea_global,Redmi Pad 2 EEA,16.0,OS3.0.303.0.WOVEUXM,Stable,2026-08-10
+taiko_global,Redmi Pad 2 Global,16.0,OS3.0.304.0.WOVMIXM,Stable,2026-08-04
+taiko_id_global,Redmi Pad 2 Indonesia,16.0,OS3.0.302.0.WOVIDXM,Stable,2026-08-21
+taiko_in_global,Redmi Pad 2 India,16.0,OS3.0.302.0.WOVINXM,Stable,2026-08-27
+taiko_ru_global,Redmi Pad 2 Russia,16.0,OS3.0.302.0.WOVRUXM,Stable,2026-08-13
+taiko_tr_global,Redmi Pad 2 Turkey,16.0,OS3.0.302.0.WOVTRXM,Stable,2026-08-18
+taiko_tw_global,Redmi Pad 2 Taiwan,16.0,OS3.0.302.0.WOVTWXM,Stable,2026-08-21
+tanzanite_eea_global,Redmi Note 14 4G EEA,16.0,OS3.0.301.0.WOGEUXM,Stable,2026-06-26
+tanzanite_global,Redmi Note 14 4G Global,16.0,OS3.0.303.0.WOGMIXM,Stable,2026-08-27
+tanzanite_id_global,Redmi Note 14 4G Indonesia,16.0,OS3.0.302.0.WOGIDXM,Stable,2026-07-14
+tanzanite_ru_global,Redmi Note 14 4G Russia,16.0,OS3.0.302.0.WOGRUXM,Stable,2026-07-13
+tanzanite_tr_global,Redmi Note 14 4G Turkey,16.0,OS3.0.302.0.WOGTRXM,Stable,2026-08-04
+tanzanite_tw_global,Redmi Note 14 4G Taiwan,16.0,OS3.0.302.0.WOGTWXM,Stable,2026-06-29
+taoyao_eea_global,Xiaomi 12 Lite EEA,14.0,OS1.0.39.0.ULIEUXM,Stable,2026-06-09
+taoyao_global,Xiaomi 12 Lite Global,14.0,OS1.0.34.0.ULIMIXM,Stable,2026-06-09
+taoyao_id_global,Xiaomi 12 Lite Indonesia,14.0,OS1.0.29.0.ULIIDXM,Stable,2026-06-09
+taoyao_ru_global,Xiaomi 12 Lite Russia,14.0,OS1.0.28.0.ULIRUXM,Stable,2026-06-09
+taoyao_tr_global,Xiaomi 12 Lite Turkey,14.0,OS1.0.28.0.ULITRXM,Stable,2026-06-09
+taoyao_tw_global,Xiaomi 12 Lite Taiwan,14.0,OS1.0.28.0.ULITWXM,Stable,2026-06-09
+tapas_global,Redmi Note 12 4G Global,15.0,OS2.0.208.0.VMTMIXM,Stable,2026-08-04
+tapas_in_global,Redmi Note 12 4G India,15.0,OS2.0.205.0.VMTINXM,Stable,2026-08-25
+tapas_tr_global,Redmi Note 12 4G Turkey,15.0,OS2.0.205.0.VMTTRXM,Stable,2026-08-25
+taurus,Mi 2A China,4.1,JLB54.0,Stable,2015-04-27
+thor,Xiaomi 12S Ultra China,15.0,OS3.0.6.0.VLACNXM,Stable,2026-05-26
+thyme,Mi 10S China,13.0,OS1.0.4.0.TGACNXM,Stable,2024-06-12
+tiare_eea_global,Redmi Go EEA,8.1,V10.2.19.0.OCLEUXM,Stable,2021-02-19
+tiare_global,Redmi Go Global,8.1,V10.2.25.0.OCLMIXM,Stable,2021-02-18
+tiare_in_global,Redmi Go India,8.1,V10.2.19.0.OCLINXM,Stable,2021-02-24
+tiare_ru_global,Redmi Go Russia,8.1,V10.2.21.0.OCLRUXM,Stable,2021-04-16
+tiffany,Mi 5X China,8.1,V11.0.3.0.ODBCNXM,Stable,2019-11-27
+tissot,Mi A1 Global,9.0,V10.0.24.0.PDHMIXM,Stable,2020-08-23
+toco_eea_global,Mi Note 10 Lite EEA,12.0,V13.0.6.0.SFNEUXM,Stable,2023-01-21
+toco_global,Mi Note 10 Lite Global,12.0,V13.0.4.0.SFNMIXM,Stable,2022-11-03
+toco_ru_global,Mi Note 10 Lite Russia,12.0,V13.0.4.0.SFNRUXM,Stable,2022-11-09
+toco_tr_global,Mi Note 10 Lite Turkey,12.0,V13.0.3.0.SFNTRXM,Stable,2022-11-08
+topaz_eea_global,Redmi Note 12 4G NFC EEA,15.0,OS2.0.213.0.VMGEUXM,Stable,2026-07-31
+topaz_global,Redmi Note 12 4G NFC Global,15.0,OS2.0.206.0.VMGMIXM,Stable,2026-08-17
+topaz_id_global,Redmi Note 12 4G NFC Indonesia,15.0,OS2.0.205.0.VMGIDXM,Stable,2026-08-25
+topaz_ru_global,Redmi Note 12 4G NFC Russia,15.0,OS2.0.205.0.VMGRUXM,Stable,2026-08-25
+tornado,Redmi 15C 5G / 15R 5G China,16.0,OS3.0.302.0.WPOCNXM,Stable,2026-04-27
+tornado_eea_global,Redmi 15C 5G / 15R 5G EEA,16.0,OS3.0.303.0.WPOEUXM,Stable,2026-07-31
+tornado_global,Redmi 15C 5G / 15R 5G / 17C 5G Global,16.0,OS3.0.303.0.WPOMIXM,Stable,2026-07-16
+tornado_in_global,Redmi 15C 5G / POCO C85 5G India,16.0,OS3.0.305.0.WPOINXM,Stable,2026-07-10
+tornado_tr_global,Redmi 15C 5G / 15R 5G Turkey,16.0,OS3.0.301.0.WPOTRXM,Stable,2026-05-22
+tucana,Mi CC 9 Pro China,11.0,V13.0.1.0.RFDCNXM,Stable,2022-04-03
+tucana_eea_global,Mi Note 10 / Note 10 Pro EEA,11.0,V13.0.2.0.RFDEUXM,Stable,2022-09-09
+tucana_global,Mi Note 10 / Note 10 Pro Global,11.0,V13.0.2.0.RFDMIXM,Stable,2022-09-15
+tucana_id_global,Mi Note 10 / Note 10 Pro Indonesia,11.0,V13.0.3.0.RFDIDXM,Stable,2022-09-19
+tucana_ru_global,Mi Note 10 / Note 10 Pro Russia,11.0,V13.0.3.0.RFDRUXM,Stable,2022-09-22
+tulip_global,Redmi Note 6 Pro Global,9.0,V12.0.1.0.PEKMIXM,Stable,2021-01-06
+tulip_ru_global,Redmi Note 6 Pro Russia,8.1,V10.2.1.0.OEKRUXM,Stable,2019-03-11
+turner,Redmi K Pad China,16.0,OS3.0.308.0.WAOCNXM,Stable,2026-08-13
+turner_global,Xiaomi Pad Mini Global,16.0,OS3.0.304.0.WAOMIXM,Stable,2026-08-12
+turner_tw_global,Xiaomi Pad Mini Taiwan,16.0,OS3.0.303.0.WAOTWXM,Stable,2026-08-13
+ugg,Redmi Note 5A Prime China,7.1,V11.0.1.0.NDKCNXM,Stable,2019-11-05
+ugg_global,Redmi Note 5A Prime Global,7.1,V11.0.2.0.NDKMIXM,Stable,2019-11-12
+ugglite,Redmi Note 5A (2GB) China,7.1,V11.0.2.0.NDFCNXM,Stable,2019-11-05
+ugglite_global,Redmi Note 5A (2GB) Global,7.1,V11.0.3.0.NDFMIXM,Stable,2019-11-12
+uke,Xiaomi Pad 7 China,16.0,OS3.0.302.0.WOZCNXM,Stable,2026-06-16
+uke_eea_global,Xiaomi Pad 7 / POCO Pad X1 EEA,16.0,OS3.0.303.0.WOZEUXM,Stable,2026-07-21
+uke_global,Xiaomi Pad 7 / POCO Pad X1 Global,16.0,OS3.0.303.0.WOZMIXM,Stable,2026-07-16
+uke_id_global,Xiaomi Pad 7 / POCO Pad X1 Indonesia,16.0,OS3.0.303.0.WOZIDXM,Stable,2026-08-07
+uke_in_global,Xiaomi Pad 7 / POCO Pad X1 India,16.0,OS3.0.304.0.WOZINXM,Stable,2026-07-21
+uke_ru_global,Xiaomi Pad 7 / POCO Pad X1 Russia,16.0,OS3.0.303.0.WOZRUXM,Stable,2026-08-07
+uke_tw_global,Xiaomi Pad 7 / POCO Pad X1 Taiwan,16.0,OS3.0.303.0.WOZTWXM,Stable,2026-08-14
+umi,Mi 10 China,13.0,OS1.0.3.0.TJBCNXM,Stable,2024-04-15
+umi_eea_global,Mi 10 EEA,13.0,V14.0.2.0.TJBEUXM,Stable,2023-05-25
+umi_global,Mi 10 Global,13.0,OS1.0.3.0.TJBMIXM,Stable,2024-05-08
+umi_id_global,Mi 10 Indonesia,13.0,V14.0.1.0.TJBIDXM,Stable,2023-05-09
+umi_in_global,Mi 10 India,13.0,V14.0.6.0.TJBINXM,Stable,2023-05-29
+umi_ru_global,Mi 10 Russia,12.0,V13.0.3.0.SJBRUXM,Stable,2022-07-15
+umi_tr_global,Mi 10 Turkey,13.0,V14.0.2.0.TJBTRXM,Stable,2023-05-16
+unicorn,Xiaomi 12S Pro China,15.0,OS3.0.4.0.VLECNXM,Stable,2026-06-25
+ursa,Mi 8 Explorer China,10.0,V12.5.3.0.QEHCNXM,Stable,2021-11-15
+vangogh,Mi 10 Lite Zoom China,12.0,V13.0.9.0.SJVCNXM,Stable,2022-11-10
+vayu_eea_global,POCO X3 Pro EEA,13.0,V14.0.2.0.TJUEUXM,Stable,2023-04-19
+vayu_global,POCO X3 Pro Global,13.0,V14.0.3.0.TJUMIXM,Stable,2023-05-18
+vayu_id_global,POCO X3 Pro Indonesia,13.0,V14.0.3.0.TJUIDXM,Stable,2023-03-09
+vayu_in_global,POCO X3 Pro India,13.0,V14.0.2.0.TJUINXM,Stable,2023-06-01
+vayu_ru_global,POCO X3 Pro Russia,13.0,V14.0.1.0.TJURUXM,Stable,2023-03-09
+vayu_tr_global,POCO X3 Pro Turkey,13.0,V14.0.1.0.TJUTRXM,Stable,2023-03-13
+vayu_tw_global,POCO X3 Pro Taiwan,13.0,V14.0.2.0.TJUTWXM,Stable,2023-03-23
+vela,Mi CC 9 Meitu Edition China,11.0,V12.5.5.0.RFECNXM,Stable,2021-11-15
+venus,Mi 11 China,14.0,OS2.0.6.0.UKBCNXM,Stable,2025-12-17
+venus_eea_global,Mi 11 EEA,14.0,OS2.0.3.0.UKBEUXM,Stable,2026-01-14
+venus_global,Mi 11 Global,14.0,OS2.0.3.0.UKBMIXM,Stable,2026-01-14
+venus_id_global,Mi 11 Indonesia,14.0,OS2.0.4.0.UKBIDXM,Stable,2026-01-14
+venus_ru_global,Mi 11 Russia,14.0,OS2.0.3.0.UKBRUXM,Stable,2026-01-14
+venus_tr_global,Mi 11 Turkey,14.0,OS2.0.3.0.UKBTRXM,Stable,2026-01-14
+venus_tw_global,Mi 11 Taiwan,14.0,OS2.0.2.0.UKBTWXM,Stable,2026-01-14
+vermeer,Redmi K70 China,16.0,OS3.0.307.0.WNKCNXM,Stable,2026-08-31
+vermeer_eea_global,POCO F6 Pro EEA,16.0,OS3.0.302.0.WNKEUXM,Stable,2026-07-23
+vermeer_global,POCO F6 Pro Global,16.0,OS3.0.304.0.WNKMIXM,Stable,2026-08-28
+vermeer_ru_global,POCO F6 Pro Russia,16.0,OS3.0.302.0.WNKRUXM,Stable,2026-07-29
+vermeer_tw_global,POCO F6 Pro Taiwan,16.0,OS3.0.302.0.WNKTWXM,Stable,2026-08-03
+veux,Redmi Note 11E Pro China,13.0,OS1.0.10.0.TKCCNXM,Stable,2024-12-27
+veux_eea_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G EEA,13.0,OS1.0.13.0.TKCEUXM,Stable,2026-01-08
+veux_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G Global,13.0,OS1.0.12.0.TKCMIXM,Stable,2024-12-13
+veux_id_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G Indonesia,13.0,OS1.0.10.0.TKCIDXM,Stable,2024-12-24
+veux_in_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G India,13.0,OS1.0.9.0.TKCINXM,Stable,2024-12-25
+veux_jp_global,Redmi Note 11 Pro 5G Japan,13.0,OS1.0.8.0.TKCJPXM,Stable,2024-12-26
+veux_ru_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G Russia,13.0,OS1.0.9.0.TKCRUXM,Stable,2024-12-27
+veux_tr_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G Turkey,13.0,OS1.0.8.0.TKCTRXM,Stable,2024-12-27
+veux_tw_global,Redmi Note 11 Pro 5G / POCO X4 Pro 5G Taiwan,13.0,OS1.0.8.0.TKCTWXM,Stable,2024-12-26
+vida_in_global,Redmi Note 11 Pro 4G India,13.0,OS1.0.4.0.TGDINXM,Stable,2024-09-03
+vili_eea_global,Xiaomi 11T Pro EEA,14.0,OS1.0.27.0.UKDEUXM,Stable,2025-12-16
+vili_global,Xiaomi 11T Pro Global,14.0,OS1.0.22.0.UKDMIXM,Stable,2025-09-17
+vili_id_global,Xiaomi 11T Pro Indonesia,14.0,OS1.0.20.0.UKDIDXM,Stable,2025-09-25
+vili_in_global,Xiaomi 11T Pro India,14.0,OS1.0.22.0.UKDINXM,Stable,2025-11-08
+vili_jp_global,Xiaomi 11T Pro Japan,14.0,OS1.0.20.0.UKDJPXM,Stable,2025-09-25
+vili_ru_global,Xiaomi 11T Pro Russia,14.0,OS1.0.20.0.UKDRUXM,Stable,2025-09-25
+vili_tr_global,Xiaomi 11T Pro Turkey,14.0,OS1.0.19.0.UKDTRXM,Stable,2025-09-25
+vili_tw_global,Xiaomi 11T Pro Taiwan,14.0,OS1.0.20.0.UKDTWXM,Stable,2025-09-25
+vince,Redmi 5 Plus China,8.1,V11.0.3.0.OEGCNXM,Stable,2019-11-27
+vince_global,Redmi 5 Plus / Note 5 Global,8.1,V11.0.2.0.OEGMIXM,Stable,2019-11-20
+vince_ru_global,Redmi 5 Plus Russia,7.1,V9.6.3.0.NEGRUFD,Stable,2018-08-08
+violet,Redmi Note 7 Pro China,10.0,V12.5.4.0.QFHCNXM,Stable,2021-11-17
+violet_in_global,Redmi Note 7 Pro India,10.0,V12.5.1.0.QFHINXM,Stable,2021-10-08
+violin,Xiaomi Pad 7S Pro 12.5 China,16.0,OS3.0.304.0.WOTCNXM,Stable,2026-07-30
+virgo,Mi Note China,6.0,V9.2.3.0.MXECNEK,Stable,2018-09-07
+virgo_global,Mi Note Global,6.0,V9.5.1.0.MXEMIFA,Stable,2018-09-07
+virgo_lte_ct,Mi Note LTE CT China,4.4,V6.6.4.0.KXJCNCF,Stable,2016-08-23
+viva_eea_global,Redmi Note 11 Pro 4G EEA,13.0,OS1.0.3.0.TGDEUXM,Stable,2024-08-27
+viva_global,Redmi Note 11 Pro 4G Global,13.0,OS1.0.4.0.TGDMIXM,Stable,2024-08-13
+viva_id_global,Redmi Note 11 Pro 4G Indonesia,13.0,OS1.0.2.0.TGDIDXM,Stable,2024-09-03
+viva_ru_global,Redmi Note 11 Pro 4G Russia,13.0,OS1.0.1.0.TGDRUXM,Stable,2024-04-12
+viva_tr_global,Redmi Note 11 Pro 4G Turkey,13.0,OS1.0.1.0.TGDTRXM,Stable,2024-04-01
+viva_tw_global,Redmi Note 11 Pro 4G Taiwan,13.0,OS1.0.4.0.TGDTWXM,Stable,2024-08-23
+warhol,Xiaomi 17T Pro China,16.0,OS3.0.309.0.WPSCNXM,Stable,2026-08-04
+warhol_eea_global,Xiaomi 17T Pro EEA,16.0,OS3.0.311.0.WPSEUXM,Stable,2026-08-04
+warhol_global,Xiaomi 17T Pro Global,16.0,OS3.0.310.0.WPSMIXM,Stable,2026-08-10
+warhol_id_global,Xiaomi 17T Pro Indonesia,16.0,OS3.0.305.0.WPSIDXM,Stable,2026-08-21
+warhol_jp_global,Xiaomi 17T Pro Japan,16.0,OS3.0.305.0.WPSJPXM,Stable,2026-08-19
+warhol_ru_global,Xiaomi 17T Pro Russia,16.0,OS3.0.306.0.WPSRUXM,Stable,2026-08-19
+warhol_tr_global,Xiaomi 17T Pro Turkey,16.0,OS3.0.305.0.WPSTRXM,Stable,2026-08-19
+warhol_tw_global,Xiaomi 17T Pro Taiwan,16.0,OS3.0.305.0.WPSTWXM,Stable,2026-08-19
+warm_in_global,Redmi A4 5G / POCO C75 5G India,16.0,OS3.0.303.0.WGVINXM,Stable,2026-07-27
+warsaw,Redmi K90 Ultra China,16.0,OS3.0.307.0.WHPCNXM,Stable,2026-08-18
+water_eea_global,Redmi A2 / A2+ / POCO C51 EEA,13.0,V14.0.32.0.TGOEUXM,Stable,2026-03-11
+water_global,Redmi A2 / A2+ / POCO C51 Global,13.0,V14.0.44.0.TGOMIXM,Stable,2025-12-31
+water_id_global,Redmi A2 / A2+ / POCO C51 Indonesia,13.0,V14.0.21.0.TGOIDXM,Stable,2025-09-18
+water_in_global,Redmi A2 / A2+ / POCO C51 India,13.0,V14.0.24.0.TGOINXM,Stable,2025-09-18
+water_ru_global,Redmi A2 / A2+ / POCO C51 Russia,13.0,V14.0.29.0.TGORUXM,Stable,2025-11-05
+water_tw_global,Redmi A2 / A2+ / POCO C51 Taiwan,13.0,V14.0.9.0.TGOTWXM,Stable,2025-09-18
+wayne,Mi 6X China,9.0,V12.0.2.0.PDCCNXM,Stable,2021-04-07
+whyred,Redmi Note 5 China,9.0,V12.0.3.0.PEICNXM,Stable,2021-06-15
+whyred_global,Redmi Note 5 / Note 5 Pro Global,9.0,V12.0.2.0.PEIMIXM,Stable,2021-01-04
+whyred_ru_global,Redmi Note 5 Russia,9.0,V11.0.1.0.PEIRUXM,Stable,2019-10-30
+willow_eea_global,Redmi Note 8T EEA,11.0,V12.5.5.0.RCXEUXM,Stable,2022-06-17
+willow_global,Redmi Note 8T Global,11.0,V12.5.6.0.RCXMIXM,Stable,2022-07-01
+willow_ru_global,Redmi Note 8T Russia,11.0,V12.5.1.0.RCXRUXM,Stable,2022-01-04
+wt86047,Redmi 2 China,4.4,V9.2.3.0.KHJCNEK,Stable,2018-09-07
+wt86047_pro,Redmi 2 Pro China,5.1,V7.5.1.0.LHJCNDE,Stable,2018-08-03
+wt88047,Redmi 2 China,4.4,V9.2.3.0.KHJCNEK,Stable,2018-09-07
+wt88047_global,Redmi 2 Global,4.4,V8.2.1.0.KHJMIDL,Stable,2018-09-07
+wt88047_pro,Redmi 2 Pro China,5.1,V7.5.1.0.LHJCNDE,Stable,2018-08-03
+wt88047_pro_global,Redmi 2 Pro Global,5.1,V7.5.2.0.LHJMIDE,Stable,2018-08-03
+xaga,Redmi Note 11T Pro / Pro+ China,14.0,OS2.0.12.0.ULOCNXM,Stable,2025-10-18
+xaga_eea_global,Redmi Note 11T Pro / POCO X4 GT / Pro EEA,14.0,OS2.0.3.0.ULOEUXM,Stable,2025-05-20
+xaga_global,Redmi Note 11T Pro / POCO X4 GT / Pro Global,14.0,OS2.0.3.0.ULOMIXM,Stable,2025-06-24
+xaga_in_global,Redmi K50i / Pro India,14.0,OS2.0.3.0.ULOINXM,Stable,2025-06-24
+xaga_ru_global,Redmi Note 11T Pro / POCO X4 GT / Pro Russia,14.0,OS2.0.2.0.ULORUXM,Stable,2025-06-05
+xaga_tr_global,Redmi Note 11T Pro / POCO X4 GT / Pro Turkey,14.0,OS2.0.2.0.ULOTRXM,Stable,2025-06-05
+xaga_tw_global,Redmi Note 11T Pro / POCO X4 GT / Pro Taiwan,14.0,OS2.0.2.0.ULOTWXM,Stable,2025-06-05
+xuanyuan,Xiaomi 15 Ultra China,16.0,OS3.0.312.0.WOACNXM,Stable,2026-07-31
+xuanyuan_eea_global,Xiaomi 15 Ultra EEA,16.0,OS3.0.303.0.WOAEUXM,Stable,2026-07-24
+xuanyuan_global,Xiaomi 15 Ultra Global,16.0,OS3.0.302.0.WOAMIXM,Stable,2026-07-30
+xuanyuan_id_global,Xiaomi 15 Ultra Indonesia,16.0,OS3.0.302.0.WOAIDXM,Stable,2026-08-06
+xuanyuan_in_global,Xiaomi 15 Ultra India,16.0,OS3.0.302.0.WOAINXM,Stable,2026-08-05
+xuanyuan_ru_global,Xiaomi 15 Ultra Russia,16.0,OS3.0.302.0.WOARUXM,Stable,2026-08-14
+xuanyuan_tr_global,Xiaomi 15 Ultra Turkey,15.0,OS2.0.2.0.VOATRXM,Stable,2025-03-02
+xuanyuan_tw_global,Xiaomi 15 Ultra Taiwan,16.0,OS3.0.302.0.WOATWXM,Stable,2026-08-14
+xun,Redmi Pad SE China,15.0,OS2.0.209.0.VMUCNXM,Stable,2026-07-02
+xun_eea_global,Redmi Pad SE EEA,15.0,OS2.0.207.0.VMUEUXM,Stable,2026-07-02
+xun_global,Redmi Pad SE Global,15.0,OS2.0.209.0.VMUMIXM,Stable,2026-07-02
+xun_id_global,Redmi Pad SE Indonesia,15.0,OS2.0.205.0.VMUIDXM,Stable,2026-07-02
+xun_in_global,Redmi Pad SE India,15.0,OS2.0.206.0.VMUINXM,Stable,2026-08-12
+xun_ru_global,Redmi Pad SE Russia,15.0,OS2.0.206.0.VMURUXM,Stable,2026-07-02
+xun_tr_global,Redmi Pad SE Turkey,15.0,OS2.0.205.0.VMUTRXM,Stable,2026-07-02
+xun_tw_global,Redmi Pad SE Taiwan,15.0,OS2.0.204.0.VMUTWXM,Stable,2026-07-02
+yili,Redmi K Pad 2 China,16.0,OS3.0.309.0.WAKCNXM,Stable,2026-08-07
+yingtian,Xiaomi Pad 9 Pro Max China,17.0,OS4.0.10.0.XBMCNXM,Stable,2026-09-07
+ysl,Redmi S2 China,9.0,V12.0.4.0.PEFCNXM,Stable,2020-08-05
+ysl_global,Redmi S2/Y2 Global,9.0,V12.0.2.0.PEFMIXM,Stable,2020-09-29
+ysl_ru_global,Redmi S2 Russia,9.0,V12.0.1.0.PEFRUXM,Stable,2020-12-15
+yudi,Xiaomi Pad 6 Max 14 China,15.0,OS3.0.6.0.VMHCNXM,Stable,2026-07-21
+yuechu,Xiaomi Civi 3 China,15.0,OS3.0.10.0.VMICNXM,Stable,2026-07-21
+yunluo,Redmi Pad China,14.0,OS1.0.8.0.ULYCNXM,Stable,2024-11-14
+yunluo_eea_global,Redmi Pad EEA,14.0,OS1.0.11.0.ULYEUXM,Stable,2025-05-07
+yunluo_global,Redmi Pad Global,14.0,OS1.0.9.0.ULYMIXM,Stable,2025-05-07
+yunluo_id_global,Redmi Pad Indonesia,14.0,OS1.0.8.0.ULYIDXM,Stable,2025-08-15
+yunluo_in_global,Redmi Pad India,14.0,OS1.0.10.0.ULYINXM,Stable,2025-08-15
+yunluo_ru_global,Redmi Pad Russia,14.0,OS1.0.7.0.ULYRUXM,Stable,2025-05-07
+yunluo_tr_global,Redmi Pad Turkey,14.0,OS1.0.8.0.ULYTRXM,Stable,2025-03-25
+yunluo_tw_global,Redmi Pad Taiwan,14.0,OS1.0.10.0.ULYTWXM,Stable,2025-08-15
+yupei,Xiaomi Pad 8 / Xiaomi Pad 9 China,16.0,OS3.0.309.0.WPZCNXM,Stable,2026-07-30
+yupei_eea_global,Xiaomi Pad 8 / Xiaomi Pad 9 EEA,16.0,OS3.0.305.0.WPZEUXM,Stable,2026-08-04
+yupei_global,Xiaomi Pad 8 / Xiaomi Pad 9 Global,16.0,OS3.0.303.0.WPZMIXM,Stable,2026-07-10
+yupei_id_global,Xiaomi Pad 8 / Xiaomi Pad 9 Indonesia,16.0,OS3.0.303.0.WPZIDXM,Stable,2026-08-10
+yupei_in_global,Xiaomi Pad 8 / Xiaomi Pad 9 India,16.0,OS3.0.303.0.WPZINXM,Stable,2026-08-10
+yupei_ru_global,Xiaomi Pad 8 / Xiaomi Pad 9 Russia,16.0,OS3.0.304.0.WPZRUXM,Stable,2026-08-10
+yupei_tr_global,Xiaomi Pad 8 / Xiaomi Pad 9 Turkey,16.0,OS3.0.303.0.WPZTRXM,Stable,2026-08-10
+yupei_tw_global,Xiaomi Pad 8 / Xiaomi Pad 9 Taiwan,16.0,OS3.0.303.0.WPZTWXM,Stable,2026-08-10
+zephyr_eea_global,Redmi Note 17 4G EEA,16.0,OS3.0.305.0.WBUEUDM,Stable,2026-08-27
+zephyr_global,Redmi Note 17 4G Global,16.0,OS3.0.310.0.WBUMIXM,Stable,2026-09-02
+zephyr_tw_global,Redmi Note 17 4G Taiwan,16.0,OS3.0.304.0.WBUTWXM,Stable,2026-08-27
+zeus,Xiaomi 12 Pro China,15.0,OS3.0.3.0.VLBCNXM,Stable,2026-06-01
+zeus_eea_global,Xiaomi 12 Pro EEA,15.0,OS3.0.3.0.VLBEUXM,Stable,2026-06-10
+zeus_global,Xiaomi 12 Pro Global,15.0,OS3.0.4.0.VLBMIXM,Stable,2026-06-09
+zeus_id_global,Xiaomi 12 Pro Indonesia,15.0,OS3.0.4.0.VLBIDXM,Stable,2026-06-09
+zeus_in_global,Xiaomi 12 Pro India,15.0,OS3.0.3.0.VLBINXM,Stable,2026-06-09
+zeus_ru_global,Xiaomi 12 Pro Russia,15.0,OS3.0.3.0.VLBRUXM,Stable,2026-06-09
+zeus_tr_global,Xiaomi 12 Pro Turkey,15.0,OS3.0.3.0.VLBTRXM,Stable,2026-06-09
+zeus_tw_global,Xiaomi 12 Pro Taiwan,15.0,OS3.0.3.0.VLBTWXM,Stable,2026-06-09
+zijin,Xiaomi Civi 1S China,14.0,OS1.0.12.0.ULPCNXM,Stable,2025-02-19
+zircon,Redmi Note 13 Pro+ 5G China,16.0,OS3.0.304.0.WNOCNXM,Stable,2026-08-31
+zircon_eea_global,Redmi Note 13 Pro+ 5G EEA,16.0,OS3.0.303.0.WNOEUXM,Stable,2026-08-25
+zircon_global,Redmi Note 13 Pro+ 5G Global,16.0,OS3.0.301.0.WNOMIXM,Stable,2026-05-27
+zircon_id_global,Redmi Note 13 Pro+ 5G Indonesia,16.0,OS3.0.301.0.WNOIDXM,Stable,2026-07-24
+zircon_in_global,Redmi Note 13 Pro+ 5G India,16.0,OS3.0.3.0.WNOINXM,Stable,2026-05-27
+zircon_ru_global,Redmi Note 13 Pro+ 5G Russia,16.0,OS3.0.301.0.WNORUXM,Stable,2026-07-24
+zircon_tr_global,Redmi Note 13 Pro+ 5G Turkey,16.0,OS3.0.301.0.WNOTRXM,Stable,2026-07-22
+zircon_tw_global,Redmi Note 13 Pro+ 5G Taiwan,16.0,OS3.0.301.0.WNOTWXM,Stable,2026-07-30
+ziyi,Xiaomi Civi 2 China,15.0,OS3.0.6.0.VLLCNXM,Stable,2026-08-27
+ziyi_eea_global,Xiaomi Civi 2 / 13 Lite EEA,15.0,OS3.0.5.0.VLLEUXM,Stable,2026-07-20
+ziyi_global,Xiaomi Civi 2 / 13 Lite Global,15.0,OS3.0.4.0.VLLMIXM,Stable,2026-07-14
+ziyi_ru_global,Xiaomi Civi 2 / 13 Lite Russia,15.0,OS3.0.4.0.VLLRUXM,Stable,2026-07-14
+ziyi_tr_global,Xiaomi 13 Lite Turkey,15.0,OS3.0.4.0.VLLTRXM,Stable,2026-07-20
+ziyi_tw_global,Xiaomi Civi 2 / 13 Lite Taiwan,15.0,OS3.0.4.0.VLLTWXM,Stable,2026-07-20
+zizhan,Xiaomi MIX Fold 2 China,15.0,OS3.0.9.0.VLRCNXM,Stable,2026-08-25
+zorn,Redmi K80 China,16.0,OS3.0.307.0.WOKCNXM,Stable,2026-08-07
+zorn_eea_global,POCO F7 Pro EEA,16.0,OS3.0.302.0.WOKEUXM,Stable,2026-07-23
+zorn_global,POCO F7 Pro Global,16.0,OS3.0.303.0.WOKMIXM,Stable,2026-08-24
+zorn_id_global,POCO F7 Pro Indonesia,16.0,OS3.0.302.0.WOKIDXM,Stable,2026-07-22
+zorn_ru_global,POCO F7 Pro Russia,16.0,OS3.0.302.0.WOKRUXM,Stable,2026-07-22
+zorn_tr_global,POCO F7 Pro Turkey,15.0,OS2.0.2.0.VOKTRXM,Stable,2025-03-27
+zorn_tw_global,POCO F7 Pro Taiwan,16.0,OS3.0.302.0.WOKTWXM,Stable,2026-07-23

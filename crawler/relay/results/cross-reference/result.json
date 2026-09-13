@@ -1,0 +1,14 @@
+{
+  "task": "cross-reference",
+  "source": "derived from google-play-devices + chipset-lineageos + mediatek-cve-chipsets",
+  "source_authority": "derived",
+  "collector": "box-field",
+  "outcome": "ok",
+  "total_devices_with_chipset": 694,
+  "mediatek_devices": 12,
+  "devices_with_cve_exposure": 12,
+  "files": [
+    "device-chipset-cve-xref.csv"
+  ],
+  "notes": "Cross-reference linking Google Play devices \u2192 LineageOS chipset data \u2192 MediaTek CVE exposure. Low MediaTek overlap because LineageOS devices are predominantly Qualcomm. Qualcomm CVE-chipset data unavailable (SPA). Proof of concept for the full adjudication chain: Device \u2192 Chipset \u2192 CVE \u2192 ASPL."
+}

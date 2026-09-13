@@ -25,3 +25,42 @@ python3 audit.py                 # scan; exit code = number of FAILs
 python3 fix_data.py --all        # repair (verbose, --dry-run supported)
 python3 enrich_local.py          # full local enrichment with live progress
 ```
+
+## Sources verified and NOT built (2026-09-13)
+
+Recorded so nobody re-derives them. A verified source that adds nothing is a result.
+
+**MediaTek bulletin — no longer needed.** `mediatek.com/product-security-bulletin/{month}-{YYYY}`
+is reachable with our own crawler UA and robots-clean. It was on the roadmap because
+NVD's enrichment collapsed in April 2026 (MediaTek 28/28 enriched in January, 0/7 in
+July), making the bulletin look like the only place the affected-chip list survived.
+
+The CNA passthrough fix closed that instead. Measured against three months including
+the collapse month itself:
+
+    july-2026      bulletin   7 CVEs · we hold 7 · missing 0
+    august-2026    bulletin  34 CVEs · we hold 34 · missing 0
+    september-2026 bulletin  18 CVEs · we hold 18 · missing 0
+
+Zero gap. Both routes carry the same data because both originate with MediaTek as
+CNA — NVD's `affected[].affectedData[]` IS the vendor's own list, passed through. A
+bulletin parser would be a second path to data we already have, with its own HTML to
+break. Revisit only if that overlap stops being total.
+
+**deviceinfohw.ru — declined.** 403s our self-identifying crawler UA
+(`device-crawler/1.0`), 200s a browser UA, robots.txt 404 so no stated policy. A 403
+to a declared crawler is the site refusing automated access; sending a browser string
+to get past it is misrepresenting what we are. The earlier hand-verification used a
+browser UA, which is why it looked open. Code is written and tested against the
+response shape (`deviceinfo_hw.py`) and stays disabled pending permission.
+
+Being honest in the User-Agent is what got refused. That does not make dishonesty the fix.
+
+**HMD / Nokia — correct, zero overlap.** 84 phones, distribution `{01: 84}`, passes.
+Our five Nokia entries are all archival (BB5, E6-00, Lumia 710). Module kept, coverage
+unchanged.
+
+**Xiaomi — data held, deliberately not applied.** Feed dead since 2025-02 (HTTP 200,
+body `null`, verified across six recent months) while the EOS feed on the same host
+stamped 2026-09-10. Stored as a floor with `as_of`; writing it as a current patch
+level would assert OPEN against every CVE fixed in 19 months, on 331 devices.

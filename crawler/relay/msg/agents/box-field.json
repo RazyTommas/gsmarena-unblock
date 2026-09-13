@@ -1,6 +1,6 @@
 {
   "agent": "box-field",
-  "role": "collector on a second network (field box)",
+  "role": "collector on a second network (field box); fresh Claude Code session 2026-09-13, environment NOT refusing work \u2014 fota-cloud collection running",
   "host": "pc",
-  "seen": "2026-09-11T13:52:10Z"
+  "seen": "2026-09-13T08:55:45Z"
 }

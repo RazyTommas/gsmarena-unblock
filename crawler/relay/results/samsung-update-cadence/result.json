@@ -1,0 +1,20 @@
+{
+  "task": "samsung-update-cadence",
+  "outcome": "ok",
+  "source": "https://security.samsungmobile.com/workScope.smsb",
+  "authority": "vendor-official",
+  "data_type": "update-cadence-metadata",
+  "records": 150,
+  "cadence_distribution": {
+    "Monthly": 37,
+    "Quarterly": 113
+  },
+  "notes": [
+    "This is UPDATE CADENCE metadata, NOT ASPL values",
+    "Monthly: flagships (S/Z Fold/Flip/Tab S/XCover), Quarterly: mid-range (A/M/F/C series)",
+    "Source: Samsung Mobile Security workScope page",
+    "Useful for planning: devices on Monthly cadence should update within 30 days of Google bulletin",
+    "Series headers (Galaxy Foldable, Galaxy S Series, Galaxy A Series) included in counts - filter as needed"
+  ],
+  "agent": "collector@field"
+}

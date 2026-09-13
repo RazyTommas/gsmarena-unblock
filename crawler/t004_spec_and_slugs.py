@@ -89,19 +89,24 @@ signal.signal(signal.SIGINT, _sigterm)
 
 
 def fetch(url):
-    """Fetch a URL. Returns (body, status) or raises on 429."""
+    """Fetch a URL. Returns (body, status). Hard stop on 429."""
     ok, spent, limit = host_budget('www.gsmarena.com', spend=1, limit=DAILY_LIMIT)
     if not ok:
         print(f"  BUDGET EXHAUSTED ({spent}/{limit})")
         return None, 'budget'
-    
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+
+    req = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
     try:
         r = urllib.request.urlopen(req, timeout=20)
         return r.read().decode('utf-8', errors='replace'), r.status
     except urllib.error.HTTPError as e:
         if e.code == 429:
-            print(f"  429 — HARD STOP")
+            retry_after = e.headers.get('Retry-After', 'not set')
+            print(f"  429 — HARD STOP (Retry-After: {retry_after})")
             return None, 429
         elif e.code == 404:
             return None, 404
@@ -202,9 +207,16 @@ def phase1_spec_pages():
     print(f"  Total slugs: {len(slugs)}")
     print(f"  Already fetched: {len(fetched)}")
     
-    # If no specs CSV yet, write header
+    # If no specs CSV yet, write header only
     if not os.path.exists(SPECS_CSV):
-        append_spec_row({}, write_header=True)
+        fieldnames = ['brand', 'device', 'slug', 'device_name',
+                      'chipset', 'chipset-hl', 'cpu', 'gpu', 'os',
+                      'wlan', 'bluetooth', 'nfc', 'gps',
+                      'net2g', 'net3g', 'net4g', 'net5g',
+                      'displaysize', 'internalmemory', 'batdescription1',
+                      'body-weight', 'released-hl', 'fetched_at']
+        with open(SPECS_CSV, 'w', newline='') as f:
+            csv.DictWriter(f, fieldnames=fieldnames).writeheader()
     
     # Build ordered slug list (priority brands first)
     by_brand = {}

@@ -1,0 +1,21 @@
+{
+  "task": "samsung-modem-lag",
+  "source": "derived from T005-fota-modem samsung_fota.csv + samsung_modem.csv",
+  "source_authority": "vendor-derived",
+  "collector": "box-field",
+  "outcome": "ok",
+  "total_models": 82,
+  "models_with_separate_modem": 18,
+  "models_with_modem_lag": 8,
+  "files": [
+    "samsung-modem-lag.csv"
+  ],
+  "key_findings": {
+    "pda_month_day_01_pct": "100% (all 82 models)",
+    "galaxy_s24_modem_lag": "3 months (AP Aug 2026, modem May 2026)",
+    "galaxy_s21_modem_lag": "2 months (AP Mar 2026, modem Jan 2026)",
+    "overall_avg_lag": "0.5-1.0 months across all devices",
+    "max_historical_lag": "9 months (some A-series devices)"
+  },
+  "notes": "Samsung modem/baseband firmware consistently lags behind AP firmware. Even flagship Galaxy S24 Ultra has 3-month modem lag. This creates a quantifiable 'modem security gap' at the baseband layer. The pda_month field is 100% day-01, confirming it represents ASPL."
+}

@@ -1,0 +1,37 @@
+{
+  "task": "hmd-security",
+  "outcome": "ok",
+  "source": "https://www.hmd.com/en_int/security-updates",
+  "authority": "vendor-official",
+  "precision": "date",
+  "records": 2872,
+  "unique_phones": 87,
+  "unique_screen_ids": 1744,
+  "unique_aspls": 108,
+  "day_of_month_check": "100% day-01 (2872/2872)",
+  "brand_split": {
+    "Nokia": 72,
+    "HMD": 15
+  },
+  "fields": [
+    "phone",
+    "androidBulletinDate",
+    "cadence",
+    "endOfLife",
+    "spVersion",
+    "screenId",
+    "comments",
+    "cadenceComments",
+    "dateOfFirstLiveRelease"
+  ],
+  "notes": [
+    "androidBulletinDate is the ASPL - 100% day-01 distribution, passes column gate",
+    "dateOfFirstLiveRelease is the build/release date - scattered distribution, NOT ASPL",
+    "screenId identifies firmware build variant, NOT a unique device",
+    "spVersion appears to be the intended security patch version (month only)",
+    "87 unique phones with 1,744 firmware build variants",
+    "cadence: Monthly (2,315), Quarterly (461), Bi-Monthly (19), Final (76)"
+  ],
+  "agent": "collector@field",
+  "timestamp": "2026-09-13T11:04:49Z"
+}

@@ -1,0 +1,19 @@
+{
+  "task": "tecno-security-comprehensive",
+  "outcome": "ok",
+  "source": "https://security.tecno.com/slm/deviceScope",
+  "authority": "vendor-official",
+  "precision": "month",
+  "records": 618,
+  "unique_devices": 196,
+  "unique_months": 58,
+  "year_range": "2021-2026",
+  "notes": [
+    "Month precision ONLY \u2014 no day component, do NOT pad to day-01",
+    "TECNO-brand-exclusive: API ignores brand parameter, returns TECNO devices only",
+    "Infinix and itel NOT covered \u2014 confirmed TECNO-exclusive feed",
+    "Some entries have multiple devices comma-separated in one field",
+    "196 unique device names across 618 device-month records"
+  ],
+  "agent": "collector@field"
+}

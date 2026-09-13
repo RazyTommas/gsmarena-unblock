@@ -1,0 +1,36 @@
+{
+  "task": "google-play-devices",
+  "source": "https://storage.googleapis.com/play_public/supported_devices.csv",
+  "source_authority": "vendor-official",
+  "collector": "box-field",
+  "outcome": "ok",
+  "total_devices": 53837,
+  "unique_brands": 3840,
+  "files": [
+    "supported_devices.csv"
+  ],
+  "columns": [
+    "Retail Branding",
+    "Marketing Name",
+    "Device",
+    "Model"
+  ],
+  "notes": "Google Play certified device list. UTF-16 original, converted to UTF-8. Columns: Retail Branding = OEM brand, Marketing Name = consumer name, Device = AOSP device codename (build.prop ro.product.device), Model = model number (ro.product.model). No chipset/SoC data.",
+  "target_vendor_counts": {
+    "Samsung": 3424,
+    "TECNO": 493,
+    "Infinix": 339,
+    "itel": 755,
+    "OPPO": 819,
+    "vivo": 908,
+    "Motorola": 911,
+    "Huawei": 1550,
+    "Xiaomi": 358,
+    "Realme": 429,
+    "OnePlus": 203,
+    "Honor": 220,
+    "Google": 131,
+    "Nokia": 167,
+    "HMD": 25
+  }
+}

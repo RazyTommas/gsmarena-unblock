@@ -91,8 +91,10 @@ def detail(connection: sqlite3.Connection, cve: str) -> dict:
     result=rows[0];identifier=result['vulnerability_id']
     evidence_columns='e.locator,e.excerpt,ar.source_url,ar.sha256,ar.retrieved_at observed_at,s.name source'
     evidence_joins='LEFT JOIN evidence e ON e.id=x.evidence_id LEFT JOIN artifacts ar ON ar.id=e.artifact_id LEFT JOIN sources s ON s.id=ar.source_id'
-    result['bulletins']=[dict(row) for row in connection.execute(f'''SELECT x.id,x.title,x.advisory_key,x.published_at,x.evidence_id,{evidence_columns}
-      FROM advisories x JOIN advisory_vulnerabilities av ON av.advisory_id=x.id {evidence_joins}
+    result['bulletins']=[dict(row) for row in connection.execute(f'''SELECT x.id,x.title,x.advisory_key,x.published_at,x.evidence_id,
+      e.locator,e.excerpt,coalesce(ar.source_url,bs.base_url) source_url,ar.sha256,ar.retrieved_at observed_at,bs.name source,
+      CASE WHEN ar.source_url IS NOT NULL THEN 'captured_artifact' ELSE 'source_homepage' END source_url_kind
+      FROM advisories x JOIN advisory_vulnerabilities av ON av.advisory_id=x.id JOIN sources bs ON bs.id=x.source_id {evidence_joins}
       WHERE av.vulnerability_id=? ORDER BY x.published_at DESC,x.id''',(identifier,))]
     result['claims']=[dict(row) for row in connection.execute(f'''SELECT x.*,sp.part_number,sp.marketing_name,{evidence_columns}
       FROM applicability_claims x {evidence_joins} LEFT JOIN silicon_parts sp ON x.subject_type='silicon_part' AND sp.id=x.subject_id

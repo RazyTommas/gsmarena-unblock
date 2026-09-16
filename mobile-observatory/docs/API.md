@@ -107,3 +107,11 @@ with `bulletins`, `claims` (decoded `constraint`), `fixes` (decoded `coordinate`
 404 `cve_not_found`. Claims/fixes retain evidence identifiers, source URL, capture
 SHA-256, locator, observed timestamp and source. Fix coordinates are CVE-level;
 joining them to the CVE does not establish their applicability to each part/device.
+
+`GET /api/v1/devices/{model-code}` uses an exact reviewed hardware code (404 if
+absent), returning canonical identity, hardware aliases, reviewed silicon,
+separate `specifications` source assertions, region/channel counts, independently
+paged firmware and exact-part security links. `/releases` accepts `model_exact`,
+`region_exact`, and `channel_exact` for stable detail pagination. Existing broad
+search filters remain available. Detail pages start at50 records; subsequent
+pages use their `nextCursor`. No200-row cap or currently-loaded-page dependency.

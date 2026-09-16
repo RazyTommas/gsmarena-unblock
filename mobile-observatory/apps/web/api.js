@@ -20,6 +20,8 @@ const params = input => {
 };
 
 export const api = {
+  watches: () => request('/watches'),
+  saveWatch: value => request('/watches', {method:'POST',body:JSON.stringify(value)}),
   overview: () => request('/radar/overview'),
   updates: filters => request(`/updates${params(filters)}`),
   acknowledge: id => request(`/updates/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }),

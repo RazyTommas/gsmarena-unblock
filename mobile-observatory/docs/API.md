@@ -142,3 +142,17 @@ include decoded `evidence_summary` as well as rule inputs.
 Canonical release rows include `build_derived_month` and `date_basis` from the
 immutable source correction ledger (or newer explicitly typed observations),
 when available. These are separate from `released`, the vendor release date.
+
+### Local watches and complete Radar pagination
+
+`GET /watches` lists durable local preferences. `POST /watches` accepts
+`{"subjectType":"hardware_model","subjectId":"<existing ID>","enabled":true}`;
+`source_product` is also supported and `enabled:false` removes a watch. Invalid
+or unknown targets are rejected; removing a watch surviving corpus replacement
+remains possible. Watches never alter canonical evidence or assert support.
+
+`GET /updates` accepts `tab=new|watched|history`, `change=Android upgrade|Security
+patch`, existing `q`, `maker`, `model`, `region`, `limit` and `offset`. Filters and
+unseen/watch selection apply before pagination, across the entire corpus. Rows
+provide typed `subjectType`, `subjectId`, and actual `watched` state. Region uses
+captured target codes (e.g. ILO, MID, GLOBAL); no guessed geographic expansion.

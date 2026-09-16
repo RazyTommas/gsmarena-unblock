@@ -115,3 +115,16 @@ paged firmware and exact-part security links. `/releases` accepts `model_exact`,
 `region_exact`, and `channel_exact` for stable detail pagination. Existing broad
 search filters remain available. Detail pages start at50 records; subsequent
 pages use their `nextCursor`. No200-row cap or currently-loaded-page dependency.
+
+Security publication precision is explicit: the known Android/MediaTek captured
+CSV importers contain bulletin months, not publication days. Such rows return
+`published_at: YYYY-MM` and `published_precision: month`; inclusive date filters
+match any overlapping month. Other sources retain day precision. No canonical
+security dates are rewritten by this read model. `silicon_vendor` may additionally
+scope an exact `part` relationship; it is separate from bulletin `vendor`.
+Hardware relationships now carry their own mapping provenance; current verdicts
+include decoded `evidence_summary` as well as rule inputs.
+
+Canonical release rows include `build_derived_month` and `date_basis` from the
+immutable source correction ledger (or newer explicitly typed observations),
+when available. These are separate from `released`, the vendor release date.

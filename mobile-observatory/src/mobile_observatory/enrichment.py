@@ -262,7 +262,7 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
         # downgrades are deliberately not labelled upgrades.
         histories = connection.execute("""SELECT pfr.*,sp.canonical_name
           FROM product_firmware_releases pfr JOIN source_products sp ON sp.id=pfr.product_id
-          WHERE android_major IS NOT NULL
+          WHERE android_major IS NOT NULL AND region_code!='SOURCE_UNSPECIFIED'
           ORDER BY product_id,region_code,channel,vendor_released_at,id""").fetchall()
         previous: dict[tuple[str, str, str], sqlite3.Row] = {}
         for release in histories:

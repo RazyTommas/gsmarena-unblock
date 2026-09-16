@@ -82,3 +82,29 @@ class OperationsTests(unittest.TestCase):
         self.service = ObservatoryService(self.db, self.local_path, demonstration=False)
         self.assertEqual(self.service.collection_requests()[0]['status'], 'interrupted')
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM observations').fetchone()[0], 0)
+
+    def test_support_is_unknown_without_current_assertions_and_filter_pages_all_rows(self):
+        from mobile_observatory.seed import seed_demonstration
+        seed_demonstration(self.db, ROOT / 'fixtures/supported_catalog.sample.json')
+        self.assertTrue(all(d['support']=='Supported' for d in self.service.devices({})))
+        self.db.connection.execute("UPDATE support_assertions SET valid_to='2020-01-01T00:00:00Z'")
+        self.assertTrue(all(d['support']=='Unknown' for d in self.service.devices({})))
+        self.assertEqual(self.service.devices_page({'support':['Supported']}).total, 0)
+        unknown = self.service.devices_page({'support':['Unknown'],'limit':['1']})
+        self.assertEqual(len(unknown.items), 1)
+        self.assertGreater(unknown.total, 1)
+        self.db.connection.execute('DELETE FROM support_assertions')
+        self.assertTrue(all(d['support']=='Unknown' for d in self.service.devices({})))
+
+    def test_radar_detection_time_is_separate_from_effective_time(self):
+        from mobile_observatory.seed import seed_demonstration
+        from mobile_observatory.repository import CanonicalRepository, Event
+        seed_demonstration(self.db, ROOT / 'fixtures/supported_catalog.sample.json')
+        release = self.db.connection.execute('SELECT id FROM firmware_releases LIMIT 1').fetchone()[0]
+        CanonicalRepository(self.db).append_event(Event('firmware_replaced','firmware_release',release,'time-test',
+                    '2024-01-01T00:00:00Z',{'build':'before'},{'build':'after'},None))
+        self.db.connection.execute("UPDATE domain_events SET recorded_at='2026-09-17T00:00:00Z'")
+        event=self.service.updates({})[0]
+        self.assertEqual(event['detectedAt'], '2026-09-17T00:00:00Z')
+        self.assertEqual(event['age'], event['detectedAt'])
+        self.assertEqual(event['effectiveAt'], '2024-01-01T00:00:00Z')

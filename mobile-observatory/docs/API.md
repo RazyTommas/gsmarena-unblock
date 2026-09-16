@@ -107,3 +107,18 @@ with `bulletins`, `claims` (decoded `constraint`), `fixes` (decoded `coordinate`
 404 `cve_not_found`. Claims/fixes retain evidence identifiers, source URL, capture
 SHA-256, locator, observed timestamp and source. Fix coordinates are CVE-level;
 joining them to the CVE does not establish their applicability to each part/device.
+
+### Honest support and event time
+
+`GET /devices?support=Unknown` (or `Supported`, `Likely supported`, `End announced`,
+`Unsupported`, or the stored snake_case status) filters before pagination. Support
+comes from the latest currently valid exact hardware assertion. With no assertion,
+status is `Unknown`; catalog inclusion alone does not prove support. Responses
+include `support_status`, `support_evidence_id`, and `support_asserted_at`.
+
+Radar `detectedAt` is the event's recorded time (or the firmware first observation
+for the no-event fallback); `effectiveAt` is its effective date. `age` remains a
+compatibility alias for detection time. Feed ordering uses detection time.
+
+An unavailable API is displayed as an error with a retry control. It never swaps
+real data for synthetic fixtures; explicit server `--demo` remains available.

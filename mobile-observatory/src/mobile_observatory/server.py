@@ -116,7 +116,7 @@ class ObservatoryService:
             total = self.corpus.connection.execute(f"SELECT count(DISTINCT de.id) {joins} WHERE {where}", params).fetchone()[0]
             limit, offset = _pagination(query)
             rows = self.corpus.connection.execute(
-                f"""SELECT de.id, de.event_type, de.occurred_at, de.before_json, de.after_json,
+                f"""SELECT de.id, de.event_type, de.occurred_at, de.recorded_at, de.before_json, de.after_json,
                            coalesce(dc.brand,sp.manufacturer) maker,
                            coalesce(dc.variant,sp.canonical_name) device,
                            coalesce(dc.model_code,
@@ -124,7 +124,7 @@ class ObservatoryService:
                               WHERE esi.id=json_extract(de.after_json,'$.source_identity')),
                              min(sir.source_value)) model,
                            coalesce(ft.display_name,ft.target_code,json_extract(de.after_json,'$.region'),'Unknown target') region
-                    {joins} WHERE {where} GROUP BY de.id ORDER BY de.occurred_at DESC, de.id DESC LIMIT ? OFFSET ?""",
+                    {joins} WHERE {where} GROUP BY de.id ORDER BY de.recorded_at DESC, de.id DESC LIMIT ? OFFSET ?""",
                 [*params, limit, offset]).fetchall()
             result = []
             for row in rows:
@@ -136,7 +136,8 @@ class ObservatoryService:
                 change = ("Android upgrade" if android_changed else
                           row["event_type"].replace("_", " ").title())
                 result.append({"id": row["id"], "maker": row["maker"], "device": row["device"],
-                    "model": row["model"], "region": row["region"], "age": row["occurred_at"],
+                    "model": row["model"], "region": row["region"], "age": row["recorded_at"],
+                    "detectedAt": row["recorded_at"], "effectiveAt": row["occurred_at"],
                     "buildFrom": before.get("build", "No prior observation"), "buildTo": after.get("build", "Unknown"),
                     "androidFrom": before.get("android") or "Unknown", "androidTo": after.get("android") or "Unknown",
                     "patchFrom": before.get("security_patch") or "Unknown", "patchTo": after.get("security_patch") or "Unknown",
@@ -153,7 +154,7 @@ class ObservatoryService:
             f"""SELECT firmware_release_id id, brand maker, variant device,
                        model_code model, coalesce(target_name,target_code) region,
                        build_id build_to, os_major android_to,
-                       security_patch_level patch_to
+                       security_patch_level patch_to,first_observed_at,vendor_released_at
                 FROM v_device_region_history WHERE {where}
                 ORDER BY first_observed_at DESC, firmware_release_id DESC LIMIT ? OFFSET ?""",
             [*params, limit, offset]).fetchall()
@@ -161,7 +162,8 @@ class ObservatoryService:
             {
                 "id": row["id"], "maker": row["maker"], "device": row["device"],
                 "model": row["model"], "region": row["region"] or "Unknown target",
-                "age": "synthetic snapshot", "buildFrom": "No prior observation",
+                "age": row["first_observed_at"], "detectedAt": row["first_observed_at"],
+                "effectiveAt": row["vendor_released_at"], "buildFrom": "No prior observation",
                 "buildTo": row["build_to"], "androidFrom": "Unknown",
                 "androidTo": row["android_to"], "patchFrom": "Unknown",
                 "patchTo": row["patch_to"], "change": "First observation",
@@ -179,6 +181,12 @@ class ObservatoryService:
             "maker": "dc.brand", "vendor": "cd.silicon_vendor", "family": "cd.silicon_family",
             "part": "cd.part_number", "region": "ft.target_code", "model": "dc.model_code"},
             ("dc.brand", "dc.variant", "dc.model_code", "dc.codename", "cd.marketing_name", "cd.part_number"))
+        support = _first(query, "support").strip()
+        support_codes = {"Supported": "officially_supported", "Likely supported": "likely_supported",
+                         "End announced": "end_announced", "Unsupported": "unsupported", "Unknown": "unknown"}
+        if support and support != "all":
+            clauses.append("coalesce(sa.status,'unknown')=?")
+            params.append(support_codes.get(support, support))
         max_android = _first(query, "max_android").strip()
         if max_android:
             try:
@@ -187,6 +195,12 @@ class ObservatoryService:
             except ValueError:
                 clauses.append("0")
         base = f"""FROM v_device_catalog dc
+               LEFT JOIN support_assertions sa ON sa.id=(
+                 SELECT sa2.id FROM support_assertions sa2
+                 WHERE sa2.subject_type='hardware_model' AND sa2.subject_id=dc.hardware_model_id
+                   AND (sa2.valid_from IS NULL OR datetime(sa2.valid_from)<=datetime('now'))
+                   AND (sa2.valid_to IS NULL OR datetime(sa2.valid_to)>datetime('now'))
+                 ORDER BY sa2.asserted_at DESC,sa2.id DESC LIMIT 1)
                LEFT JOIN hardware_silicon hs ON hs.hardware_model_id = dc.hardware_model_id
                LEFT JOIN silicon_parts sp ON sp.id = hs.part_id
                LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
@@ -209,6 +223,7 @@ class ObservatoryService:
                      sort, "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code")
         rows = self.corpus.connection.execute(
             """SELECT dc.brand maker, dc.variant name, dc.model_code model,
+                      sa.status support_status,sa.evidence_id support_evidence_id,sa.asserted_at support_asserted_at,
                       sp.marketing_name chip, sp.part_number part, os.major android,
                       lf.security_patch_level patch, group_concat(DISTINCT ft.target_code) region,
                       (SELECT count(*) FROM firmware_releases history
@@ -222,7 +237,7 @@ class ObservatoryService:
             {**dict(row), "android": row["android"] or "Unknown", "patch": row["patch"] or "Unknown",
              "region": row["region"] or "Catalogued; firmware not observed",
              "firmwareCoverage": "observed" if row["firmware_count"] else "not_observed",
-             "support": "Supported", "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
+             "support": {v:k for k,v in support_codes.items()}.get(row["support_status"], "Unknown"), "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
             for row in rows
         ]
         return QueryPage(result, total, limit, offset)

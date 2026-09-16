@@ -55,3 +55,11 @@ Manual identity decisions also retain append-only local history. Startup imports
 the last surviving legacy decisions into that history; earlier overwritten
 legacy decisions cannot be reconstructed. The current-decision projection uses
 NULL-safe keys, so repeated targetless decisions no longer create duplicate rows.
+
+Explicit source-product approve/reject/defer actions now record durable local
+identity memory before applying the source-product review projection. On startup,
+those exact product decisions are reapplied when the product still exists in a
+replacement snapshot. Startup never creates a missing product or hardware model,
+and never promotes an accepted agent proposal. Existing review history is not
+re-appended during recovery. The manual model resolver displays a remembered
+outcome and requires opening its review control before asking the same question.

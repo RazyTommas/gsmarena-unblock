@@ -120,3 +120,11 @@ patch`, existing `q`, `maker`, `model`, `region`, `limit` and `offset`. Filters 
 unseen/watch selection apply before pagination, across the entire corpus. Rows
 provide typed `subjectType`, `subjectId`, and actual `watched` state. Region uses
 captured target codes (e.g. ILO, MID, GLOBAL); no guessed geographic expansion.
+
+Radar and product upgrade details use the current-event view when installed.
+Superseded events remain in the immutable audit ledger; correction events do not
+count as new firmware, upgrades, or unseen updates. Radar patch counts are actual
+patch-change events; source security publications remain a separate
+`securityPublications` count. `lastRun` is import completion, not source observation.
+Non-demo corpora with no observations report unknown observation time, never a
+synthetic fixture date.

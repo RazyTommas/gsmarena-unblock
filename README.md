@@ -1,5 +1,33 @@
 # gsmarena-unblock
 
+## Download and run the complete reviewed snapshot
+
+This repository includes the real **2026-09-17 portable snapshot**, databases and
+captured evidence. It requires **Python 3.11 or newer**; no pip install, Node,
+API key, external database, or network access is needed to run Mobile Observatory.
+
+From the downloaded or cloned repository root:
+
+```sh
+python3 mobile-observatory/run.py
+```
+
+On Windows:
+
+```powershell
+py -3 mobile-observatory/run.py
+```
+
+Open <http://127.0.0.1:8124/>. First launch verifies and extracts the packaged data;
+subsequent launches preserve your existing local database. See
+[portable snapshot contents and migration instructions](mobile-observatory/docs/PORTABLE_RUN.md).
+
+
+> **Greenfield successor:** [Mobile Observatory](mobile-observatory/README.md)
+> is the new local-first product for firmware radar, device/silicon exploration,
+> security relationships, and verified offline snapshots. It is deliberately
+> independent of the legacy schema and UI in this repository.
+
 Reverse-engineered GSMArena's ad-block detection and built bypass tools.
 
 ## Demo

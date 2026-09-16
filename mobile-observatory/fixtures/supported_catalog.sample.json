@@ -1,0 +1,58 @@
+{
+  "fixture_notice": "Synthetic demonstration observations. Do not present versions/builds as current source truth.",
+  "devices": [
+    {
+      "manufacturer": "Samsung Electronics",
+      "brand": "Samsung",
+      "commercial_name": "Galaxy S25",
+      "model_code": "SM-S931B",
+      "aliases": ["Samsung Galaxy S25", "Galaxy S25 5G"],
+      "codename": null,
+      "launch_android": "15",
+      "support_claim": "supported",
+      "chip": {"vendor": "Qualcomm", "marketing_name": "Snapdragon 8 Elite for Galaxy", "part_number": "SM8750-AB"},
+      "market_codes": ["GLOBAL", "EUX", "ILO", "MID"]
+    },
+    {
+      "manufacturer": "Samsung Electronics",
+      "brand": "Samsung",
+      "commercial_name": "Galaxy A56 5G",
+      "model_code": "SM-A566B",
+      "aliases": ["Samsung Galaxy A56", "Galaxy A56"],
+      "codename": null,
+      "launch_android": "15",
+      "support_claim": "supported",
+      "chip": {"vendor": "Samsung", "marketing_name": "Exynos 1580", "part_number": "S5E8855"},
+      "market_codes": ["GLOBAL", "EUX", "ILO", "MID"]
+    },
+    {
+      "manufacturer": "Xiaomi Communications",
+      "brand": "Xiaomi",
+      "commercial_name": "Xiaomi 15",
+      "model_code": "24129PN74G",
+      "aliases": ["Xiaomi 15 Global"],
+      "codename": "dada",
+      "launch_android": "15",
+      "support_claim": "supported",
+      "chip": {"vendor": "Qualcomm", "marketing_name": "Snapdragon 8 Elite", "part_number": "SM8750-AB"},
+      "market_codes": ["GLOBAL", "EEA"]
+    },
+    {
+      "manufacturer": "Xiaomi Communications",
+      "brand": "POCO",
+      "commercial_name": "POCO F7 Ultra",
+      "model_code": "24122RKC7G",
+      "aliases": ["Poco F7 Ultra Global"],
+      "codename": "miro",
+      "launch_android": "15",
+      "support_claim": "supported",
+      "chip": {"vendor": "Qualcomm", "marketing_name": "Snapdragon 8 Elite", "part_number": "SM8750-AB"},
+      "market_codes": ["GLOBAL", "EEA"]
+    }
+  ],
+  "firmware": [
+    {"model_code": "SM-S931B", "region_code": "ILO", "build": "SAMPLE-S931B-ILO-001", "android": "16", "security_patch": "2026-08-01", "release_time": "2026-09-10T00:00:00Z"},
+    {"model_code": "SM-S931B", "region_code": "MID", "build": "SAMPLE-S931B-MID-001", "android": "16", "security_patch": "2026-08-01", "release_time": "2026-09-11T00:00:00Z"},
+    {"model_code": "24129PN74G", "region_code": "GLOBAL", "build": "SAMPLE-DADA-GLOBAL-001", "android": "16", "security_patch": "2026-08-01", "release_time": "2026-09-12T00:00:00Z"}
+  ]
+}

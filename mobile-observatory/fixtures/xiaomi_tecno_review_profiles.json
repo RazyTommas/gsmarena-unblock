@@ -1,0 +1,467 @@
+{
+  "purpose": "review-only profiles; no record is a canonical identity",
+  "generated_from": [
+    "gsm_specs.csv",
+    "xiaomi-firmware-latest.csv",
+    "tecno-security-updates.csv"
+  ],
+  "profiles": [
+    {
+      "id": "xiaomi_poco_f9_ultra_5g-14876.php",
+      "manufacturer": "Xiaomi",
+      "tier": "flagship",
+      "name": "Xiaomi Poco F9 Ultra",
+      "source_identities": [
+        "songyuan_eea_global",
+        "songyuan_global",
+        "songyuan_jp_global",
+        "songyuan_ru_global",
+        "songyuan_tr_global",
+        "songyuan_tw_global"
+      ],
+      "specification": {
+        "chipset": "Qualcomm SM8850-AC Snapdragon 8 Elite Gen 5 (3 nm)",
+        "cpu": "Octa-core (2x4.6 GHz Oryon V3 Phoenix L + 6x3.62 GHz Oryon V3 Phoenix M)",
+        "gpu": "Adreno 840",
+        "launch_os": "Android 16, up to 4 major OS updates, HyperOS 3",
+        "display": "6.9 inches, 116.6 cm2 (~91.6% screen-to-body ratio)",
+        "battery": "Si/C Li-Ion 8050 mAh",
+        "memory": "256GB 12GB RAM, 512GB 16GB RAM, 1TB 16GB RAM",
+        "wifi": "Wi-Fi 802.11 a/b/g/n/ac/6/7, dual-band, Wi-Fi Direct",
+        "bluetooth": "6.0, A2DP, LE, AptX HD, AptX Adaptive, LHDC 5.0, ASHA, MIHC, Auracast",
+        "4g": "1, 2, 3, 4, 5, 7, 8, 18, 19, 20, 26, 28, 38, 40, 41, 42, 48, 66",
+        "5g": "1, 2, 3, 5, 7, 8, 20, 26, 28, 38, 40, 41, 48, 66, 77, 78 SA/NSA",
+        "observed_at": "2026-09-13T23:33:52Z"
+      },
+      "firmware_history": [
+        {
+          "codename": "songyuan_eea_global",
+          "name": "POCO F9 Ultra EEA",
+          "android": "16.0",
+          "version": "OS3.0.303.0.WGNEUXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "songyuan_global",
+          "name": "POCO F9 Ultra Global",
+          "android": "16.0",
+          "version": "OS3.0.301.0.WGNMIXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "songyuan_jp_global",
+          "name": "POCO F9 Ultra Japan",
+          "android": "16.0",
+          "version": "OS3.0.302.0.WGNJPXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "songyuan_ru_global",
+          "name": "POCO F9 Ultra Russia",
+          "android": "16.0",
+          "version": "OS3.0.302.0.WGNRUXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "songyuan_tr_global",
+          "name": "POCO F9 Ultra Turkey",
+          "android": "16.0",
+          "version": "OS3.0.301.0.WGNTRXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "songyuan_tw_global",
+          "name": "POCO F9 Ultra Taiwan",
+          "android": "16.0",
+          "version": "OS3.0.301.0.WGNTWXM",
+          "branch": "Stable",
+          "date": "2026-09-04"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and codename mapping",
+      "identity_warning": "A codename is a source identity hint, not a canonical hardware model code."
+    },
+    {
+      "id": "xiaomi_poco_f9_pro_5g-14877.php",
+      "manufacturer": "Xiaomi",
+      "tier": "performance",
+      "name": "Xiaomi Poco F9 Pro",
+      "source_identities": [
+        "athens_eea_global",
+        "athens_global",
+        "athens_id_global",
+        "athens_ru_global",
+        "athens_tr_global",
+        "athens_tw_global"
+      ],
+      "specification": {
+        "chipset": "Qualcomm SM8850-1-AB Snapdragon 8 Elite Gen 5 V Series (3 nm)",
+        "cpu": "Octa-core (2x4.6 GHz Oryon V3 Phoenix L + 6x3.62 GHz Oryon V3 Phoenix M)",
+        "gpu": "Adreno 840",
+        "launch_os": "Android 16, up to 4 major OS updates, HyperOS 3",
+        "display": "6.59 inches, 106.5 cm2 (~89.8% screen-to-body ratio)",
+        "battery": "Si/C Li-Ion 6330 mAh",
+        "memory": "256GB 12GB RAM, 512GB 12GB RAM",
+        "wifi": "Wi-Fi 802.11 a/b/g/n/ac/6/7, dual-band, Wi-Fi Direct",
+        "bluetooth": "6.0, A2DP, LE, AptX HD, AptX Adaptive, LHDC 5.0, ASHA, MIHC, Auracast",
+        "4g": "1, 2, 3, 4, 5, 7, 8, 18, 19, 20, 26, 28, 38, 40, 41, 42, 48, 66",
+        "5g": "1, 2, 3, 5, 7, 8, 20, 26, 28, 38, 40, 41, 48, 66, 77, 78 SA/NSA",
+        "observed_at": "2026-09-13T23:33:58Z"
+      },
+      "firmware_history": [
+        {
+          "codename": "athens_eea_global",
+          "name": "POCO F9 Pro EEA",
+          "android": "16.0",
+          "version": "OS3.0.304.0.WPIEUXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "athens_global",
+          "name": "POCO F9 Pro Global",
+          "android": "16.0",
+          "version": "OS3.0.305.0.WPIMIXM",
+          "branch": "Stable",
+          "date": "2026-09-09"
+        },
+        {
+          "codename": "athens_id_global",
+          "name": "POCO F9 Pro Indonesia",
+          "android": "16.0",
+          "version": "OS3.0.301.0.WPIIDXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "athens_ru_global",
+          "name": "POCO F9 Pro Russia",
+          "android": "16.0",
+          "version": "OS3.0.303.0.WPIRUXM",
+          "branch": "Stable",
+          "date": "2026-09-02"
+        },
+        {
+          "codename": "athens_tr_global",
+          "name": "POCO F9 Pro Turkey",
+          "android": "16.0",
+          "version": "OS3.0.301.0.WPITRXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "athens_tw_global",
+          "name": "POCO F9 Pro Taiwan",
+          "android": "16.0",
+          "version": "OS3.0.301.0.WPITWXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and codename mapping",
+      "identity_warning": "A codename is a source identity hint, not a canonical hardware model code."
+    },
+    {
+      "id": "xiaomi_redmi_note_17_pro_max_5g-14845.php",
+      "manufacturer": "Xiaomi",
+      "tier": "mid-range",
+      "name": "Xiaomi Redmi Note 17 Pro Max",
+      "source_identities": [
+        "brussels_eea_global",
+        "brussels_global",
+        "brussels_jp_global",
+        "brussels_tw_global"
+      ],
+      "specification": {
+        "chipset": "Qualcomm SM6850 Snapdragon 6 Gen 5 (4 nm)",
+        "cpu": "Octa-core (4x2.6 GHz Cortex-A78 & 4x2.0 GHz Cortex-A55)",
+        "gpu": "Adreno 812",
+        "launch_os": "Android 16, HyperOS 3",
+        "display": "6.83 inches, 114.5 cm2 (~89.5% screen-to-body ratio)",
+        "battery": "Si/C Li-Ion 9210 mAh - version 1Si/C Li-Ion 10000 mAh - version 2",
+        "memory": "128GB 8GB RAM, 256GB 8GB RAM, 256GB 12GB RAM, 512GB 8GB RAM",
+        "wifi": "Wi-Fi 802.11 a/b/g/n/ac/6, dual-band, Wi-Fi Direct",
+        "bluetooth": "6.0, A2DP, LE",
+        "4g": "1, 2, 3, 4, 5, 7, 8, 12, 13, 17, 18, 19, 20, 26, 28, 32, 38, 40, 41, 42, 48, 66",
+        "5g": "1, 2, 3, 5, 7, 8, 12, 20, 26, 28, 38, 40, 41, 48, 66, 77, 78 SA/NSA",
+        "observed_at": "2026-09-13T23:34:03Z"
+      },
+      "firmware_history": [
+        {
+          "codename": "brussels_eea_global",
+          "name": "Redmi Note 17 Pro Max 5G EEA",
+          "android": "16.0",
+          "version": "OS3.0.304.0.WDREUXM",
+          "branch": "Stable",
+          "date": "2026-08-26"
+        },
+        {
+          "codename": "brussels_global",
+          "name": "Redmi Note 17 Pro Max 5G Global",
+          "android": "16.0",
+          "version": "OS3.0.306.0.WDRMIXM",
+          "branch": "Stable",
+          "date": "2026-09-01"
+        },
+        {
+          "codename": "brussels_jp_global",
+          "name": "Redmi Note 17 Pro Max 5G Japan",
+          "android": "16.0",
+          "version": "OS3.0.304.0.WDRJPXM",
+          "branch": "Stable",
+          "date": "2026-09-07"
+        },
+        {
+          "codename": "brussels_tw_global",
+          "name": "Redmi Note 17 Pro Max 5G Taiwan",
+          "android": "16.0",
+          "version": "OS3.0.304.0.WDRTWXM",
+          "branch": "Stable",
+          "date": "2026-09-06"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and codename mapping",
+      "identity_warning": "A codename is a source identity hint, not a canonical hardware model code."
+    },
+    {
+      "id": "xiaomi_redmi_a7_pro_5g-14616.php",
+      "manufacturer": "Xiaomi",
+      "tier": "entry",
+      "name": "Xiaomi Redmi A7 Pro",
+      "source_identities": [
+        "arctic_eea_global",
+        "arctic_global",
+        "arctic_id_global",
+        "arctic_in_global",
+        "arctic_ru_global",
+        "arctic_tr_global",
+        "somalia_in_global"
+      ],
+      "specification": {
+        "chipset": "Unisoc T8300 (6 nm)",
+        "cpu": "Octa-core (2x2.2 GHz Cortex-A78 & 6x2.0 GHz Cortex-A55)",
+        "gpu": "Mali-G57 MC2",
+        "launch_os": "Android 16, up to 4 major OS updates, HyperOS 3",
+        "display": "6.9 inches, 114.9 cm2 (~84.3% screen-to-body ratio)",
+        "battery": "6300 mAh",
+        "memory": "64GB 4GB RAM, 128GB 4GB RAM, 128GB 6GB RAM",
+        "wifi": "Wi-Fi 802.11 a/b/g/n/ac, dual-band",
+        "bluetooth": "5.4, A2DP, LE",
+        "4g": "1, 3, 5, 8, 28, 40, 41, 78 - ROW",
+        "5g": "1, 3, 5, 8, 28, 40, 41 SA/NSA",
+        "observed_at": "2026-09-13T23:35:56Z"
+      },
+      "firmware_history": [
+        {
+          "codename": "arctic_eea_global",
+          "name": "Redmi A7 Pro / POCO C81 / C81 Pro EEA",
+          "android": "16.0",
+          "version": "OS3.0.9.0.WBVEUXM",
+          "branch": "Stable",
+          "date": "2026-08-27"
+        },
+        {
+          "codename": "arctic_global",
+          "name": "Redmi A7 Pro / POCO C81 / C81 Pro Global",
+          "android": "16.0",
+          "version": "OS3.0.12.0.WBVMIXM",
+          "branch": "Stable",
+          "date": "2026-07-31"
+        },
+        {
+          "codename": "arctic_id_global",
+          "name": "Redmi A7 Pro / POCO C81 / C81 Pro Indonesia",
+          "android": "16.0",
+          "version": "OS3.0.5.0.WBVIDXM",
+          "branch": "Stable",
+          "date": "2026-08-21"
+        },
+        {
+          "codename": "arctic_in_global",
+          "name": "Redmi A7 Pro / POCO C81 / C81 Pro India",
+          "android": "16.0",
+          "version": "OS3.0.4.0.WBVINXM",
+          "branch": "Stable",
+          "date": "2026-07-21"
+        },
+        {
+          "codename": "arctic_ru_global",
+          "name": "Redmi A7 Pro / POCO C81 / C81 Pro Russia",
+          "android": "16.0",
+          "version": "OS3.0.7.0.WBVRUXM",
+          "branch": "Stable",
+          "date": "2026-08-04"
+        },
+        {
+          "codename": "arctic_tr_global",
+          "name": "Redmi A7 Pro / POCO C81 / C81 Pro Turkey",
+          "android": "16.0",
+          "version": "OS3.0.2.0.WBVTRXM",
+          "branch": "Stable",
+          "date": "2026-06-23"
+        },
+        {
+          "codename": "somalia_in_global",
+          "name": "Redmi 15A/A7 Pro/POCO C85x 5G India",
+          "android": "16.0",
+          "version": "OS3.0.12.0.WBWINXM",
+          "branch": "Stable",
+          "date": "2026-08-18"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and codename mapping",
+      "identity_warning": "A codename is a source identity hint, not a canonical hardware model code."
+    },
+    {
+      "id": "tecno-source-name:tecno-phantom-v-fold2-5g",
+      "manufacturer": "TECNO",
+      "tier": "flagship/foldable",
+      "name": "TECNO PHANTOM V Fold2 5G",
+      "source_identities": [
+        "TECNO PHANTOM V Fold2 5G"
+      ],
+      "security_patch_history": [
+        {
+          "device": "TECNO PHANTOM V Fold2 5G",
+          "aspl_month": "2026-07",
+          "publish_date": "2026-08-11 16:01:44",
+          "title": "2026-07  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO PHANTOM V Fold2 5G",
+          "aspl_month": "2026-04",
+          "publish_date": "2026-05-07 15:15:40",
+          "title": "2026-04  Phone models with latest security patches"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and specification enrichment",
+      "identity_warning": "Vendor display name is not sufficient to merge regional or hardware variants.",
+      "coverage_warning": "Captured vendor feed provides patch month only; firmware, chipset and Android data are not present."
+    },
+    {
+      "id": "tecno-source-name:tecno-camon-40-pro-5g",
+      "manufacturer": "TECNO",
+      "tier": "upper-mid-range",
+      "name": "TECNO CAMON 40 Pro 5G",
+      "source_identities": [
+        "TECNO CAMON 40 Pro 5G"
+      ],
+      "security_patch_history": [
+        {
+          "device": "TECNO CAMON 40 Pro 5G",
+          "aspl_month": "2026-07",
+          "publish_date": "2026-08-11 16:01:44",
+          "title": "2026-07  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO CAMON 40 Pro 5G",
+          "aspl_month": "2026-04",
+          "publish_date": "2026-05-07 15:15:40",
+          "title": "2026-04  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO CAMON 40 Pro 5G",
+          "aspl_month": "2026-02",
+          "publish_date": "2026-02-27 10:24:52",
+          "title": "2026-02  Phone models with latest security patches"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and specification enrichment",
+      "identity_warning": "Vendor display name is not sufficient to merge regional or hardware variants.",
+      "coverage_warning": "Captured vendor feed provides patch month only; firmware, chipset and Android data are not present."
+    },
+    {
+      "id": "tecno-source-name:tecno-pova-7-5g",
+      "manufacturer": "TECNO",
+      "tier": "performance",
+      "name": "TECNO POVA 7 5G",
+      "source_identities": [
+        "TECNO POVA 7 5G"
+      ],
+      "security_patch_history": [
+        {
+          "device": "TECNO POVA 7 5G",
+          "aspl_month": "2025-09",
+          "publish_date": "2025-09-26 15:52:38",
+          "title": "2025-09 Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO POVA 7 5G",
+          "aspl_month": "2026-07",
+          "publish_date": "2026-08-11 16:01:44",
+          "title": "2026-07  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO POVA 7 5G",
+          "aspl_month": "2026-04",
+          "publish_date": "2026-05-07 15:15:40",
+          "title": "2026-04  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO POVA 7 5G",
+          "aspl_month": "2026-03",
+          "publish_date": "2026-04-02 16:03:55",
+          "title": "2026-03  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO POVA 7 5G",
+          "aspl_month": "2026-02",
+          "publish_date": "2026-02-27 10:24:52",
+          "title": "2026-02  Phone models with latest security patches"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and specification enrichment",
+      "identity_warning": "Vendor display name is not sufficient to merge regional or hardware variants.",
+      "coverage_warning": "Captured vendor feed provides patch month only; firmware, chipset and Android data are not present."
+    },
+    {
+      "id": "tecno-source-name:tecno-spark-40c",
+      "manufacturer": "TECNO",
+      "tier": "entry",
+      "name": "TECNO SPARK 40C",
+      "source_identities": [
+        "TECNO SPARK 40C"
+      ],
+      "security_patch_history": [
+        {
+          "device": "TECNO SPARK 40C",
+          "aspl_month": "2026-08",
+          "publish_date": "2026-09-03 17:33:01",
+          "title": "2026-08  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO SPARK 40C",
+          "aspl_month": "2026-07",
+          "publish_date": "2026-08-11 16:01:44",
+          "title": "2026-07  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO SPARK 40C",
+          "aspl_month": "2026-04",
+          "publish_date": "2026-05-07 15:15:40",
+          "title": "2026-04  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO SPARK 40C",
+          "aspl_month": "2026-02",
+          "publish_date": "2026-02-27 10:24:52",
+          "title": "2026-02  Phone models with latest security patches"
+        },
+        {
+          "device": "TECNO SPARK 40C",
+          "aspl_month": "2026-01",
+          "publish_date": "2026-01-06 11:55:38",
+          "title": "2026-01  Phone models with latest security patches"
+        }
+      ],
+      "review_state": "needs authoritative hardware model code and specification enrichment",
+      "identity_warning": "Vendor display name is not sufficient to merge regional or hardware variants.",
+      "coverage_warning": "Captured vendor feed provides patch month only; firmware, chipset and Android data are not present."
+    }
+  ]
+}

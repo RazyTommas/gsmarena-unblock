@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f4ef">
+  <title>Mobile Observatory</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip" href="#workspace">Skip to content</a>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">M</span><span><b>Mobile</b><small>Observatory</small></span></div>
+      <nav aria-label="Main navigation">
+        <button class="nav-item active" data-route="radar"><span>◎</span> Radar <em id="navCount">7</em></button>
+        <button class="nav-item" data-route="explore"><span>▦</span> Explore</button>
+        <button class="nav-item" data-route="products"><span>⌘</span> Product evidence</button>
+        <button class="nav-item" data-route="security"><span>◇</span> Security</button>
+      </nav>
+      <div class="rail-bottom">
+        <div class="snapshot"><i></i><span>Snapshot<br><b id="snapshotLabel">Loading…</b></span></div>
+        <button class="nav-item" data-route="admin"><span>⚙</span> Admin</button>
+      </div>
+    </aside>
+
+    <main id="workspace" tabindex="-1">
+      <header class="topbar">
+        <button class="mobile-menu" aria-label="Toggle navigation">☰</button>
+        <div class="crumb" id="crumb">Radar</div>
+        <div class="search-wrap"><label class="global-search"><span>⌕</span><input id="globalSearch" placeholder="Search device, model code, chip, build, or CVE" autocomplete="off"><kbd>/</kbd></label><div class="search-results" id="searchResults"></div></div>
+        <select class="theme-select" id="themeSelect" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option><option value="contrast">High contrast</option></select>
+        <button class="icon-button" id="helpButton" title="How Mobile Observatory works" aria-label="How Mobile Observatory works">?</button>
+        <button class="icon-button" id="refreshButton" title="Refresh data">↻</button>
+        <div class="avatar">YO</div>
+      </header>
+      <section id="app" aria-live="polite"></section>
+    </main>
+  </div>
+  <div id="toast" role="status"></div>
+  <div class="detail-scrim" id="detailScrim"></div><aside class="detail-panel" id="detailPanel" aria-label="Details"></aside>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

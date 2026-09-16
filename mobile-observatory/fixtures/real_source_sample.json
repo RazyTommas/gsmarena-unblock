@@ -1,0 +1,15 @@
+{
+  "notice": "Real source records captured by repository collectors; snapshot, not live truth. Xiaomi and Tecno rows remain source identities until canonical model-code resolution.",
+  "captured_at": "2026-09-13T23:33:52Z",
+  "items": [
+    {"vendor":"Samsung","tier":"flagship","device":"Samsung Galaxy S25 Ultra","identity":"SM-S938B","region":"EUX","value":"S938BXXSCCZH1","kind":"firmware","effective":"2026-08-01","source":"Samsung FOTA artifact"},
+    {"vendor":"Samsung","tier":"mid-range","device":"Samsung Galaxy A56 5G","identity":"SM-A566B","region":"EUX","value":"A566BXXSDCZHB","kind":"firmware","effective":"2026-08-01","source":"Samsung FOTA artifact"},
+    {"vendor":"Samsung","tier":"entry","device":"Samsung Galaxy A16 5G","identity":"SM-A166B","region":"EUX","value":"A166BXXSADZH1","kind":"firmware","effective":"2026-08-01","source":"Samsung FOTA artifact"},
+    {"vendor":"Xiaomi","tier":"flagship","device":"Xiaomi 15 Ultra Global","identity":"xuanyuan_global (codename)","region":"Global","value":"OS3.0.302.0.WOAMIXM","kind":"firmware","effective":"2026-07-30","source":"Xiaomi tracker artifact"},
+    {"vendor":"Xiaomi","tier":"mid-range","device":"Redmi Note 14 Pro+ 5G Global","identity":"amethyst_global (codename)","region":"Global","value":"OS3.0.306.0.WOPMIXM","kind":"firmware","effective":"2026-08-28","source":"Xiaomi tracker artifact"},
+    {"vendor":"Xiaomi","tier":"entry","device":"Redmi A5 / A7 / POCO C71 / C81x Global","identity":"serenity_global (codename)","region":"Global","value":"A15.0.31.0.VGWMIXM","kind":"firmware","effective":"2026-08-25","source":"Xiaomi tracker artifact"},
+    {"vendor":"Tecno","tier":"flagship","device":"TECNO CAMON 40 Pro","identity":"unresolved source name","region":"Global","value":"2025-09","kind":"security patch","effective":"2025-09-26","source":"Tecno security artifact"},
+    {"vendor":"Tecno","tier":"mid-range","device":"TECNO POVA 7 5G","identity":"unresolved source name","region":"Global","value":"2025-09","kind":"security patch","effective":"2025-09-26","source":"Tecno security artifact"},
+    {"vendor":"Tecno","tier":"entry","device":"TECNO SPARK 40","identity":"unresolved source name","region":"Global","value":"2026-08","kind":"security patch","effective":"2026-09-03","source":"Tecno security artifact"}
+  ]
+}

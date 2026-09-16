@@ -1,0 +1,10 @@
+{
+  "notice": "Reviewed identities and captured corpus history, not a claim that these are current upstream builds.",
+  "source": "../../../crawler/history.csv and ../../../crawler/baseline_latest.csv",
+  "profiles": [
+    {"tier":"flagship","commercial_name":"Galaxy S25 Ultra 5G","model_code":"SM-S938B","identity_state":"exact_vendor_model_code","regions":["ILO","MID"],"latest_captured":{"ILO":"S938BXXSCCZH1","MID":"S938BXXSCCZH1"},"android":"16"},
+    {"tier":"foldable","commercial_name":"Galaxy Z Fold7","model_code":"SM-F966B","identity_state":"exact_vendor_model_code","regions":["ILO","MID"],"latest_captured":{"ILO":"F966BXXSBBZG3","MID":"F966BXXSBBZG3"},"android":"16"},
+    {"tier":"midrange","commercial_name":"Galaxy A56 5G","model_code":"SM-A566B","identity_state":"exact_vendor_model_code","regions":["ILO","MID"],"latest_captured":{"ILO":"A566BXXSCCZG7","MID":"A566BXXSCCZG7"},"android":"16","chip":{"vendor":"Samsung","name":"Exynos 1580","part":"S5E8855"}},
+    {"tier":"entry","commercial_name":"Galaxy A26 5G","model_code":"SM-A266B","identity_state":"exact_vendor_model_code","regions":["ILO","MID"],"latest_captured":{"ILO":"A266BXXSBCZG2","MID":"A266BXXSBCZG2"},"android":"16"}
+  ]
+}

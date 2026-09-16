@@ -36,6 +36,7 @@ export const api = {
   sourceProducts: filters => request(`/identity/products${params(filters)}`),
   reviewSourceProduct: (id, decision) => request(`/identity/products/${encodeURIComponent(id)}/review`, {method:'POST',body:JSON.stringify({decision})}),
   agentBundle: () => request('/identity/agent-bundle'),
+  securityDetail: cve => request(`/security/cves/${encodeURIComponent(cve)}`),
   security: filters => request(`/security/findings${params(filters)}`),
   securityCoverage: () => request('/security/coverage'),
   health: () => request('/admin/health'),

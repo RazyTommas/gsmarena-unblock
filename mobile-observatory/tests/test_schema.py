@@ -17,7 +17,7 @@ class SchemaTests(unittest.TestCase):
             self.assertEqual(db.connection.execute("PRAGMA foreign_keys").fetchone()[0], 1)
             self.assertEqual(
                 db.connection.execute("SELECT max(version) FROM schema_migrations").fetchone()[0],
-            8,
+            max(int(path.name.split("_", 1)[0]) for path in (ROOT / "migrations").glob("[0-9][0-9][0-9][0-9]_*.sql")),
             )
             problems = db.connection.execute("PRAGMA foreign_key_check").fetchall()
             self.assertEqual(problems, [])

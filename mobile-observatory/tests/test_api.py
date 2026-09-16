@@ -117,6 +117,23 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(all(row["reasoning"] for row in payload["items"]))
         self.assertTrue(all(row["cve_url"].endswith(row["cve"]) for row in payload["items"]))
 
+    def test_cve_detail_route_returns_provenance_and_missing_is_404(self) -> None:
+        c = self.corpus.connection
+        source = c.execute('SELECT id FROM sources LIMIT 1').fetchone()[0]
+        evidence = c.execute('SELECT id FROM evidence LIMIT 1').fetchone()[0]
+        c.execute("INSERT INTO advisories VALUES('api-advisory',?,'test','Test bulletin',NULL,NULL,?)", (source,evidence))
+        c.execute("INSERT INTO vulnerabilities VALUES('api-cve','CVE-2099-10001',NULL,NULL,NULL)")
+        c.execute("INSERT INTO advisory_vulnerabilities VALUES('api-advisory','api-cve')")
+        _, payload = self.get("/api/v1/security/findings?limit=1")
+        cve = payload['items'][0]['cve']
+        _, detail = self.get('/api/v1/security/cves/' + cve)
+        self.assertEqual(detail['cve'], cve)
+        self.assertTrue(detail['bulletins'])
+        self.assertIn('boundaries', detail)
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            self.get('/api/v1/security/cves/CVE-2099-999999')
+        self.assertEqual(error.exception.code, 404)
+
     def test_silicon_defaults_to_mobile_linked_parts_and_keeps_evidence_levels(self) -> None:
         _, payload = self.get("/api/v1/chips?limit=100")
         rows = payload["items"]

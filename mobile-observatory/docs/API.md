@@ -91,3 +91,19 @@ All paged responses expose `meta.page.total` and `meta.page.nextCursor`. Detail
 history is independent of the currently loaded main-screen page. `evidence`
 includes captured specification URL, SHA-256, CSV locator, matching rule and
 specification fields; `file:` paths never become external UI links.
+
+## Security evidence exploration (2026-09-17)
+
+`GET /api/v1/security/findings`: paginated whole-catalog query. Filters: `q`,
+`vendor` (bulletin source-name substring), `date_from`/`date_to` (inclusive effective
+publication dates), `part` (exact affected part number), `model` (exact reviewed
+hardware code through affected silicon), `mobile_linked=1`, `exact_part=1`,
+`fix_status=with_coordinate|without_coordinate`, `sort=oldest_asc` (default newest).
+These filters describe captured evidence, never device fix verdicts.
+
+`GET /api/v1/security/cves/{CVE-ID}` returns one CVE independent of pagination,
+with `bulletins`, `claims` (decoded `constraint`), `fixes` (decoded `coordinate`),
+`verdicts` (current only), `mappedHardware`, and explicit `boundaries`. Unknown CVE:
+404 `cve_not_found`. Claims/fixes retain evidence identifiers, source URL, capture
+SHA-256, locator, observed timestamp and source. Fix coordinates are CVE-level;
+joining them to the CVE does not establish their applicability to each part/device.

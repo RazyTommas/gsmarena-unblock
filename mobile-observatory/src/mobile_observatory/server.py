@@ -223,7 +223,7 @@ class ObservatoryService:
         max_android = _first(query, "max_android").strip()
         if max_android:
             try:
-                clauses.append("(os.major IS NOT NULL AND os.major <= ?)")
+                clauses.append("(os.major IS NOT NULL AND os.major <= ? AND lf.latest_basis!='observation_order_only')")
                 params.append(int(max_android))
             except ValueError:
                 clauses.append("0")
@@ -238,16 +238,17 @@ class ObservatoryService:
                LEFT JOIN silicon_parts sp ON sp.id = hs.part_id
                LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
                                              AND cd.part_id = sp.id
-               LEFT JOIN v_latest_firmware lf ON lf.firmware_release_id = (
-                 SELECT lf2.firmware_release_id FROM v_latest_firmware lf2
-                 WHERE lf2.hardware_model_id = dc.hardware_model_id
-                 ORDER BY coalesce(lf2.vendor_released_at,lf2.first_observed_at) DESC,
-                          lf2.firmware_release_id DESC LIMIT 1)
+               LEFT JOIN (SELECT candidate.*,row_number() OVER (
+                   PARTITION BY hardware_model_id ORDER BY
+                   CASE latest_basis WHEN 'source_manifest_latest' THEN 0
+                     WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
+                   coalesce(declared_latest_at,vendor_released_at,first_observed_at) DESC,
+                   firmware_target_id,firmware_release_id) device_rank
+                   FROM v_latest_firmware candidate) lf
+                 ON lf.hardware_model_id=dc.hardware_model_id AND lf.device_rank=1
                LEFT JOIN os_releases os ON os.id = lf.os_release_id
                LEFT JOIN firmware_targets ft ON ft.id = lf.firmware_target_id
                WHERE {' AND '.join(clauses) if clauses else '1=1'}"""
-        total = self.corpus.connection.execute(
-            "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
         limit, offset = _pagination(query)
         sort = _first(query, "sort", "latest_desc")
         order = {"latest_desc": "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code",
@@ -255,9 +256,9 @@ class ObservatoryService:
                  "android_desc": "os.major IS NULL,os.major DESC,dc.brand,dc.variant"}.get(
                      sort, "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code")
         rows = self.corpus.connection.execute(
-            """SELECT dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
+            """SELECT count(*) OVER() _total,dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
                       sa.status support_status,sa.evidence_id support_evidence_id,sa.asserted_at support_asserted_at,
-                      sp.marketing_name chip, sp.part_number part, os.major android,
+                      sp.marketing_name chip, sp.part_number part, os.major android, lf.latest_basis software_state_basis,
                       lf.security_patch_level patch, group_concat(DISTINCT ft.target_code) region,
                       (SELECT count(*) FROM firmware_releases history
                        WHERE history.hardware_model_id=dc.hardware_model_id) firmware_count,
@@ -266,13 +267,18 @@ class ObservatoryService:
                        WHERE history.hardware_model_id=dc.hardware_model_id) latest_firmware_at """
             + base + f" GROUP BY dc.hardware_model_id ORDER BY {order} LIMIT ? OFFSET ?",
             [*params, limit, offset]).fetchall()
+        total = rows[0]["_total"] if rows else self.corpus.connection.execute(
+            "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
         result = [
-            {**dict(row), "android": row["android"] or "Unknown", "patch": row["patch"] or "Unknown",
+            {**dict(row), "android": (row["android"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
+             "patch": (row["patch"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
              "region": row["region"] or "Catalogued; firmware not observed",
              "firmwareCoverage": "observed" if row["firmware_count"] else "not_observed",
              "support": {v:k for k,v in support_codes.items()}.get(row["support_status"], "Unknown"), "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
             for row in rows
         ]
+        for item in result:
+            item.pop("_total",None)
         return QueryPage(result, total, limit, offset)
 
     def chips(self, query: dict[str, list[str]]) -> list[dict]:
@@ -485,8 +491,15 @@ class ObservatoryService:
         silicon = [dict(row) for row in c.execute("SELECT * FROM v_chip_devices WHERE hardware_model_id=? ORDER BY role,part_number", (identifier,))]
         aliases = [dict(row) for row in c.execute("SELECT namespace,alias,review_state FROM aliases WHERE entity_type='hardware_model' AND entity_id=? ORDER BY namespace,alias", (identifier,))]
         regions = [dict(row) for row in c.execute("SELECT target_code region,channel,count(*) count FROM v_device_region_history WHERE hardware_model_id=? GROUP BY target_code,channel ORDER BY target_code,channel", (identifier,))]
+        latest = [dict(row) for row in c.execute('''SELECT lf.build_id build,ft.target_code region,lf.channel,
+            os.major android,lf.security_patch_level patch,lf.latest_basis,lf.declared_latest_at,
+            lf.vendor_released_at released,lf.first_observed_at observed
+            FROM v_latest_firmware lf LEFT JOIN firmware_targets ft ON ft.id=lf.firmware_target_id
+            LEFT JOIN os_releases os ON os.id=lf.os_release_id
+            WHERE lf.hardware_model_id=? AND lf.latest_basis!='observation_order_only'
+            ORDER BY ft.target_code,lf.channel''', (identifier,))]
         from .lineage_specs import hardware_specification_evidence
-        return {'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
+        return {'latestFirmware': latest, 'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
                 'specifications': hardware_specification_evidence(c, model),
                 'firmware': _page_payload(self.releases_page({'model_exact':[model],'limit':['50']}), self.meta),
                 'security': _page_payload(self.security_page({'model':[model],'limit':['50']}), self.meta),

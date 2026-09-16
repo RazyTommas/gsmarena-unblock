@@ -156,3 +156,10 @@ patch`, existing `q`, `maker`, `model`, `region`, `limit` and `offset`. Filters 
 unseen/watch selection apply before pagination, across the entire corpus. Rows
 provide typed `subjectType`, `subjectId`, and actual `watched` state. Region uses
 captured target codes (e.g. ILO, MID, GLOBAL); no guessed geographic expansion.
+`devices` now includes `software_state_basis`:
+`source_manifest_latest`, `vendor_release_date`, or `observation_order_only`.
+An observation-only fallback does not establish current Android/SPL; these remain
+unknown and do not satisfy Android-version filters. Exact device detail includes
+`latestFirmware` by region/channel only for a definite captured ordering. The
+newest Samsung manifest's explicit latest marker outranks same-time historical
+rows; no firmware build strings are treated as chronology.

@@ -9,7 +9,9 @@ import sqlite3
 INDEX = """WITH bulletin AS (
  SELECT av.vulnerability_id, min(a.title) bulletin,max(a.published_at) bulletin_date,
  group_concat(DISTINCT s.name) evidence,
- group_concat(DISTINCT coalesce(aa.source_url,s.base_url)) source_urls
+ group_concat(DISTINCT coalesce(aa.source_url,s.base_url)) source_urls,
+ min(CASE WHEN s.id IN ('android.security.bulletins.captured','mediatek.security.bulletins.captured')
+     THEN 1 ELSE 0 END) month_only
  FROM advisory_vulnerabilities av JOIN advisories a ON a.id=av.advisory_id
  JOIN sources s ON s.id=a.source_id LEFT JOIN evidence ae ON ae.id=a.evidence_id
  LEFT JOIN artifacts aa ON aa.id=ae.artifact_id GROUP BY av.vulnerability_id
@@ -25,6 +27,7 @@ INDEX = """WITH bulletin AS (
 ), catalog AS (
  SELECT v.id vulnerability_id,v.cve_id cve,b.bulletin,
  coalesce(v.published_at,b.bulletin_date) published_at,
+ CASE WHEN b.month_only=1 THEN 'month' ELSE 'day' END published_precision,
  coalesce(v.summary,'Component not specified') component,b.evidence,b.source_urls,
  coalesce(c.claim_count,0) claim_count,coalesce(c.device_count,0) device_count,
  c.affected_parts,coalesce(f.fix_count,0) fix_count
@@ -35,6 +38,8 @@ INDEX = """WITH bulletin AS (
 
 def present(row: sqlite3.Row) -> dict:
     item = dict(row)
+    if item['published_precision']=='month' and item['published_at']:
+        item['published_at']=item['published_at'][:7]
     part, fixes = bool(item['affected_parts']), bool(item['fix_count'])
     item.update(severity='Unscored', score='—', cve_url=f"https://nvd.nist.gov/vuln/detail/{item['cve']}",
                 chip=item['affected_parts'] or 'Applicability unresolved', devices=item['device_count'],
@@ -53,7 +58,7 @@ def query_catalog(connection: sqlite3.Connection, query: dict, limit: int, offse
     if value('q'):
         clauses.append('(cve LIKE ? COLLATE NOCASE OR component LIKE ? COLLATE NOCASE OR bulletin LIKE ? COLLATE NOCASE OR evidence LIKE ? COLLATE NOCASE)')
         params.extend([f"%{value('q')}%"] * 4)
-    for key, column, op in [('cve','cve','='),('date_from','substr(published_at,1,10)','>='),('date_to','substr(published_at,1,10)','<=')]:
+    for key, column, op in [('cve','cve','='),('date_from',"CASE WHEN published_precision='month' THEN date(substr(published_at,1,7)||'-01','+1 month','-1 day') ELSE substr(published_at,1,10) END",'>='),('date_to',"CASE WHEN published_precision='month' THEN substr(published_at,1,7)||'-01' ELSE substr(published_at,1,10) END",'<=')]:
         if value(key):
             clauses.append(f'{column} {op} ? COLLATE NOCASE');params.append(value(key))
     if value('vendor'):
@@ -64,12 +69,15 @@ def query_catalog(connection: sqlite3.Connection, query: dict, limit: int, offse
         clauses.append('affected_parts IS NOT NULL')
     if value('fix_status') in ('with_coordinate','without_coordinate'):
         clauses.append('fix_count>0' if value('fix_status')=='with_coordinate' else 'fix_count=0')
-    if value('part'):
+    if value('part') or value('silicon_vendor'):
+        part_filters = ["ac.vulnerability_id=catalog.vulnerability_id", "ac.relationship='affected'"]
+        for key,column in [('part','sp.part_number'),('silicon_vendor','sv.canonical_name')]:
+            if value(key):
+                part_filters.append(f'{column}=? COLLATE NOCASE');params.append(value(key))
         clauses.append("""EXISTS (SELECT 1 FROM applicability_claims ac JOIN silicon_parts sp
           ON ac.subject_type='silicon_part' AND sp.id=ac.subject_id
-          WHERE ac.vulnerability_id=catalog.vulnerability_id AND ac.relationship='affected'
-          AND sp.part_number=? COLLATE NOCASE)""")
-        params.append(value('part'))
+          JOIN silicon_families sf ON sf.id=sp.family_id JOIN silicon_vendors sv ON sv.id=sf.vendor_id
+          WHERE """+' AND '.join(part_filters)+')')
     if value('model'):
         clauses.append("""EXISTS (SELECT 1 FROM applicability_claims ac JOIN hardware_silicon hs
           ON ac.subject_type='silicon_part' AND hs.part_id=ac.subject_id
@@ -91,11 +99,16 @@ def detail(connection: sqlite3.Connection, cve: str) -> dict:
     result=rows[0];identifier=result['vulnerability_id']
     evidence_columns='e.locator,e.excerpt,ar.source_url,ar.sha256,ar.retrieved_at observed_at,s.name source'
     evidence_joins='LEFT JOIN evidence e ON e.id=x.evidence_id LEFT JOIN artifacts ar ON ar.id=e.artifact_id LEFT JOIN sources s ON s.id=ar.source_id'
-    result['bulletins']=[dict(row) for row in connection.execute(f'''SELECT x.id,x.title,x.advisory_key,x.published_at,x.evidence_id,
+    result['bulletins']=[dict(row) for row in connection.execute(f'''SELECT x.id,x.title,x.advisory_key,x.published_at,x.source_id,x.evidence_id,
       e.locator,e.excerpt,coalesce(ar.source_url,bs.base_url) source_url,ar.sha256,ar.retrieved_at observed_at,bs.name source,
       CASE WHEN ar.source_url IS NOT NULL THEN 'captured_artifact' ELSE 'source_homepage' END source_url_kind
       FROM advisories x JOIN advisory_vulnerabilities av ON av.advisory_id=x.id JOIN sources bs ON bs.id=x.source_id {evidence_joins}
       WHERE av.vulnerability_id=? ORDER BY x.published_at DESC,x.id''',(identifier,))]
+    for bulletin in result['bulletins']:
+        bulletin['published_precision']='month' if bulletin['source_id'] in {
+            'android.security.bulletins.captured','mediatek.security.bulletins.captured'} else 'day'
+        if bulletin['published_precision']=='month' and bulletin['published_at']:
+            bulletin['published_at']=bulletin['published_at'][:7]
     result['claims']=[dict(row) for row in connection.execute(f'''SELECT x.*,sp.part_number,sp.marketing_name,{evidence_columns}
       FROM applicability_claims x {evidence_joins} LEFT JOIN silicon_parts sp ON x.subject_type='silicon_part' AND sp.id=x.subject_id
       WHERE x.vulnerability_id=? ORDER BY x.relationship,x.subject_type,x.subject_id''',(identifier,))]
@@ -105,9 +118,15 @@ def detail(connection: sqlite3.Connection, cve: str) -> dict:
     for key,field in [('claims','constraint_json'),('fixes','coordinate_json'),('verdicts','inputs_json')]:
         for item in result[key]:
             item[field.removesuffix('_json')]=json.loads(item.pop(field))
-    result['mappedHardware']=[dict(row) for row in connection.execute('''SELECT DISTINCT hm.model_code,hm.id,sp.part_number
+    for verdict in result['verdicts']:
+        verdict['evidence_summary']=json.loads(verdict.pop('evidence_summary_json'))
+    result['mappedHardware']=[dict(row) for row in connection.execute('''SELECT DISTINCT hm.model_code,hm.id,sp.part_number,
+      hs.role,hs.valid_from,hs.valid_to,hs.evidence_id,e.locator,e.excerpt,ar.source_url,ar.sha256,
+      ar.retrieved_at observed_at,s.name source
       FROM applicability_claims ac JOIN hardware_silicon hs ON ac.subject_type='silicon_part' AND hs.part_id=ac.subject_id
       JOIN hardware_models hm ON hm.id=hs.hardware_model_id JOIN silicon_parts sp ON sp.id=hs.part_id
+      LEFT JOIN evidence e ON e.id=hs.evidence_id LEFT JOIN artifacts ar ON ar.id=e.artifact_id
+      LEFT JOIN sources s ON s.id=ar.source_id
       WHERE ac.vulnerability_id=? AND ac.relationship='affected' ORDER BY hm.model_code,sp.part_number''',(identifier,))]
     result['boundaries']={'hardwareLinks':'Reviewed hardware containing a claimed affected part; constraints and actual firmware verdicts must still be evaluated.',
       'fixCoordinates':'CVE-level coordinates are not proof that a particular part, product, or installed firmware is fixed.',

@@ -59,8 +59,21 @@ class SecurityReadTests(unittest.TestCase):
         self.assertEqual(self.service.security_page({**q,'date_to':['2098-12-31']}).total,0)
         self.assertEqual(self.service.security_page({**q,'date_from':['2099-01-01'],'date_to':['2099-01-01']}).total,1)
         self.assertEqual(self.service.security_page({**q,'vendor':['not-a-source']}).total,0)
+        self.assertEqual(self.service.security_page({**q,'silicon_vendor':['not-this-vendor']}).total,0)
         self.assertEqual(self.service.security_page({'q':['CVE-2099'],'limit':['100'],'offset':['100']}).total,125)
         self.assertEqual(len(self.service.security_page({'q':['CVE-2099'],'offset':['100']}).items),25)
+
+    def test_monthly_capture_does_not_invent_a_publication_day(self):
+        self.db.connection.execute("INSERT INTO sources VALUES('mediatek.security.bulletins.captured','Captured monthly vendor',NULL,'secondary',1,'2099-01-01')")
+        self.db.connection.execute("UPDATE advisories SET source_id='mediatek.security.bulletins.captured' WHERE id=?",(self.advisory,))
+        page=self.service.security_page({'q':['CVE-2099'],'date_from':['2099-01-15'],'date_to':['2099-01-20']})
+        self.assertEqual(page.total,125)
+        self.assertEqual(page.items[0]['published_at'],'2099-01')
+        self.assertEqual(page.items[0]['published_precision'],'month')
+        self.assertEqual(self.service.security_page({'q':['CVE-2099'],'date_from':['2099-02-01']}).total,0)
+        detail=self.service.security_detail('CVE-2099-10000')
+        self.assertEqual(detail['bulletins'][0]['published_at'],'2099-01')
+        self.assertEqual(detail['bulletins'][0]['published_precision'],'month')
 
     def test_index_migration_is_idempotent(self):
         self.db.apply_migrations()

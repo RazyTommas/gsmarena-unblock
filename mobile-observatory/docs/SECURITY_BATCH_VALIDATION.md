@@ -65,3 +65,25 @@ and reject partial model codes in the exact detail lookup. The combined suite
 with the LineageOS source dependency passed62 tests; frontend checks passed7.
 Bulletins lacking artifact evidence now retain their known advisory source name
 and label the source homepage as such; capture hash/time remain unavailable.
+
+## Precision and robustness follow-up
+
+The security import audit found that existing monthly Android/MediaTek CSV imports
+stored `bulletin_month + '-01'`, although they contained no publication day. The
+read model now exposes `published_precision: month` and YYYY-MM for these known
+sources. Date filtering conservatively includes any overlapping month. Raw facts
+are preserved; the interface does not present a synthetic day as vendor evidence.
+Tests cover an interior date range (January15–20) matching an unknown-day January
+bulletin, and excluding February. All other known source dates retain day precision.
+
+Canonical firmware now includes the source correction helper's build-derived
+month independently of vendor release dates. The all-model validation command is
+`python3 tools/validate_device_history.py /path/to/corpus.sqlite`; it creates its
+own temporary SQLite backup, never migrates the supplied original, and checks all
+83 hardware records/21186 releases. Additional checks retain chip totals beyond
+the last page, bound chip CVE relationships to their silicon vendor, and prevent
+stale security filter responses or duplicate next-page appends.
+
+The combined dependency suite passed69 tests plus11 subtests;7 frontend tests and
+JavaScript syntax checks passed. Parent integration remains responsible for browser
+QA against the combined source corrections and operational changes.

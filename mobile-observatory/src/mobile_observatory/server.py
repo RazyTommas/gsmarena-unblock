@@ -290,7 +290,8 @@ class ObservatoryService:
         rows = self.corpus.connection.execute(index + f""" SELECT *,canonical_devices+product_devices devices,
           count(*) OVER() _total
           FROM chip_index WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?""", [*params,limit,offset]).fetchall()
-        total = rows[0]["_total"] if rows else 0
+        total = rows[0]["_total"] if rows else self.corpus.connection.execute(
+            index + f" SELECT count(*) FROM chip_index WHERE {where}", params).fetchone()[0]
         return QueryPage([{k: value for k, value in dict(row).items() if k != "_total"}
                           for row in rows], total, limit, offset)
 
@@ -492,6 +493,9 @@ class ObservatoryService:
         result = [{**dict(row), "android": row["android"] or "Unknown",
                          "patch": row["patch"] or "Unknown", "baseband": row["baseband"] or "Unknown"}
                         for row in rows]
+        from .source_corrections import firmware_date_evidence
+        for item in result:
+            item.update(firmware_date_evidence(self.corpus.connection, item['id']))
         return QueryPage(result, total, limit, offset)
 
     def product_releases_page(self, query: dict[str, list[str]]) -> QueryPage:

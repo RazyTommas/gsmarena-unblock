@@ -144,6 +144,12 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(all(row["devices"] == row["canonical_devices"] + row["product_devices"]
                             for row in rows))
 
+    def test_silicon_empty_late_page_keeps_total(self) -> None:
+        _, first = self.get('/api/v1/chips?limit=1')
+        _, late = self.get('/api/v1/chips?offset=99999')
+        self.assertEqual(late['items'], [])
+        self.assertEqual(late['meta']['page']['total'], first['meta']['page']['total'])
+
     def test_manual_collection_request_is_executed_as_truthful_captured_replay(self) -> None:
         body = json.dumps({"target": "SM-S938B / ILO", "source": "samsung",
                            "scope": "latest_firmware"}).encode()

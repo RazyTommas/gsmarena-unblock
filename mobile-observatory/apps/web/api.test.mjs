@@ -29,6 +29,13 @@ test('product detail and reverse silicon use encoded stable identifiers', async(
   assert.equal(calls.at(-1).url,'/api/v1/product-releases?product=product%2F42&region=EEA&channel=Stable+Beta&cursor=50');
 });
 
+test('security detail and full-corpus filters use encoded API queries', async()=>{
+  await api.securityDetail('CVE-2099-10000');
+  assert.equal(calls.at(-1).url,'/api/v1/security/cves/CVE-2099-10000');
+  await api.security({part:'MT6789',fix_status:'without_coordinate',mobile_linked:1,offset:100});
+  assert.equal(calls.at(-1).url,'/api/v1/security/findings?part=MT6789&fix_status=without_coordinate&mobile_linked=1&offset=100');
+});
+
 test('non-success responses become typed API errors', async()=>{
   globalThis.fetch=async()=>({ok:false,status:503});
   await assert.rejects(api.health(), error=>error instanceof ApiError && error.status===503);

@@ -237,8 +237,8 @@ class ObservatoryService:
             FROM observed_product_silicon ops JOIN source_products prod ON prod.id=ops.product_id
             WHERE vendor IS NOT NULL AND part_number IS NOT NULL AND prod.review_state!='rejected' GROUP BY vendor,part_number),
           security_counts AS (SELECT ac.subject_id part_id,count(DISTINCT ac.vulnerability_id) advisories,
-            count(DISTINCT CASE WHEN fc.id IS NULL THEN ac.vulnerability_id END) open
-            FROM applicability_claims ac LEFT JOIN fix_claims fc ON fc.vulnerability_id=ac.vulnerability_id
+            count(DISTINCT CASE WHEN fc.vulnerability_id IS NULL THEN ac.vulnerability_id END) open
+            FROM applicability_claims ac LEFT JOIN (SELECT DISTINCT vulnerability_id FROM fix_claims) fc ON fc.vulnerability_id=ac.vulnerability_id
             WHERE ac.subject_type='silicon_part' AND ac.relationship='affected' GROUP BY ac.subject_id),
           chip_index AS (
           SELECT sp.id chip_key,sv.canonical_name vendor,sf.canonical_name family,
@@ -526,48 +526,14 @@ class ObservatoryService:
         return QueryPage([dict(row) for row in rows],total,limit,offset)
 
     def security_page(self, query: dict[str, list[str]]) -> QueryPage:
-        q = _first(query, "q").strip()
-        clauses = ["1=1"]
-        params: list[object] = []
-        if q:
-            clauses.append("(v.cve_id LIKE ? COLLATE NOCASE OR v.summary LIKE ? COLLATE NOCASE OR a.title LIKE ? COLLATE NOCASE OR s.name LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 4)
-        where = " AND ".join(clauses)
-        joins = """FROM vulnerabilities v JOIN advisory_vulnerabilities av ON av.vulnerability_id=v.id
-          JOIN advisories a ON a.id=av.advisory_id JOIN sources s ON s.id=a.source_id
-          LEFT JOIN evidence ae ON ae.id=a.evidence_id LEFT JOIN artifacts aa ON aa.id=ae.artifact_id"""
-        total = self.corpus.connection.execute(f"SELECT count(DISTINCT v.id) {joins} WHERE {where}", params).fetchone()[0]
+        from .security_read import query_catalog
         limit, offset = _pagination(query)
-        rows = self.corpus.connection.execute(f"""SELECT v.id vulnerability_id,v.cve_id cve,min(a.title) bulletin,
-          coalesce(v.published_at,max(a.published_at)) published_at,
-          coalesce(v.summary,'Component not specified') component,
-          group_concat(DISTINCT s.name) evidence,
-          group_concat(DISTINCT coalesce(aa.source_url,s.base_url)) source_urls,
-          (SELECT count(*) FROM applicability_claims ac WHERE ac.vulnerability_id=v.id) claim_count,
-          (SELECT count(DISTINCT hs.hardware_model_id) FROM applicability_claims ac
-             JOIN hardware_silicon hs ON ac.subject_type='silicon_part' AND hs.part_id=ac.subject_id
-             WHERE ac.vulnerability_id=v.id AND ac.relationship='affected') device_count,
-          (SELECT group_concat(DISTINCT sp.part_number) FROM applicability_claims ac
-             JOIN silicon_parts sp ON ac.subject_type='silicon_part' AND sp.id=ac.subject_id
-             WHERE ac.vulnerability_id=v.id AND ac.relationship='affected') affected_parts,
-          (SELECT count(*) FROM fix_claims fc WHERE fc.vulnerability_id=v.id) fix_count {joins} WHERE {where}
-          GROUP BY v.id ORDER BY published_at DESC,v.cve_id DESC LIMIT ? OFFSET ?""", [*params, limit, offset]).fetchall()
-        result = [{**dict(row), "severity": "Unscored", "score": "—",
-                   "cve_url": f"https://nvd.nist.gov/vuln/detail/{row['cve']}",
-                   "chip": row["affected_parts"] or "Applicability unresolved",
-                   "devices": row["device_count"],
-                   "state": ("Part applicability + fix coordinate" if row["affected_parts"] and row["fix_count"]
-                             else "Part applicability" if row["affected_parts"]
-                             else "Component applicability" if row["claim_count"]
-                             else "Catalog only"),
-                   "reasoning": ("Exact affected silicon part and a fix coordinate are both linked."
-                                 if row["affected_parts"] and row["fix_count"] else
-                                 "The vendor maps this CVE to an exact silicon part, but no fix coordinate is linked."
-                                 if row["affected_parts"] else
-                                 "An applicability claim exists, but it does not identify an exact silicon part."
-                                 if row["claim_count"] else
-                                 "The CVE appears in a captured bulletin only; device impact is not established.")} for row in rows]
-        return QueryPage(result, total, limit, offset)
+        rows, total = query_catalog(self.corpus.connection, query, limit, offset)
+        return QueryPage(rows, total, limit, offset)
+
+    def security_detail(self, cve: str) -> dict:
+        from .security_read import detail
+        return {**detail(self.corpus.connection, cve), 'meta': self.meta}
 
     def security_coverage(self) -> dict:
         rows = self.corpus.connection.execute(
@@ -811,6 +777,12 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/identity/agent-bundle": service.agent_review_bundle,
                 "/api/v1/admin/collection-requests": lambda: {"items": service.collection_requests()},
             }
+            if parsed.path.startswith('/api/v1/security/cves/'):
+                try:
+                    self._json(HTTPStatus.OK, service.security_detail(unquote(parsed.path[len('/api/v1/security/cves/'):])) )
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {'error': 'cve_not_found'})
+                return
             if parsed.path.startswith('/api/v1/products/'):
                 try:
                     self._json(HTTPStatus.OK, service.product_detail(unquote(parsed.path[len('/api/v1/products/'):])) )

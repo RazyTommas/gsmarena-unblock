@@ -70,6 +70,10 @@ class ObservatoryService:
           decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, rationale TEXT,
           PRIMARY KEY(source_namespace,source_value,canonical_type,canonical_id))""")
         self.local.commit()
+        try:
+            CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()
+        except ValueError:
+            pass  # Another live worker owns the lock; preserve its active jobs.
 
     @property
     def meta(self) -> dict:
@@ -590,15 +594,22 @@ class ObservatoryService:
         return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data}
 
     def health(self) -> list[dict]:
-        rows = self.corpus.connection.execute("""SELECT s.name source, s.authority_scope scope,
-          ir.outcome status, ir.finished_at last, ir.accepted_count records
+        rows = self.corpus.connection.execute("""SELECT s.id source_id,s.name source,s.authority_scope scope,
+          ir.id run_id,ir.outcome status,ir.finished_at last,ir.accepted_count records,
+          (SELECT max(a.retrieved_at) FROM artifacts a WHERE a.source_id=s.id) captured_at,
+          (SELECT max(o.observed_at) FROM observations o WHERE o.source_id=s.id) observed_at
           FROM ingestion_runs ir JOIN sources s ON s.id=ir.source_id
-          WHERE ir.started_at=(SELECT max(ir2.started_at) FROM ingestion_runs ir2 WHERE ir2.source_id=ir.source_id)
+          WHERE ir.id=(SELECT ir2.id FROM ingestion_runs ir2 WHERE ir2.source_id=ir.source_id
+                       ORDER BY ir2.started_at DESC,ir2.id DESC LIMIT 1)
           ORDER BY s.name""").fetchall()
         if rows:
-            return [{**dict(row), "next": "According to configured cadence"} for row in rows]
+            return [{**dict(row), "next": "Manual only · no scheduler installed",
+                     "execution_mode": "captured_replay" if row["run_id"].startswith("manual-") else "snapshot_import",
+                     "live_network": False, "freshness": "Captured evidence; import success is not a vendor refresh"}
+                    for row in rows]
         return [{"source": "Synthetic demonstration fixture", "scope": "Sample only", "status": "Demo",
-                 "last": DEMO_TIME, "next": "No collection scheduled", "records": "0"}]
+                 "last": DEMO_TIME, "next": "No collection scheduled", "records": "0",
+                 "captured_at": None, "observed_at": None, "execution_mode": "demonstration", "live_network": False}]
 
     def overview(self) -> dict:
         with self.local_lock:
@@ -774,11 +785,21 @@ class ObservatoryService:
                 "scope": scope, "status": "queued", "execution_mode": "captured_replay",
                 "live_network": False}
 
+    def recover_collection_requests(self) -> dict:
+        with self.local_lock:
+            return {"interrupted": CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()}
+
+    def retry_collection_request(self, request_id: int) -> dict:
+        with self.local_lock:
+            return CollectionWorker(self.local, self.corpus.connection, self.worker_paths).retry(request_id)
+
     def process_collection_request(self, request_id: int) -> dict:
-        return CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process(request_id)
+        with self.local_lock:
+            return CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process(request_id)
 
     def process_next_collection_request(self) -> dict:
-        item = CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process_next()
+        with self.local_lock:
+            item = CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process_next()
         return item or {"status": "idle", "message": "No queued collection request."}
 
 
@@ -863,6 +884,21 @@ def make_handler(service: ObservatoryService, web_root: Path):
                     self._json(HTTPStatus.OK, service.process_next_collection_request())
                 except (ValueError, OSError) as exc:
                     self._json(HTTPStatus.CONFLICT, {"error": "collection_failed", "detail": str(exc)})
+                return
+            if parsed.path == "/api/v1/admin/collection-requests/recover":
+                try:
+                    self._json(HTTPStatus.OK, service.recover_collection_requests())
+                except (ValueError, OSError) as exc:
+                    self._json(HTTPStatus.CONFLICT, {"error": "worker_active", "detail": str(exc)})
+                return
+            request_prefix, retry_suffix = "/api/v1/admin/collection-requests/", "/retry"
+            if parsed.path.startswith(request_prefix) and parsed.path.endswith(retry_suffix):
+                try:
+                    self._json(HTTPStatus.CREATED, service.retry_collection_request(int(parsed.path[len(request_prefix):-len(retry_suffix)])))
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "collection_request_not_found"})
+                except (ValueError, OSError) as exc:
+                    self._json(HTTPStatus.CONFLICT, {"error": "retry_conflict", "detail": str(exc)})
                 return
             request_prefix, process_suffix = "/api/v1/admin/collection-requests/", "/process"
             if parsed.path.startswith(request_prefix) and parsed.path.endswith(process_suffix):

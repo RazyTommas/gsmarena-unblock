@@ -49,6 +49,8 @@ export const api = {
   saveIdentityDecision: value => request('/identity/decisions', { method: 'POST', body: JSON.stringify(value) }),
   collectionRequests: () => request('/admin/collection-requests'),
   requestCollection: value => request('/admin/collection-requests', { method: 'POST', body: JSON.stringify(value) }),
+  recoverCollections: () => request('/admin/collection-requests/recover', { method: 'POST', body: '{}' }),
+  retryCollection: id => request(`/admin/collection-requests/${encodeURIComponent(id)}/retry`, { method: 'POST', body: '{}' }),
   processNextCollection: () => request('/admin/collection-requests/process-next', { method: 'POST', body: '{}' }),
 };
 

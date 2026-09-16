@@ -91,3 +91,18 @@ All paged responses expose `meta.page.total` and `meta.page.nextCursor`. Detail
 history is independent of the currently loaded main-screen page. `evidence`
 includes captured specification URL, SHA-256, CSV locator, matching rule and
 specification fields; `file:` paths never become external UI links.
+
+### Honest support and event time
+
+`GET /devices?support=Unknown` (or `Supported`, `Likely supported`, `End announced`,
+`Unsupported`, or the stored snake_case status) filters before pagination. Support
+comes from the latest currently valid exact hardware assertion. With no assertion,
+status is `Unknown`; catalog inclusion alone does not prove support. Responses
+include `support_status`, `support_evidence_id`, and `support_asserted_at`.
+
+Radar `detectedAt` is the event's recorded time (or the firmware first observation
+for the no-event fallback); `effectiveAt` is its effective date. `age` remains a
+compatibility alias for detection time. Feed ordering uses detection time.
+
+An unavailable API is displayed as an error with a retry control. It never swaps
+real data for synthetic fixtures; explicit server `--demo` remains available.

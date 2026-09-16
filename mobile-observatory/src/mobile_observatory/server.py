@@ -74,6 +74,7 @@ class ObservatoryService:
           PRIMARY KEY(source_namespace,source_value,canonical_type,canonical_id))""")
         self.local.commit()
         migrate_proposals(self.local)
+        self._reapply_product_reviews()
         try:
             CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()
         except ValueError:
@@ -84,12 +85,19 @@ class ObservatoryService:
         row = self.corpus.connection.execute(
             "SELECT max(observed_at) FROM observations"
         ).fetchone()
-        data_as_of = row[0] if row and row[0] else DEMO_TIME
+        data_as_of = row[0] if row and row[0] else (DEMO_TIME if self.demonstration else None)
         return {
-            "snapshot": f"DEMONSTRATION · {data_as_of}" if self.demonstration else f"IMPORTED SNAPSHOT · {data_as_of}",
+            "snapshot": f"DEMONSTRATION · {data_as_of}" if self.demonstration else f"IMPORTED SNAPSHOT · {data_as_of or 'observation time unknown'}",
             "mode": "demonstration" if self.demonstration else "snapshot",
             "dataAsOf": data_as_of,
         }
+
+    def _current_event_source(self) -> str:
+        available = self.corpus.connection.execute("SELECT 1 FROM sqlite_schema WHERE type='view' AND name='v_current_domain_events'").fetchone()
+        return "v_current_domain_events" if available else "domain_events"
+
+    def _radar_event_source(self) -> str:
+        return f"(SELECT * FROM {self._current_event_source()} WHERE event_type IN ('firmware_first_observed','firmware_replaced','android_version_changed','security_patch_changed','baseband_changed'))"
 
     def updates(self, query: dict[str, list[str]]) -> list[dict]:
         return self.updates_page(query).items
@@ -127,7 +135,7 @@ class ObservatoryService:
             elif change_filter == "Security patch":
                 clauses.append("de.event_type='security_patch_changed'")
             where = " AND ".join(clauses)
-            joins = """FROM domain_events de
+            joins = f"""FROM {self._radar_event_source()} de
                 LEFT JOIN firmware_releases fr ON fr.id=de.subject_id
                 LEFT JOIN v_device_catalog dc ON dc.hardware_model_id=fr.hardware_model_id
                 LEFT JOIN firmware_targets ft ON ft.id=fr.firmware_target_id
@@ -372,7 +380,7 @@ class ObservatoryService:
         if silicon:
             silicon['evidence'] = json.loads(silicon.pop('evidence_json'))
         upgrades = []
-        for event in db.execute('''SELECT * FROM domain_events WHERE subject_type='source_product'
+        for event in db.execute(f'''SELECT * FROM {self._current_event_source()} WHERE subject_type='source_product'
             AND subject_id=? AND event_type='android_version_changed' ORDER BY occurred_at DESC,id''', (product_id,)):
             upgrades.append({'id': event['id'], 'effective_at': event['occurred_at'],
                 'observed_at': event['recorded_at'], 'before': json.loads(event['before_json']),
@@ -465,19 +473,37 @@ class ObservatoryService:
           [*params, limit, offset]).fetchall()
         return QueryPage([dict(row) for row in rows], total, limit, offset)
 
+    def _apply_product_review(self, product_id: str, decision: str) -> None:
+        with self.corpus.transaction():
+            self.corpus.connection.execute("UPDATE source_products SET review_state=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                                           (decision, product_id))
+            self.corpus.connection.execute("UPDATE source_identity_registry SET resolution_state=?,resolution_method='manual_product_review' WHERE product_id=?",
+                                           (decision, product_id))
+            self.corpus.connection.execute("UPDATE observation_product_links SET link_state=? WHERE product_id=?",
+                                           ("approved" if decision == "approved" else "proposed", product_id))
+
+    def _reapply_product_reviews(self) -> None:
+        # Local human decisions survive replacement of the derived corpus.
+        # Reapply only this exact source-product workflow; no hardware identities
+        # or accepted agent proposals are promoted by startup.
+        for row in self.local.execute("SELECT canonical_id,decision FROM identity_decisions WHERE source_namespace='source_product' AND canonical_type='source_product'").fetchall():
+            product = self.corpus.connection.execute("SELECT review_state FROM source_products WHERE id=?", (row["canonical_id"],)).fetchone()
+            if product:
+                decision = {"same":"approved", "different":"rejected", "defer":"proposed"}[row["decision"]]
+                self._apply_product_review(row["canonical_id"], decision)
+
     def review_source_product(self, product_id: str, decision: str) -> dict:
         if decision not in ("approved", "rejected", "proposed"):
             raise ValueError("invalid product decision")
         if self.corpus.connection.execute("SELECT 1 FROM source_products WHERE id=?", (product_id,)).fetchone() is None:
             raise KeyError(product_id)
-        with self.corpus.connection:
-            self.corpus.connection.execute("UPDATE source_products SET review_state=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                                           (decision, product_id))
-            identity_state = "approved" if decision == "approved" else "rejected" if decision == "rejected" else "proposed"
-            self.corpus.connection.execute("UPDATE source_identity_registry SET resolution_state=?,resolution_method='manual_product_review' WHERE product_id=?",
-                                           (identity_state, product_id))
-            self.corpus.connection.execute("UPDATE observation_product_links SET link_state=? WHERE product_id=?",
-                                           ("approved" if decision == "approved" else "proposed", product_id))
+        with self.local_lock:
+            # Record intent first so a power loss can replay the review projection.
+            save_decision(self.local, {"sourceNamespace":"source_product", "sourceValue":product_id,
+                "canonicalType":"source_product", "canonicalId":product_id,
+                "decision":{"approved":"same", "rejected":"different", "proposed":"defer"}[decision],
+                "rationale":"Explicit manual source-product review; no hardware identity promotion"})
+            self._apply_product_review(product_id, decision)
         return {"ok": True, "productId": product_id, "decision": decision}
 
     def device_detail(self, model: str) -> dict:
@@ -676,6 +702,11 @@ class ObservatoryService:
                      "execution_mode": "captured_replay" if row["run_id"].startswith("manual-") else "snapshot_import",
                      "live_network": False, "freshness": "Captured evidence; import success is not a vendor refresh"}
                     for row in rows]
+        if not self.demonstration:
+            return [{"source": r["name"], "scope": r["authority_scope"], "status": "No imported run",
+                     "last": None, "next": "Manual only · no scheduler installed", "records": 0,
+                     "captured_at": None, "observed_at": None, "execution_mode": "unknown", "live_network": False}
+                    for r in self.corpus.connection.execute("SELECT name,authority_scope FROM sources ORDER BY name")]
         return [{"source": "Synthetic demonstration fixture", "scope": "Sample only", "status": "Demo",
                  "last": DEMO_TIME, "next": "No collection scheduled", "records": "0",
                  "captured_at": None, "observed_at": None, "execution_mode": "demonstration", "live_network": False}]
@@ -683,12 +714,12 @@ class ObservatoryService:
     def overview(self) -> dict:
         with self.local_lock:
             acknowledged = {row[0] for row in self.local.execute("SELECT event_id FROM acknowledgements").fetchall()}
-        event_ids = {row[0] for row in self.corpus.connection.execute("SELECT id FROM domain_events")}
-        if not event_ids:
+        event_ids = {row[0] for row in self.corpus.connection.execute(f"SELECT id FROM {self._radar_event_source()}")}
+        if not event_ids and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             event_ids = {row[0] for row in self.corpus.connection.execute("SELECT id FROM firmware_releases")}
-        failures = self.corpus.connection.execute("SELECT count(*) FROM ingestion_runs WHERE outcome!='succeeded'").fetchone()[0]
+        failures = sum(r["status"] not in ("healthy", "succeeded", "Demo") for r in self.health())
         android_upgrades = self.corpus.connection.execute(
-            """SELECT count(*) FROM domain_events
+            f"""SELECT count(*) FROM {self._radar_event_source()}
                WHERE event_type='android_version_changed'
                   OR (json_extract(before_json,'$.android') IS NOT NULL
                       AND json_extract(after_json,'$.android') IS NOT NULL
@@ -696,11 +727,12 @@ class ObservatoryService:
                           <> CAST(json_extract(after_json,'$.android') AS TEXT))"""
         ).fetchone()[0]
         return {**self.meta, "meta": self.meta, "unseen": len(event_ids - acknowledged), "androidUpgrades": android_upgrades,
-                "securityPatches": self.corpus.connection.execute("SELECT count(*) FROM observations WHERE record_type='security_patch_publication'").fetchone()[0],
-                "sourceWarnings": failures, "lastRun": self.meta["dataAsOf"]}
+                "securityPatches": self.corpus.connection.execute(f"SELECT count(*) FROM {self._radar_event_source()} WHERE event_type='security_patch_changed'").fetchone()[0],
+                "securityPublications": self.corpus.connection.execute("SELECT count(*) FROM observations WHERE record_type='security_patch_publication'").fetchone()[0],
+                "sourceWarnings": failures, "lastRun": self.corpus.connection.execute("SELECT max(finished_at) FROM ingestion_runs").fetchone()[0]}
 
     def acknowledge(self, event_id: str) -> None:
-        found = self.corpus.connection.execute("SELECT 1 FROM domain_events WHERE id = ?", (event_id,)).fetchone()
+        found = self.corpus.connection.execute(f"SELECT 1 FROM {self._radar_event_source()} WHERE id = ?", (event_id,)).fetchone()
         if found is None and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             found = self.corpus.connection.execute("SELECT 1 FROM firmware_releases WHERE id = ?", (event_id,)).fetchone()
         if found is None:
@@ -715,8 +747,8 @@ class ObservatoryService:
         ids = list(dict.fromkeys(str(item).strip() for item in event_ids if str(item).strip()))
         if len(ids) > 5000:
             raise ValueError("too many update ids")
-        valid = {row[0] for row in self.corpus.connection.execute("SELECT id FROM domain_events")}
-        if not valid:
+        valid = {row[0] for row in self.corpus.connection.execute(f"SELECT id FROM {self._radar_event_source()}")}
+        if not valid and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             valid = {row[0] for row in self.corpus.connection.execute("SELECT id FROM firmware_releases")}
         missing = [item for item in ids if item not in valid]
         if missing:

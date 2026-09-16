@@ -67,3 +67,40 @@ class ProposalTests(unittest.TestCase):
         self.service.review_agent_proposal(identifier,{'decision':'defer','rationale':'Wait for vendor evidence'})
         self.assertEqual(self.service.agent_review_bundle()['candidateCount'],0)
         self.assertEqual(self.service.agent_review_bundle()['rememberedReviews'][0]['status'],'deferred')
+
+    def test_product_review_survives_replaceable_corpus_without_promoting_hardware(self):
+        self.service.review_source_product('p1','rejected')
+        self.assertEqual(self.service.identity_decisions()[0]['decision'],'different')
+        history_length=len(self.service.identity_history())
+        self.service.local.close()
+        self.db.connection.execute("UPDATE source_products SET review_state='proposed' WHERE id='p1'")
+        self.service=ObservatoryService(self.db,Path(self.temp.name)/'local.sqlite',demonstration=False)
+        self.assertEqual(self.db.connection.execute("SELECT review_state FROM source_products WHERE id='p1'").fetchone()[0],'rejected')
+        self.assertEqual(len(self.service.identity_history()),history_length)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM hardware_models').fetchone()[0],0)
+        self.service.review_source_product('p1','proposed')
+        self.assertEqual(self.service.identity_decisions()[0]['decision'],'defer')
+        self.assertEqual([x['decision'] for x in self.service.identity_history()],['defer','different'])
+
+    def test_empty_real_corpus_does_not_borrow_demonstration_timestamps(self):
+        self.assertIsNone(self.service.meta['dataAsOf'])
+        self.assertIn('unknown',self.service.meta['snapshot'])
+        self.assertEqual(self.service.health(),[])
+
+    def test_superseded_upgrades_and_corrections_are_not_current_firmware(self):
+        from mobile_observatory.repository import CanonicalRepository, Event
+        self.db.connection.execute('''CREATE VIEW IF NOT EXISTS v_current_domain_events AS
+          SELECT original.* FROM domain_events original WHERE NOT EXISTS
+          (SELECT 1 FROM domain_events correction WHERE correction.corrects_event_id=original.id)''')
+        repo=CanonicalRepository(self.db)
+        original,_=repo.append_event(Event('android_version_changed','source_product','p1','old-upgrade',
+             '2020-01-01T00:00:00Z',{'android':'14'},{'android':'15'}))
+        self.assertEqual(self.service.overview()['androidUpgrades'],1)
+        correction,_=repo.append_event(Event('identity_corrected','source_product','p1','correct-upgrade',
+             '2026-09-17T00:00:00Z',{'android':'14'},{'android':'15'},corrects_event_id=original))
+        self.assertEqual(self.service.updates_page({}).total,0)
+        self.assertEqual(self.service.overview()['androidUpgrades'],0)
+        self.assertEqual(self.service.overview()['unseen'],0)
+        self.assertEqual(self.service.product_detail('p1')['androidUpgrades'],[])
+        with self.assertRaises(KeyError):self.service.acknowledge(correction)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM domain_events').fetchone()[0],2)

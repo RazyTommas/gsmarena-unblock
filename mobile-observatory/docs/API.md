@@ -163,3 +163,11 @@ unknown and do not satisfy Android-version filters. Exact device detail includes
 `latestFirmware` by region/channel only for a definite captured ordering. The
 newest Samsung manifest's explicit latest marker outranks same-time historical
 rows; no firmware build strings are treated as chronology.
+
+Radar and product upgrade details use the current-event view when installed.
+Superseded events remain in the immutable audit ledger; correction events do not
+count as new firmware, upgrades, or unseen updates. Radar patch counts are actual
+patch-change events; source security publications remain a separate
+`securityPublications` count. `lastRun` is import completion, not source observation.
+Non-demo corpora with no observations report unknown observation time, never a
+synthetic fixture date.

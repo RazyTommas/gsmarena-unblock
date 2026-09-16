@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from .collectors.adapters.xiaomi_tracker import XiaomiFirmwareTrackerAdapter
 from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
 from .collectors.promotion import SamsungFirmwarePromoter
+from .worker_lock import exclusive_worker
 from .identity_bridge import rebuild_identity_registry
 from .enrichment import automate_identity_review, promote_approved_product_observations, write_agent_review_bundle
 
@@ -32,6 +34,7 @@ def migrate_collection_queue(db: sqlite3.Connection) -> None:
         "run_id": "TEXT",
         "result_json": "TEXT",
         "log_json": "TEXT NOT NULL DEFAULT '[]'",
+        "retry_of": "INTEGER",
     }
     for name, declaration in additions.items():
         if name not in columns:
@@ -59,14 +62,56 @@ class CollectionWorker:
         self.corpus = corpus
         self.paths = paths
         migrate_collection_queue(local)
+        database = local.execute("PRAGMA database_list").fetchone()[2]
+        self.lock_path = Path(database).with_suffix(".collection.lock") if database else paths.ledger.parent / "collection.lock"
+
+    def recover_interrupted(self) -> list[int]:
+        # A live worker owns the OS lock. A crashed worker loses it immediately,
+        # including after a reboot; no clock/lease guess can interrupt active work.
+        with exclusive_worker(self.lock_path):
+            return self._recover_interrupted()
+
+    def _recover_interrupted(self) -> list[int]:
+        rows = self.local.execute("SELECT id,log_json FROM collection_requests WHERE status='running'").fetchall()
+        for row in rows:
+            logs = json.loads(row["log_json"] or "[]")
+            logs.append({"at": _now(), "level": "warning", "message":
+                         "Previous worker stopped before recording completion. Review and retry explicitly; committed evidence is retained."})
+            self._finish(row["id"], "interrupted", {
+                "executionMode": "captured_replay", "liveNetwork": False,
+                "error": "Worker interrupted; some ingestion may already have committed.",
+                "accepted": None, "rejected": None}, logs)
+        return [row["id"] for row in rows]
+
+    def retry(self, request_id: int) -> dict:
+        with self.local:
+            row = self.local.execute("SELECT * FROM collection_requests WHERE id=?", (request_id,)).fetchone()
+            if row is None:
+                raise KeyError(request_id)
+            if row["status"] not in ("failed", "partial", "interrupted"):
+                raise ValueError("Only failed, partial or interrupted requests can be retried.")
+            pending = self.local.execute("SELECT id FROM collection_requests WHERE retry_of=? AND status IN ('queued','running')", (request_id,)).fetchone()
+            if pending:
+                return self.get(pending[0])
+            cursor = self.local.execute(
+                "INSERT INTO collection_requests(target,source,scope,retry_of) VALUES(?,?,?,?)",
+                (row["target"], row["source"], row["scope"], request_id))
+        return self.get(cursor.lastrowid)
 
     def process_next(self) -> dict | None:
-        row = self.local.execute(
-            "SELECT id FROM collection_requests WHERE status='queued' ORDER BY id LIMIT 1"
-        ).fetchone()
-        return self.process(int(row[0])) if row else None
+        with exclusive_worker(self.lock_path):
+            self._recover_interrupted()
+            row = self.local.execute(
+                "SELECT id FROM collection_requests WHERE status='queued' ORDER BY id LIMIT 1"
+            ).fetchone()
+            return self._process(int(row[0])) if row else None
 
     def process(self, request_id: int) -> dict:
+        with exclusive_worker(self.lock_path):
+            self._recover_interrupted()
+            return self._process(request_id)
+
+    def _process(self, request_id: int) -> dict:
         self.local.execute("BEGIN IMMEDIATE")
         row = self.local.execute(
             "SELECT * FROM collection_requests WHERE id=?", (request_id,)
@@ -87,7 +132,7 @@ class CollectionWorker:
         self.local.commit()
 
         try:
-            adapter, limitation = self._dispatch(row, started)
+            adapter, limitation = self._dispatch(row)
             result = CollectorPipeline(self.paths.ledger).run(adapter, run_id)
             imported = IngestionImporter(self.paths.ledger, self.corpus).import_run(adapter.source_id, run_id)
             promoted = None
@@ -109,6 +154,8 @@ class CollectionWorker:
             summary = {
                 "executionMode": "captured_replay", "liveNetwork": False,
                 "sourceId": adapter.source_id, "pipelineState": result.run.state,
+                "evidenceObservedAt": getattr(adapter, "observed_at", None),
+                "importedAt": _now(),
                 "accepted": imported["valid"], "rejected": imported["invalid"],
                 "promotion": promoted, "limitation": limitation,
             }
@@ -139,15 +186,20 @@ class CollectionWorker:
             (status, _now(), json.dumps(summary, sort_keys=True), json.dumps(logs), request_id))
         self.local.commit()
 
-    def _dispatch(self, row: sqlite3.Row, observed_at: str):
+    def _capture_time(self, path: Path, source_id: str, known_capture_time: str) -> str:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        row = self.corpus.execute("SELECT retrieved_at FROM artifacts WHERE source_id=? AND sha256=?", (source_id, digest)).fetchone()
+        return row[0] if row else known_capture_time
+
+    def _dispatch(self, row: sqlite3.Row):
         source, scope, target = row["source"], row["scope"], row["target"].strip()
         if source == "xiaomi" and scope in ("latest_firmware", "firmware_history", "device_profile"):
             path = self.paths.legacy_root / "xiaomi-tracker" / ("latest.yml" if scope == "firmware_history" else "xiaomi-firmware-latest.csv")
-            return XiaomiFirmwareTrackerAdapter(path, observed_at), (
+            return XiaomiFirmwareTrackerAdapter(path, self._capture_time(path, XiaomiFirmwareTrackerAdapter.source_id, "2026-09-13T10:55:00Z")), (
                 f"Captured tracker snapshot replayed in full; target '{target}' is a review hint, not a live query.")
         if source == "tecno" and scope == "security":
             path = self.paths.legacy_root / "tecno-security-comprehensive" / "tecno-security-updates.csv"
-            return TecnoSecurityPatchAdapter(path, observed_at), (
+            return TecnoSecurityPatchAdapter(path, self._capture_time(path, TecnoSecurityPatchAdapter.source_id, "2026-09-13T11:33:40Z")), (
                 f"Captured vendor security snapshot replayed in full; target '{target}' is a review hint.")
         if source == "samsung" and scope in ("latest_firmware", "firmware_history"):
             if scope == "firmware_history":
@@ -157,7 +209,7 @@ class CollectionWorker:
             if "SM-S938B" not in normalized or ("ILO" not in normalized and "/" in normalized):
                 raise ValueError("captured latest-FOTA replay is currently available only for SM-S938B / ILO")
             path = self.paths.fixture_root / "samsung" / "fota_sm-s938b_ilo.xml"
-            return SamsungFotaArtifactAdapter(path, model_code="SM-S938B", csc="ILO", observed_at=observed_at), (
+            return SamsungFotaArtifactAdapter(path, model_code="SM-S938B", csc="ILO", observed_at=self._capture_time(path, SamsungFotaArtifactAdapter.source_id, "2026-09-16T06:00:00Z")), (
                 "Captured SM-S938B/ILO manifest replay; no network request was made.")
         raise ValueError(f"no safe captured replay for source={source}, scope={scope}; live collector unavailable")
 

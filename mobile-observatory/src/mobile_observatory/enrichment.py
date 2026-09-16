@@ -15,7 +15,9 @@ _PROCESS = re.compile(r"\s*\(\d+(?:\.\d+)?\s*nm\)\s*$", re.I)
 _SOC_VENDOR = (("qualcomm", "Qualcomm"), ("snapdragon", "Qualcomm"),
                ("mediatek", "MediaTek"), ("dimensity", "MediaTek"), ("helio", "MediaTek"),
                ("exynos", "Samsung"), ("samsung", "Samsung"), ("xring", "Xiaomi"),
-               ("unisoc", "Unisoc"), ("kirin", "Huawei"), ("apple", "Apple"))
+               ("unisoc", "Unisoc"), ("kirin", "Huawei"), ("apple", "Apple"),
+               ("google tensor", "Google"), ("nvidia tegra", "NVIDIA"),
+               ("intel atom", "Intel"), ("ti omap", "Texas Instruments"))
 _MT_PART = re.compile(r"\bMT\d{4,5}\b", re.I)
 
 

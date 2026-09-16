@@ -106,3 +106,17 @@ compatibility alias for detection time. Feed ordering uses detection time.
 
 An unavailable API is displayed as an error with a retry control. It never swaps
 real data for synthetic fixtures; explicit server `--demo` remains available.
+
+### Local watches and complete Radar pagination
+
+`GET /watches` lists durable local preferences. `POST /watches` accepts
+`{"subjectType":"hardware_model","subjectId":"<existing ID>","enabled":true}`;
+`source_product` is also supported and `enabled:false` removes a watch. Invalid
+or unknown targets are rejected; removing a watch surviving corpus replacement
+remains possible. Watches never alter canonical evidence or assert support.
+
+`GET /updates` accepts `tab=new|watched|history`, `change=Android upgrade|Security
+patch`, existing `q`, `maker`, `model`, `region`, `limit` and `offset`. Filters and
+unseen/watch selection apply before pagination, across the entire corpus. Rows
+provide typed `subjectType`, `subjectId`, and actual `watched` state. Region uses
+captured target codes (e.g. ILO, MID, GLOBAL); no guessed geographic expansion.

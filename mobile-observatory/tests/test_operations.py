@@ -7,6 +7,9 @@ import sys
 import tempfile
 import unittest
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
 from mobile_observatory import Database
 from mobile_observatory.server import ObservatoryService
 from mobile_observatory.worker_lock import exclusive_worker
@@ -109,3 +112,32 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(event['detectedAt'], recorded)
         self.assertEqual(event['age'], event['detectedAt'])
         self.assertEqual(event['effectiveAt'], '2024-01-01T00:00:00Z')
+
+    def test_watches_are_typed_durable_and_filter_radar_before_pagination(self):
+        from mobile_observatory.seed import seed_demonstration
+        from mobile_observatory.repository import CanonicalRepository, Event
+        seed_demonstration(self.db, ROOT / 'fixtures/supported_catalog.sample.json')
+        releases=self.db.connection.execute('SELECT id,hardware_model_id FROM firmware_releases').fetchall()
+        selected=releases[0]
+        for n in range(65):
+            CanonicalRepository(self.db).append_event(Event('firmware_replaced','firmware_release',selected['id'],f'watch-{n}',
+                '2024-01-01T00:00:00Z',{'build':'old','android':14},{'build':str(n),'android':15},None))
+        with self.assertRaises(ValueError):
+            self.service.save_watch({'subjectType':'hardware_model','subjectId':'imaginary','enabled':True})
+        watch={'subjectType':'hardware_model','subjectId':selected['hardware_model_id'],'enabled':True}
+        self.service.save_watch(watch)
+        self.service.save_watch(watch)
+        self.assertEqual(len(self.service.watches()),1)
+        first=self.service.updates_page({'tab':['watched'],'limit':['50']})
+        second=self.service.updates_page({'tab':['watched'],'limit':['50'],'offset':['50']})
+        self.assertEqual((first.total,len(first.items),len(second.items)),(65,50,15))
+        self.assertTrue(all(row['watched'] for row in first.items))
+        self.service.acknowledge_many([r['id'] for r in first.items])
+        unseen=self.service.updates_page({'tab':['new'],'change':['Android upgrade']})
+        self.assertEqual(unseen.total,15)
+        self.assertEqual(self.service.updates_page({'change':['Security patch']}).total,0)
+        self.service.local.close()
+        self.service=ObservatoryService(self.db,self.local_path,demonstration=False)
+        self.assertEqual(len(self.service.watches()),1)
+        self.service.save_watch({**watch,'enabled':False})
+        self.assertEqual(self.service.updates_page({'tab':['watched']}).total,0)

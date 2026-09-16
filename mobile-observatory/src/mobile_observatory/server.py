@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .watches import migrate_watches, list_watches, save_watch
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
@@ -64,6 +65,7 @@ class ObservatoryService:
           requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )""")
         migrate_collection_queue(self.local)
+        migrate_watches(self.local)
         self.local.execute("""CREATE TABLE IF NOT EXISTS identity_decisions (
           source_namespace TEXT NOT NULL, source_value TEXT NOT NULL, canonical_type TEXT NOT NULL,
           canonical_id TEXT, decision TEXT NOT NULL CHECK(decision IN ('same','different','defer')),
@@ -91,6 +93,11 @@ class ObservatoryService:
         return self.updates_page(query).items
 
     def updates_page(self, query: dict[str, list[str]]) -> QueryPage:
+        with self.local_lock:
+            watched = {(r["subject_type"], r["subject_id"]) for r in list_watches(self.local)}
+            seen = [r[0] for r in self.local.execute("SELECT event_id FROM acknowledgements")]
+        tab = _first(query, "tab", "history")
+        change_filter = _first(query, "change")
         event_count = self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0]
         if event_count:
             q = _first(query, "q").strip()
@@ -106,6 +113,17 @@ class ObservatoryService:
                 if value:
                     clauses.append(f"{column} LIKE ? COLLATE NOCASE")
                     params.append(f"%{value}%")
+            if tab == "new":
+                clauses.append("de.id NOT IN (SELECT value FROM json_each(?))")
+                params.append(json.dumps(seen))
+            if tab == "watched":
+                clauses.append("(fr.hardware_model_id IN (SELECT value FROM json_each(?)) OR sp.id IN (SELECT value FROM json_each(?)))")
+                params.extend([json.dumps([i for t,i in watched if t=="hardware_model"]),
+                               json.dumps([i for t,i in watched if t=="source_product"])])
+            if change_filter == "Android upgrade":
+                clauses.append("json_extract(de.before_json,'$.android') IS NOT NULL AND json_extract(de.after_json,'$.android') IS NOT NULL AND CAST(json_extract(de.before_json,'$.android') AS TEXT)!=CAST(json_extract(de.after_json,'$.android') AS TEXT)")
+            elif change_filter == "Security patch":
+                clauses.append("de.event_type='security_patch_changed'")
             where = " AND ".join(clauses)
             joins = """FROM domain_events de
                 LEFT JOIN firmware_releases fr ON fr.id=de.subject_id
@@ -117,6 +135,7 @@ class ObservatoryService:
             limit, offset = _pagination(query)
             rows = self.corpus.connection.execute(
                 f"""SELECT de.id, de.event_type, de.occurred_at, de.recorded_at, de.before_json, de.after_json,
+                           fr.hardware_model_id watch_hardware_id,sp.id watch_product_id,
                            coalesce(dc.brand,sp.manufacturer) maker,
                            coalesce(dc.variant,sp.canonical_name) device,
                            coalesce(dc.model_code,
@@ -134,24 +153,35 @@ class ObservatoryService:
                                    after.get("android") is not None and
                                    str(before["android"]) != str(after["android"]))
                 change = ("Android upgrade" if android_changed else
+                          "Security patch" if row["event_type"] == "security_patch_changed" else
                           row["event_type"].replace("_", " ").title())
-                result.append({"id": row["id"], "maker": row["maker"], "device": row["device"],
+                subject_type = "hardware_model" if row["watch_hardware_id"] else "source_product"
+                subject_id = row["watch_hardware_id"] or row["watch_product_id"]
+                result.append({"id": row["id"], "subjectType": subject_type, "subjectId": subject_id, "maker": row["maker"], "device": row["device"],
                     "model": row["model"], "region": row["region"], "age": row["recorded_at"],
                     "detectedAt": row["recorded_at"], "effectiveAt": row["occurred_at"],
                     "buildFrom": before.get("build", "No prior observation"), "buildTo": after.get("build", "Unknown"),
                     "androidFrom": before.get("android") or "Unknown", "androidTo": after.get("android") or "Unknown",
                     "patchFrom": before.get("security_patch") or "Unknown", "patchTo": after.get("security_patch") or "Unknown",
-                    "change": change, "importance": "high" if android_changed else "medium", "watched": False})
+                    "change": change, "importance": "high" if android_changed else "medium", "watched": (subject_type,subject_id) in watched})
             return QueryPage(result, total, limit, offset)
-        clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_name",
+        clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
                                                "model": "model_code"},
                                       ("brand", "variant", "model_code", "target_code", "target_name", "build_id"))
+        if tab == "new":
+            clauses.append("firmware_release_id NOT IN (SELECT value FROM json_each(?))")
+            params.append(json.dumps(seen))
+        if tab == "watched":
+            clauses.append("hardware_model_id IN (SELECT value FROM json_each(?))")
+            params.append(json.dumps([i for t,i in watched if t=="hardware_model"]))
+        if change_filter in ("Android upgrade", "Security patch"):
+            clauses.append("0")  # A lone release has no previous observation proving change.
         where = " AND ".join(clauses) if clauses else "1=1"
         total = self.corpus.connection.execute(
             f"SELECT count(*) FROM v_device_region_history WHERE {where}", params).fetchone()[0]
         limit, offset = _pagination(query)
         rows = self.corpus.connection.execute(
-            f"""SELECT firmware_release_id id, brand maker, variant device,
+            f"""SELECT firmware_release_id id, hardware_model_id,brand maker, variant device,
                        model_code model, coalesce(target_name,target_code) region,
                        build_id build_to, os_major android_to,
                        security_patch_level patch_to,first_observed_at,vendor_released_at
@@ -167,7 +197,8 @@ class ObservatoryService:
                 "buildTo": row["build_to"], "androidFrom": "Unknown",
                 "androidTo": row["android_to"], "patchFrom": "Unknown",
                 "patchTo": row["patch_to"], "change": "First observation",
-                "importance": "medium", "watched": False,
+                "importance": "medium", "watched": ("hardware_model",row["hardware_model_id"]) in watched,
+                "subjectType": "hardware_model", "subjectId": row["hardware_model_id"],
             }
             for row in rows
         ]
@@ -222,7 +253,7 @@ class ObservatoryService:
                  "android_desc": "os.major IS NULL,os.major DESC,dc.brand,dc.variant"}.get(
                      sort, "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code")
         rows = self.corpus.connection.execute(
-            """SELECT dc.brand maker, dc.variant name, dc.model_code model,
+            """SELECT dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
                       sa.status support_status,sa.evidence_id support_evidence_id,sa.asserted_at support_asserted_at,
                       sp.marketing_name chip, sp.part_number part, os.major android,
                       lf.security_patch_level patch, group_concat(DISTINCT ft.target_code) region,
@@ -763,6 +794,14 @@ class ObservatoryService:
         unique = {item["id"]: item for item in profiles}
         return {"profiles": list(unique.values())}
 
+    def watches(self) -> list[dict]:
+        with self.local_lock:
+            return list_watches(self.local)
+
+    def save_watch(self, value: dict) -> dict:
+        with self.local_lock:
+            return save_watch(self.local, self.corpus.connection, value)
+
     def identity_decisions(self) -> list[dict]:
         return [dict(row) for row in self.local.execute(
             "SELECT * FROM identity_decisions ORDER BY decided_at DESC")]
@@ -843,6 +882,7 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/admin/options": service.config_options,
                 "/api/v1/admin/real-sample": service.real_sample,
                 "/api/v1/admin/review-profiles": service.review_profiles,
+                "/api/v1/watches": lambda: {"items": service.watches()},
                 "/api/v1/identity/decisions": lambda: {"items": service.identity_decisions()},
                 "/api/v1/identity/agent-bundle": service.agent_review_bundle,
                 "/api/v1/admin/collection-requests": lambda: {"items": service.collection_requests()},
@@ -877,6 +917,14 @@ def make_handler(service: ObservatoryService, web_root: Path):
                     self._json(HTTPStatus.OK, service.save_config(payload))
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_config"})
+                return
+            if parsed.path == "/api/v1/watches":
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    payload = json.loads(self.rfile.read(length) or b"{}")
+                    self._json(HTTPStatus.OK, service.save_watch(payload))
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_watch"})
                 return
             if parsed.path == "/api/v1/identity/decisions":
                 try:

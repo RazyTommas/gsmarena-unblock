@@ -36,6 +36,13 @@ test('security detail and full-corpus filters use encoded API queries', async()=
   assert.equal(calls.at(-1).url,'/api/v1/security/findings?part=MT6789&fix_status=without_coordinate&mobile_linked=1&offset=100');
 });
 
+test('canonical device history uses exact identity and paginates', async()=>{
+  await api.deviceDetail('SM-Test/1');
+  assert.equal(calls.at(-1).url,'/api/v1/devices/SM-Test%2F1');
+  await api.releases({model_exact:'SM-Test',region_exact:'ILO',channel_exact:'stable',cursor:200});
+  assert.equal(calls.at(-1).url,'/api/v1/releases?model_exact=SM-Test&region_exact=ILO&channel_exact=stable&cursor=200');
+});
+
 test('non-success responses become typed API errors', async()=>{
   globalThis.fetch=async()=>({ok:false,status:503});
   await assert.rejects(api.health(), error=>error instanceof ApiError && error.status===503);

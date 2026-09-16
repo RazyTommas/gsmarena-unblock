@@ -25,6 +25,7 @@ export const api = {
   acknowledge: id => request(`/updates/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }),
   acknowledgeMany: ids => request('/updates/acknowledge-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
   acknowledgements: () => request('/updates/acknowledgements'),
+  deviceDetail: model => request(`/devices/${encodeURIComponent(model)}`),
   devices: filters => request(`/devices${params(filters)}`),
   productDetail: id => request(`/products/${encodeURIComponent(id)}`),
   chipProducts: filters => request(`/chips/products${params(filters)}`),

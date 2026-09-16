@@ -253,6 +253,38 @@ class ApiTests(unittest.TestCase):
         _, remembered = self.get("/api/v1/identity/decisions")
         self.assertEqual(remembered["items"][0]["source_value"], "dada_global")
 
+    def test_device_detail_pages_all_exact_model_history(self) -> None:
+        c = self.corpus.connection
+        hardware = c.execute('SELECT hardware_model_id,model_code FROM v_device_catalog LIMIT 1').fetchone()
+        hardware_id, model = hardware
+        target = c.execute('SELECT id,target_code FROM firmware_targets LIMIT 1').fetchone()
+        now = '2026-01-01T00:00:00Z'
+        initial = c.execute('SELECT count(*) FROM firmware_releases WHERE hardware_model_id=?', (hardware_id,)).fetchone()[0]
+        for n in range(235):
+            c.execute("""INSERT INTO firmware_releases(id,hardware_model_id,firmware_target_id,build_id,channel,
+                first_observed_at,last_observed_at,created_at) VALUES(?,?,?,?,?,?,?,?)""",
+                (f'device-history-{n}',hardware_id,target[0],f'HISTORY{n}','stable' if n%2 else 'beta',now,now,now))
+        _, detail = self.get('/api/v1/devices/' + model)
+        self.assertEqual(detail['device']['model_code'], model)
+        self.assertEqual(detail['firmware']['meta']['page']['total'], initial+235)
+        self.assertEqual(len(detail['firmware']['items']),50)
+        seen=set(); cursor='0'
+        while cursor is not None:
+            _, page=self.get('/api/v1/releases?model_exact='+model+'&limit=50&cursor='+cursor)
+            ids={row['id'] for row in page['items']}
+            self.assertFalse(seen & ids)
+            seen |= ids
+            self.assertTrue(all(row['model']==model for row in page['items']))
+            cursor=page['meta']['page']['nextCursor']
+        self.assertEqual(len(seen),initial+235)
+        _, beta=self.get('/api/v1/releases?model_exact='+model+'&channel_exact=beta&region_exact='+target[1])
+        self.assertEqual(beta['meta']['page']['total'],118)
+        _, empty=self.get('/api/v1/releases?model_exact='+model[:-1])
+        self.assertEqual(empty['meta']['page']['total'],0)
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            self.get('/api/v1/devices/' + model[:-1])
+        self.assertEqual(error.exception.code,404)
+
     def test_product_detail_and_reverse_silicon_preserve_full_paged_history(self) -> None:
         c = self.corpus.connection
         now = '2026-01-01T00:00:00Z'

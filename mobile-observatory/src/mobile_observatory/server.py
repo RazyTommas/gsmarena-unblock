@@ -440,10 +440,35 @@ class ObservatoryService:
                                            ("approved" if decision == "approved" else "proposed", product_id))
         return {"ok": True, "productId": product_id, "decision": decision}
 
+    def device_detail(self, model: str) -> dict:
+        c = self.corpus.connection
+        device = c.execute("SELECT * FROM v_device_catalog WHERE model_code=? COLLATE NOCASE", (model,)).fetchone()
+        if device is None:
+            raise KeyError(model)
+        device = dict(device)
+        model = device['model_code']
+        identifier = device['hardware_model_id']
+        silicon = [dict(row) for row in c.execute("SELECT * FROM v_chip_devices WHERE hardware_model_id=? ORDER BY role,part_number", (identifier,))]
+        aliases = [dict(row) for row in c.execute("SELECT namespace,alias,review_state FROM aliases WHERE entity_type='hardware_model' AND entity_id=? ORDER BY namespace,alias", (identifier,))]
+        regions = [dict(row) for row in c.execute("SELECT target_code region,channel,count(*) count FROM v_device_region_history WHERE hardware_model_id=? GROUP BY target_code,channel ORDER BY target_code,channel", (identifier,))]
+        from .lineage_specs import hardware_specification_evidence
+        return {'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
+                'specifications': hardware_specification_evidence(c, model),
+                'firmware': _page_payload(self.releases_page({'model_exact':[model],'limit':['50']}), self.meta),
+                'security': _page_payload(self.security_page({'model':[model],'limit':['50']}), self.meta),
+                'boundaries': {'identity': 'Reviewed hardware identity; incomplete specifications remain unknown.',
+                               'history': 'All captured releases are accessible through pagination; this does not imply complete vendor coverage.',
+                               'security': 'Containing a claimed affected part does not establish a firmware verdict. No linked findings is not proof of safety.'},
+                'meta': self.meta}
+
     def releases_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
                                                "model": "model_code", "channel": "channel"},
                                       ("brand", "variant", "model_code", "codename", "target_code", "build_id", "baseband_version"))
+        for key, column in (('model_exact','model_code'),('region_exact','target_code'),('channel_exact','channel')):
+            value = _first(query,key).strip()
+            if value:
+                clauses.append(f'{column}=? COLLATE NOCASE');params.append(value)
         where = " AND ".join(clauses) if clauses else "1=1"
         total = self.corpus.connection.execute(
             f"SELECT count(*) FROM v_device_region_history WHERE {where}", params).fetchone()[0]
@@ -818,6 +843,12 @@ def make_handler(service: ObservatoryService, web_root: Path):
                     self._json(HTTPStatus.OK, service.security_detail(unquote(parsed.path[len('/api/v1/security/cves/'):])) )
                 except KeyError:
                     self._json(HTTPStatus.NOT_FOUND, {'error': 'cve_not_found'})
+                return
+            if parsed.path.startswith('/api/v1/devices/'):
+                try:
+                    self._json(HTTPStatus.OK, service.device_detail(unquote(parsed.path[len('/api/v1/devices/'):])) )
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {'error': 'device_not_found'})
                 return
             if parsed.path.startswith('/api/v1/products/'):
                 try:

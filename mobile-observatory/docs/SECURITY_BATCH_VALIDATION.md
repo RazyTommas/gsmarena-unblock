@@ -48,3 +48,20 @@ captured; product-spec links do not establish hardware/CVE applicability; no new
 verdicts or severity scores are fabricated. Dedicated detail exposes existing
 verdicts only. Mobile-link filtering currently traverses affected silicon-part
 claims and reviewed hardware relationships, not broader component/family claims.
+
+## Canonical history follow-up
+
+The dedicated `/devices/{model-code}` drawer exposes all captured ROM history in
+50-row pages, exact region/channel filters, aliases, separate reviewed silicon and
+community specification assertions, and independent security pagination. The old
+200-row cap and substring model lookup are removed from this flow. Date columns
+label vendor release, first observation, and build-derived month separately when
+available. A query returning many same-time observations is not called “latest
+firmware”. Chip drawers fetch exact-part security independently of the main100
+CVEs and link to the full filtered Security page when more than50 findings exist.
+
+Tests add235 canonical releases, page every row exactly once, check118 beta rows,
+and reject partial model codes in the exact detail lookup. The combined suite
+with the LineageOS source dependency passed62 tests; frontend checks passed7.
+Bulletins lacking artifact evidence now retain their known advisory source name
+and label the source homepage as such; capture hash/time remain unavailable.

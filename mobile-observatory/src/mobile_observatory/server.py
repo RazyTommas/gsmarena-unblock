@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .watches import migrate_watches, list_watches, save_watch
+from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
@@ -72,6 +73,7 @@ class ObservatoryService:
           decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, rationale TEXT,
           PRIMARY KEY(source_namespace,source_value,canonical_type,canonical_id))""")
         self.local.commit()
+        migrate_proposals(self.local)
         try:
             CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()
         except ValueError:
@@ -630,9 +632,16 @@ class ObservatoryService:
         if not prompt.is_file() or not candidates.is_file():
             return {"candidateCount": 0, "pastePrompt": "", "candidates": []}
         candidate_data = json.loads(candidates.read_text(encoding="utf-8"))
+        with self.local_lock:
+            memory = [dict(r) for r in self.local.execute("SELECT product_id,status,reviewer,rationale,json_extract(payload_json,'$.canonical_name') canonical_name,json_extract(payload_json,'$.model_codes') model_codes FROM agent_proposals WHERE status!='pending' GROUP BY target_key")]
+        remembered_products = {r["product_id"] for r in memory if r["status"] in ("approved","deferred")}
+        candidate_data = [c for c in candidate_data if c.get("id",c.get("product_id")) not in remembered_products]
+        for candidate in candidate_data:
+            candidate["remembered_reviews"] = [r for r in memory if r["product_id"] == candidate.get("id",candidate.get("product_id"))]
         prompt_text = prompt.read_text(encoding="utf-8")
+        prompt_text += "\n\nImport contract: return a JSON array. confidence must be low, medium, or high. Every evidence entry must include note and at least one of url (HTTP/HTTPS), artifact_id, observation_id (existing captured IDs). No additional fields. Submit to POST /api/v1/identity/agent-proposals; every output is a proposal only. Approval remembers a review; it never promotes model codes, aliases, silicon, security, or firmware facts. Previously reviewed targets must not be proposed again.\n"
         paste = prompt_text + "\n\n# Candidate data\n```json\n" + json.dumps(candidate_data, indent=2) + "\n```\n"
-        return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data}
+        return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data, "rememberedReviews": memory}
 
     def health(self) -> list[dict]:
         rows = self.corpus.connection.execute("""SELECT s.id source_id,s.name source,s.authority_scope scope,
@@ -802,17 +811,24 @@ class ObservatoryService:
             "SELECT * FROM identity_decisions ORDER BY decided_at DESC")]
 
     def save_identity_decision(self, value: dict) -> dict:
-        required = ("sourceNamespace", "sourceValue", "canonicalType", "decision")
-        if any(not str(value.get(k, "")).strip() for k in required):
-            raise ValueError("missing identity decision fields")
-        if value["decision"] not in ("same", "different", "defer"):
-            raise ValueError("invalid decision")
-        self.local.execute("""INSERT OR REPLACE INTO identity_decisions
-          (source_namespace,source_value,canonical_type,canonical_id,decision,rationale)
-          VALUES(?,?,?,?,?,?)""", (value["sourceNamespace"], value["sourceValue"],
-          value["canonicalType"], value.get("canonicalId"), value["decision"], value.get("rationale")))
-        self.local.commit()
-        return {"ok": True, "decision": value["decision"]}
+        with self.local_lock:
+            return save_decision(self.local, value)
+
+    def identity_history(self) -> list[dict]:
+        with self.local_lock:
+            return [dict(row) for row in self.local.execute("SELECT * FROM identity_decision_history ORDER BY id DESC LIMIT 1000")]
+
+    def agent_proposals(self) -> list[dict]:
+        with self.local_lock:
+            return list_proposals(self.local)
+
+    def import_agent_proposals(self, values: list) -> dict:
+        with self.local_lock:
+            return import_proposals(self.local, self.corpus.connection, values)
+
+    def review_agent_proposal(self, identifier: str, value: dict) -> dict:
+        with self.local_lock:
+            return review_proposal(self.local, identifier, value)
 
     def collection_requests(self) -> list[dict]:
         worker = CollectionWorker(self.local, self.corpus.connection, self.worker_paths)
@@ -877,6 +893,8 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/admin/options": service.config_options,
                 "/api/v1/admin/real-sample": service.real_sample,
                 "/api/v1/admin/review-profiles": service.review_profiles,
+                "/api/v1/identity/history": lambda: {"items": service.identity_history()},
+                "/api/v1/identity/agent-proposals": lambda: {"items": service.agent_proposals()},
                 "/api/v1/watches": lambda: {"items": service.watches()},
                 "/api/v1/identity/decisions": lambda: {"items": service.identity_decisions()},
                 "/api/v1/identity/agent-bundle": service.agent_review_bundle,
@@ -924,6 +942,29 @@ def make_handler(service: ObservatoryService, web_root: Path):
                     self._json(HTTPStatus.OK, service.save_config(payload))
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_config"})
+                return
+            if parsed.path == "/api/v1/identity/agent-proposals":
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= 1_000_000:
+                        raise ValueError("Proposal import must be at most 1 MB")
+                    payload = json.loads(self.rfile.read(length))
+                    self._json(HTTPStatus.CREATED, service.import_agent_proposals(payload))
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_agent_proposals", "detail": str(exc)})
+                return
+            proposal_prefix = "/api/v1/identity/agent-proposals/"
+            if parsed.path.startswith(proposal_prefix) and parsed.path.endswith("/review"):
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= 20_000:
+                        raise ValueError("Review must be at most 20 KB")
+                    payload = json.loads(self.rfile.read(length))
+                    self._json(HTTPStatus.OK, service.review_agent_proposal(unquote(parsed.path[len(proposal_prefix):-len("/review")]),payload))
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "proposal_not_found"})
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_proposal_review", "detail": str(exc)})
                 return
             if parsed.path == "/api/v1/watches":
                 try:

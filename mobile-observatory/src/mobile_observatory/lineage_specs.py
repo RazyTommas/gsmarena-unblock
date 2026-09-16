@@ -95,6 +95,19 @@ def enrich_lineage_specs(connection: sqlite3.Connection, capture_path: Path,
                 raw = target
             eid = _capture_evidence(connection, source_id=SOURCE, source_name='LineageOS captured device specifications',
                 source_url=row['source_url'], path=raw, locator='yaml:device', excerpt=json.dumps(row, sort_keys=True), now=now)
+            artifact = connection.execute('SELECT artifact_id FROM evidence WHERE id=?',(eid,)).fetchone()[0]
+            run = connection.execute('SELECT run_id FROM artifacts WHERE id=?',(artifact,)).fetchone()[0]
+            payload = json.dumps({'data':{'source_device_name':row['name'],'codename':row['codename'],
+                'chipset':row['soc'],'models':row['models'],'identity_state':'community_product_specification'},
+                'identity_hints':{'manufacturer':maker,'source_codename':row['codename']},
+                'evidence':{'source_url':row['source_url'],'source_commit':capture['commit'],
+                            'artifact_pointer':'yaml:device','authority':'community'}},sort_keys=True)
+            oid = _id('lineageos-observation',key,row['sha256'])
+            connection.execute('INSERT OR IGNORE INTO observations VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                (oid,SOURCE,run,artifact,'product_specification',key,now,payload,
+                 hashlib.sha256(payload.encode()).hexdigest(),'valid',None))
+            connection.execute('UPDATE evidence SET observation_id=? WHERE id=? AND observation_id IS NULL',(oid,eid))
+            connection.execute('UPDATE ingestion_runs SET fetched_count=1,accepted_count=1 WHERE id=?',(run,))
             if not candidates and not blocked:
                 pid = _id('lineageos-product', maker, key)
                 # Scope the identity by the actual wiki target, retaining every variant.

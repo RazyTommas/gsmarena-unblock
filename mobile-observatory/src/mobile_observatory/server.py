@@ -327,8 +327,15 @@ class ObservatoryService:
                                 ([silicon['observed_at']] if silicon else []) + [product['created_at']]),
             'firmware': _page_payload(self.product_releases_page({'product':[product_id], 'limit':['50']}), self.meta),
             'security': _page_payload(self.product_security_page({'product':[product_id], 'limit':['50']}), self.meta),
+            'sourceBuilds': _page_payload(self.product_source_builds_page({'product':[product_id], 'limit':['50']}), self.meta),
             'coverage': {'identity': 'product_only', 'hardware': 'not_established',
                          'securityApplicability': 'not_established'}, 'meta': self.meta}
+
+    def product_source_builds_page(self, query: dict[str,list[str]]) -> QueryPage:
+        from .google_builds import product_source_builds
+        limit,offset=_pagination(query)
+        rows,total=product_source_builds(self.corpus.connection,_first(query,'product'),limit=limit,offset=offset)
+        return QueryPage(rows,total,limit,offset)
 
     def releases(self, query: dict[str, list[str]]) -> list[dict]:
         return self.releases_page(query).items
@@ -803,6 +810,7 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/releases": lambda: _page_payload(service.releases_page(query), service.meta),
                 "/api/v1/product-releases": lambda: _page_payload(service.product_releases_page(query), service.meta),
                 "/api/v1/product-security": lambda: _page_payload(service.product_security_page(query), service.meta),
+                "/api/v1/product-source-builds": lambda: _page_payload(service.product_source_builds_page(query), service.meta),
                 "/api/v1/source-records": lambda: _page_payload(service.source_records_page(query), service.meta),
                 "/api/v1/identity/products": lambda: _page_payload(service.source_products_page(query), service.meta),
                 "/api/v1/security/findings": lambda: _page_payload(service.security_page(query), service.meta),

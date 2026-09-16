@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -51,7 +52,7 @@ class OperationsTests(unittest.TestCase):
 
     def test_active_process_cannot_be_recovered_and_process_death_releases_lock(self):
         code = 'import sys,time; from pathlib import Path; from mobile_observatory.worker_lock import exclusive_worker\nwith exclusive_worker(Path(sys.argv[1])):\n print("locked",flush=True)\n time.sleep(30)'
-        process = subprocess.Popen([sys.executable,'-c',code,str(self.worker.lock_path)], stdout=subprocess.PIPE, text=True)
+        process = subprocess.Popen([sys.executable,'-c',code,str(self.worker.lock_path)], stdout=subprocess.PIPE, text=True, env={**os.environ, 'PYTHONPATH':str(ROOT / 'src')})
         try:
             self.assertEqual(process.stdout.readline().strip(), 'locked')
             with self.assertRaisesRegex(ValueError, 'already active'):

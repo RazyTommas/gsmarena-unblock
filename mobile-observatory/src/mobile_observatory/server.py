@@ -562,6 +562,9 @@ class ObservatoryService:
           sp.manufacturer maker,sp.canonical_name device,sir.source_value source_identity,
           pfr.region_code region,pfr.build_id build,pfr.channel,pfr.android_version android,
           pfr.vendor_released_at released,pfr.delivery_method,pfr.source_id source,
+          json_extract(o.payload_json,'$.data.security_patch_level') security_patch_level,
+          json_extract(o.payload_json,'$.data.release_scope') release_scope,
+          json_extract(o.payload_json,'$.data.comments') vendor_comments,
           json_extract(o.payload_json,'$.data.download_url') download_url,
           ar.source_url source_url,o.observed_at observed,
           coalesce(json_extract(ops.evidence_json,'$[0].slug'),json_extract(sp.specification_json,'$.slug')) spec_slug
@@ -600,6 +603,9 @@ class ObservatoryService:
         rows = self.corpus.connection.execute(f"""SELECT psp.id,sp.id product_id,
           sp.manufacturer maker,sp.canonical_name device,sir.source_value source_identity,
           psp.security_patch_month patch,psp.published_at,psp.title,psp.source_id source,
+          json_extract(o.payload_json,'$.data.security_patch_level') security_patch_level,
+          json_extract(o.payload_json,'$.data.release_date') first_live_release,
+          json_extract(o.payload_json,'$.data.release_scope') release_scope,
           coalesce(json_extract(o.payload_json,'$.data.source_url'),ar.source_url) source_url,
           coalesce(json_extract(ops.evidence_json,'$[0].slug'),json_extract(sp.specification_json,'$.slug')) spec_slug
           {joins} WHERE {where} ORDER BY {order},psp.id DESC LIMIT ? OFFSET ?""",

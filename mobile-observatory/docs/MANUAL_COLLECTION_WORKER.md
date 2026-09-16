@@ -56,3 +56,9 @@ installed fixture adapter. It never substitutes replay time for observation
 of the upstream source. Admin health separates captured evidence time from
 import completion. The saved cadence is only a preference: no automatic live
 scheduler is installed.
+
+Capture-time fallback is bound to the exact SHA-256 values in the preserved
+manifest, not to filenames. Replaced bytes without matching corpus metadata or a
+known distribution hash fail before ingestion. Failure summaries identify their
+phase; if parsing/import already succeeded before promotion failed, accepted
+counts retain that work. An interruption during import leaves counts unknown.

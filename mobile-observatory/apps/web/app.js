@@ -34,7 +34,23 @@ async function load() {
 function radarFilters(offset=0){return {limit:50,offset,q:state.filter,tab:state.radarTab,region:state.radarRegion==='all'?'':state.radarRegion,change:state.radarChange==='all'?'':state.radarChange};}
 async function loadRadarPage(offset=0){const payload=await api.updates(radarFilters(offset));state.data.updates=items(payload);state.data.updatePage=payload.meta?.page||{};render();}
 function watchButton(type,id){if(!id)return '';const enabled=(state.data.watches||[]).some(w=>w.subject_type===type&&w.subject_id===id);return `<button class="button toggle-watch" data-watch-type="${escapeHtml(type)}" data-watch-id="${escapeHtml(id)}" data-enabled="${enabled?'0':'1'}">${enabled?'★ Watching':'☆ Watch'}</button>`;}
-function bindWatches(root=document){root.querySelectorAll('.toggle-watch').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await api.saveWatch({subjectType:button.dataset.watchType,subjectId:button.dataset.watchId,enabled:button.dataset.enabled==='1'});state.data.watches=items(await api.watches());if(state.route==='radar')await loadRadarPage(0);else render();button.dataset.enabled=button.dataset.enabled==='1'?'0':'1';button.textContent=button.dataset.enabled==='0'?'★ Watching':'☆ Watch';toast('Watch preference saved on this computer');}catch{toast('Could not save watch');}finally{button.disabled=false;}}));}
+function bindWatches(root=document){
+  root.querySelectorAll('.toggle-watch').forEach(button=>{
+    if(button.dataset.watchBound)return;
+    button.dataset.watchBound='1';
+    button.addEventListener('click',async()=>{
+      button.disabled=true;
+      try{
+        await api.saveWatch({subjectType:button.dataset.watchType,subjectId:button.dataset.watchId,enabled:button.dataset.enabled==='1'});
+        state.data.watches=items(await api.watches());
+        if(state.route==='radar')await loadRadarPage(0);else render();
+        button.dataset.enabled=button.dataset.enabled==='1'?'0':'1';
+        button.textContent=button.dataset.enabled==='0'?'★ Watching':'☆ Watch';
+        toast('Watch preference saved on this computer');
+      }catch{toast('Could not save watch');}finally{button.disabled=false;}
+    });
+  });
+}
 function items(payload) { return Array.isArray(payload) ? payload : (payload?.items || []); }
 async function loadSourcePage(offset=0) {
   if(state.fixtureMode)return;

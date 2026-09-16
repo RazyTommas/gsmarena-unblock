@@ -20,6 +20,16 @@ from .identity_bridge import rebuild_identity_registry
 from .enrichment import automate_identity_review, promote_approved_product_observations, write_agent_review_bundle
 
 
+# Dates from the preserved distribution's artifact manifest, keyed by exact bytes.
+# A file replacement cannot inherit a historical date merely from its filename.
+CAPTURE_TIMES = {
+    ("samsung.fota", "0edbab28550088ae8388de010fc2c9ec0b55f2b001fd993d8b831d62265bb221"): "2026-09-16T06:00:00Z",
+    ("samsung.fota", "b267174f050ad71899d2e01f0e3cacbaef57c13dd06469d1ba4c3ca4f8169ff6"): "2026-09-13T09:16:43Z",
+    ("xiaomi.community.firmware_tracker", "2db6f7c2f1d34a55085597ba34b6f1ed2c0d67820f2408cf437659006060c3a8"): "2026-09-13T10:55:00Z",
+    ("xiaomi.community.firmware_tracker", "92b05dda60c72d44f367c12e341f2a03f3675a8805e8e4e6cecba8b23aaa293d"): "2026-09-13T10:55:00Z",
+    ("tecno.vendor.security_device_scope", "17bfe2b15bea7ddfe1de24f2b22040dceadb38a0788b7f9927495e48716e3c88"): "2026-09-13T11:33:40Z",
+}
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -131,10 +141,15 @@ class CollectionWorker:
             (started, run_id, json.dumps(logs), request_id))
         self.local.commit()
 
+        imported = None
+        phase = "dispatch"
         try:
             adapter, limitation = self._dispatch(row)
+            phase = "capture_parse"
             result = CollectorPipeline(self.paths.ledger).run(adapter, run_id)
+            phase = "import"
             imported = IngestionImporter(self.paths.ledger, self.corpus).import_run(adapter.source_id, run_id)
+            phase = "promotion"
             promoted = None
             if row["source"] == "samsung":
                 p = SamsungFirmwarePromoter(self.corpus).promote_pending()
@@ -166,7 +181,9 @@ class CollectionWorker:
             logs.append({"at": _now(), "level": "error", "message": f"{type(exc).__name__}: {exc}"})
             self._finish(request_id, "failed", {
                 "executionMode": "captured_replay", "liveNetwork": False,
-                "error": str(exc), "accepted": 0, "rejected": 0,
+                "error": str(exc), "phase": phase,
+                "accepted": imported["valid"] if imported else (None if phase == "import" else 0),
+                "rejected": imported["invalid"] if imported else (None if phase == "import" else 0),
             }, logs)
         return self.get(request_id)
 
@@ -186,30 +203,34 @@ class CollectionWorker:
             (status, _now(), json.dumps(summary, sort_keys=True), json.dumps(logs), request_id))
         self.local.commit()
 
-    def _capture_time(self, path: Path, source_id: str, known_capture_time: str) -> str:
+    def _capture_time(self, path: Path, source_id: str) -> str:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         row = self.corpus.execute("SELECT retrieved_at FROM artifacts WHERE source_id=? AND sha256=?", (source_id, digest)).fetchone()
-        return row[0] if row else known_capture_time
+        captured_at = row[0] if row else CAPTURE_TIMES.get((source_id, digest))
+        if not captured_at:
+            raise ValueError("Capture timestamp provenance is missing for these exact artifact bytes; import its captured metadata first.")
+        return captured_at
 
     def _dispatch(self, row: sqlite3.Row):
         source, scope, target = row["source"], row["scope"], row["target"].strip()
         if source == "xiaomi" and scope in ("latest_firmware", "firmware_history", "device_profile"):
             path = self.paths.legacy_root / "xiaomi-tracker" / ("latest.yml" if scope == "firmware_history" else "xiaomi-firmware-latest.csv")
-            return XiaomiFirmwareTrackerAdapter(path, self._capture_time(path, XiaomiFirmwareTrackerAdapter.source_id, "2026-09-13T10:55:00Z")), (
+            return XiaomiFirmwareTrackerAdapter(path, self._capture_time(path, XiaomiFirmwareTrackerAdapter.source_id)), (
                 f"Captured tracker snapshot replayed in full; target '{target}' is a review hint, not a live query.")
         if source == "tecno" and scope == "security":
             path = self.paths.legacy_root / "tecno-security-comprehensive" / "tecno-security-updates.csv"
-            return TecnoSecurityPatchAdapter(path, self._capture_time(path, TecnoSecurityPatchAdapter.source_id, "2026-09-13T11:33:40Z")), (
+            return TecnoSecurityPatchAdapter(path, self._capture_time(path, TecnoSecurityPatchAdapter.source_id)), (
                 f"Captured vendor security snapshot replayed in full; target '{target}' is a review hint.")
         if source == "samsung" and scope in ("latest_firmware", "firmware_history"):
             if scope == "firmware_history":
                 path = self.paths.legacy_root / "T005-fota-modem" / "samsung_fota.csv"
+                self._capture_time(path, SamsungFotaHistoryAdapter.source_id)
                 return SamsungFotaHistoryAdapter(path), "Captured Samsung history replay; no network request was made."
             normalized = target.upper().replace(" ", "")
             if "SM-S938B" not in normalized or ("ILO" not in normalized and "/" in normalized):
                 raise ValueError("captured latest-FOTA replay is currently available only for SM-S938B / ILO")
             path = self.paths.fixture_root / "samsung" / "fota_sm-s938b_ilo.xml"
-            return SamsungFotaArtifactAdapter(path, model_code="SM-S938B", csc="ILO", observed_at=self._capture_time(path, SamsungFotaArtifactAdapter.source_id, "2026-09-16T06:00:00Z")), (
+            return SamsungFotaArtifactAdapter(path, model_code="SM-S938B", csc="ILO", observed_at=self._capture_time(path, SamsungFotaArtifactAdapter.source_id)), (
                 "Captured SM-S938B/ILO manifest replay; no network request was made.")
         raise ValueError(f"no safe captured replay for source={source}, scope={scope}; live collector unavailable")
 

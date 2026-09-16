@@ -141,3 +141,26 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(len(self.service.watches()),1)
         self.service.save_watch({**watch,'enabled':False})
         self.assertEqual(self.service.updates_page({'tab':['watched']}).total,0)
+
+    def test_replay_rejects_replaced_bytes_without_capture_provenance(self):
+        from mobile_observatory.collection_worker import WorkerPaths
+        fixture_root=Path(self.temp.name)/'altered-fixtures'
+        (fixture_root/'samsung').mkdir(parents=True)
+        original=ROOT/'fixtures/samsung/fota_sm-s938b_ilo.xml'
+        (fixture_root/'samsung/fota_sm-s938b_ilo.xml').write_bytes(original.read_bytes()+b'\n<!-- replaced artifact -->')
+        paths=WorkerPaths(self.worker.paths.ledger,self.worker.paths.legacy_root,fixture_root)
+        worker=CollectionWorker(self.service.local,self.db.connection,paths)
+        result=worker.process(self.job()['id'])
+        self.assertEqual(result['status'],'failed')
+        self.assertEqual(result['result']['phase'],'dispatch')
+        self.assertIn('timestamp provenance',result['result']['error'])
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM observations').fetchone()[0],0)
+
+    def test_post_import_failure_does_not_claim_no_evidence_was_ingested(self):
+        from unittest.mock import patch
+        with patch('mobile_observatory.collection_worker.SamsungFirmwarePromoter.promote_pending',side_effect=RuntimeError('promotion interrupted')):
+            result=self.worker.process(self.job()['id'])
+        self.assertEqual(result['status'],'failed')
+        self.assertEqual(result['result']['phase'],'promotion')
+        self.assertGreater(result['result']['accepted'],0)
+        self.assertGreater(self.db.connection.execute('SELECT count(*) FROM observations').fetchone()[0],0)

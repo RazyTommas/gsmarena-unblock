@@ -14,7 +14,7 @@ class SamsungFotaHistoryAdapter(SourceAdapter):
 
     source_id = "samsung.fota"
     parser_name = "samsung_fota_history_csv"
-    parser_version = "1.0.0"
+    parser_version = "1.1.0"
     health_policy = SourceHealthPolicy(minimum_observations=1000, required_kinds=("firmware_release",))
 
     def __init__(self, artifact: Path):
@@ -31,6 +31,8 @@ class SamsungFotaHistoryAdapter(SourceAdapter):
                 f"{row['model']}:{row['csc']}:{row['version']}", row["fetched_at"], artifact_sha256,
                 {"model_code": row["model"], "source_device_name": row["device"],
                  "region_code": row["csc"], "build": row["version"], "baseband": row["cp"] or None,
-                 "release_time": row["pda_month"] or None, "manifest_position": row["kind"], "channel": "stable"},
+                 "release_time": None, "build_derived_month": (row["pda_month"] or '')[:7] or None,
+                 "date_basis": "build_identifier_month_not_vendor_release",
+                 "manifest_position": row["kind"], "channel": "stable"},
                 {"manufacturer": "Samsung", "model_code": row["model"], "region_code": row["csc"]},
                 {"artifact_pointer": f"CSV line {line}", "authority": "vendor-fota-capture"})

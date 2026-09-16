@@ -103,8 +103,8 @@ class OperationsTests(unittest.TestCase):
         release = self.db.connection.execute('SELECT id FROM firmware_releases LIMIT 1').fetchone()[0]
         CanonicalRepository(self.db).append_event(Event('firmware_replaced','firmware_release',release,'time-test',
                     '2024-01-01T00:00:00Z',{'build':'before'},{'build':'after'},None))
-        self.db.connection.execute("UPDATE domain_events SET recorded_at='2026-09-17T00:00:00Z'")
+        recorded=self.db.connection.execute("SELECT recorded_at FROM domain_events WHERE dedupe_key='time-test'").fetchone()[0]
         event=self.service.updates({})[0]
-        self.assertEqual(event['detectedAt'], '2026-09-17T00:00:00Z')
+        self.assertEqual(event['detectedAt'], recorded)
         self.assertEqual(event['age'], event['detectedAt'])
         self.assertEqual(event['effectiveAt'], '2024-01-01T00:00:00Z')

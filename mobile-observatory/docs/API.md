@@ -128,3 +128,11 @@ include decoded `evidence_summary` as well as rule inputs.
 Canonical release rows include `build_derived_month` and `date_basis` from the
 immutable source correction ledger (or newer explicitly typed observations),
 when available. These are separate from `released`, the vendor release date.
+
+`devices` now includes `software_state_basis`:
+`source_manifest_latest`, `vendor_release_date`, or `observation_order_only`.
+An observation-only fallback does not establish current Android/SPL; these remain
+unknown and do not satisfy Android-version filters. Exact device detail includes
+`latestFirmware` by region/channel only for a definite captured ordering. The
+newest Samsung manifest's explicit latest marker outranks same-time historical
+rows; no firmware build strings are treated as chronology.

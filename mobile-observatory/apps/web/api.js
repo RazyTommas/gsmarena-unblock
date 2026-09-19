@@ -35,6 +35,7 @@ export const api = {
   releases: filters => request(`/releases${params(filters)}`),
   productReleases: filters => request(`/product-releases${params(filters)}`),
   productSecurity: filters => request(`/product-security${params(filters)}`),
+  productSourceBuilds: filters => request(`/product-source-builds${params(filters)}`),
   sourceRecords: filters => request(`/source-records${params(filters)}`),
   sourceProducts: filters => request(`/identity/products${params(filters)}`),
   reviewSourceProduct: (id, decision) => request(`/identity/products/${encodeURIComponent(id)}/review`, {method:'POST',body:JSON.stringify({decision})}),

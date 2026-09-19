@@ -1,33 +1,196 @@
 device,vendor,builds_we_hold,slug
-Redmi Note 13 Pro,Xiaomi,227,xiaomi_redmi_note_13_pro-12581.php
-Redmi 12C,Xiaomi,196,xiaomi_redmi_12c-12051.php
-Redmi 13,Xiaomi,153,xiaomi_redmi_13-13102.php
-Redmi 12,Xiaomi,132,xiaomi_redmi_12-12328.php
-Redmi Note 10 Pro,Xiaomi,126,xiaomi_redmi_note_10_pro-10662.php
-Redmi 10C,Xiaomi,94,xiaomi_redmi_10c-11418.php
-Xiaomi 15,Xiaomi,94,xiaomi_15-13472.php
-Redmi Note 10S,Xiaomi,93,xiaomi_redmi_note_10s-10769.php
-Redmi 9,Xiaomi,83,xiaomi_redmi_9-10233.php
-Redmi Note 10,Xiaomi,77,xiaomi_redmi_note_10-10247.php
-Redmi Note 8 Pro,Xiaomi,77,xiaomi_redmi_note_8_pro-9812.php
-Redmi Pad 2,Xiaomi,77,xiaomi_redmi_pad_2-13908.php
-Redmi Note 8,Xiaomi,70,xiaomi_redmi_note_8-9814.php
-Redmi Turbo 4 Pro,Xiaomi,70,xiaomi_redmi_turbo_4_pro-13617.php
-Xiaomi 15T Pro,Xiaomi,58,xiaomi_15t_pro_5g-14178.php
-Redmi Note 12 4G,Xiaomi,57,xiaomi_redmi_note_12_4g-12188.php
-Xiaomi 17,Xiaomi,46,xiaomi_17_5g-14134.php
-Xiaomi 17 Ultra,Xiaomi,38,xiaomi_17_ultra_5g-14380.php
-Redmi Note 13,Xiaomi,37,xiaomi_redmi_note_13-12776.php
-Redmi Note 15 4G,Xiaomi,33,xiaomi_redmi_note_15-14323.php
-Xiaomi Pad 8 Pro,Xiaomi,32,xiaomi_pad_8_pro-14183.php
-Xiaomi 17T Pro,Xiaomi,28,xiaomi_17t_pro_5g-14651.php
-Xiaomi 17T,Xiaomi,21,xiaomi_17t_5g-14652.php
-Xiaomi 17 Pro Max,Xiaomi,20,xiaomi_17_pro_max_5g-14181.php
-Redmi K Pad 2,Xiaomi,6,xiaomi_redmi_k_pad_2-14625.php
-Redmi K90 Max,Xiaomi,6,xiaomi_redmi_k90_max_5g-14618.php
-Redmi A3,Xiaomi,3,xiaomi_redmi_a3-12822.php
-Redmi Note 17 4G,Xiaomi,3,xiaomi_redmi_note_17-14847.php
-Xiaomi 17 Max,Xiaomi,3,xiaomi_17_max_5g-14667.php
-Redmi K90 Ultra,Xiaomi,2,xiaomi_redmi_k90_ultra_5g-14757.php
-Redmi K100 Pro,Xiaomi,1,xiaomi_redmi_k100_pro_5g-14715.php
-Redmi K100 Pro Max,Xiaomi,1,xiaomi_redmi_k100_pro_max_5g-14865.php
+Samsung Galaxy S23,Samsung,993,samsung_galaxy_s23-12082.php
+Samsung Galaxy S21 5G,Samsung,625,samsung_galaxy_s21_5g-10626.php
+Samsung Galaxy S21 Ultra 5G,Samsung,625,samsung_galaxy_s21_ultra_5g-10596.php
+Samsung Galaxy S20 FE,Samsung,603,samsung_galaxy_s20_fe-10428.php
+Samsung Galaxy S20 Ultra,Samsung,549,samsung_galaxy_s20_ultra-10084.php
+Samsung Galaxy S20,Samsung,540,samsung_galaxy_s20-10081.php
+Samsung Galaxy S23 Ultra,Samsung,512,samsung_galaxy_s23_ultra-12024.php
+Samsung Galaxy A52s 5G,Samsung,496,samsung_galaxy_a52s_5g-11039.php
+Samsung Galaxy A52,Samsung,429,samsung_galaxy_a52-10641.php
+Samsung Galaxy S23 FE,Samsung,420,samsung_galaxy_s23_fe-12520.php
+Samsung Galaxy S24,Samsung,356,samsung_galaxy_s24-12773.php
+Samsung Galaxy S24 Ultra,Samsung,356,samsung_galaxy_s24_ultra-12771.php
+Xiaomi 12 Lite,Xiaomi,322,xiaomi_12_lite-11472.php
+Xiaomi 12 Pro,Xiaomi,320,xiaomi_12_pro-11287.php
+Redmi K50 Ultra,Xiaomi,316,xiaomi_redmi_k50_ultra-11580.php
+Xiaomi 12,Xiaomi,311,xiaomi_12-11285.php
+Samsung Galaxy A32,Samsung,284,samsung_galaxy_a32-10753.php
+Samsung Galaxy S20 FE 5G,Samsung,284,samsung_galaxy_s20_fe_5g-10377.php
+Samsung Galaxy A72,Samsung,283,samsung_galaxy_a72-10469.php
+Xiaomi 11T Pro,Xiaomi,283,xiaomi_11t_pro-11100.php
+Samsung Galaxy A50,Samsung,275,samsung_galaxy_a50-9554.php
+Samsung Galaxy A71,Samsung,259,samsung_galaxy_a71-9995.php
+Samsung Galaxy A13,Samsung,258,samsung_galaxy_a13-11402.php
+Samsung Galaxy A21s,Samsung,254,samsung_galaxy_a21s-10239.php
+Xiaomi CIVI 2,Xiaomi,254,xiaomi_civi_2-11906.php
+Xiaomi Pad 6,Xiaomi,249,xiaomi_pad_6-12237.php
+Xiaomi 12T,Xiaomi,237,xiaomi_12t-11888.php
+Samsung Galaxy A52 5G,Samsung,235,samsung_galaxy_a52_5g-10631.php
+Samsung Galaxy A51,Samsung,233,samsung_galaxy_a51-9963.php
+Samsung Galaxy A04s,Samsung,232,samsung_galaxy_a04s-11803.php
+Samsung Galaxy A05s,Samsung,229,samsung_galaxy_a05s-12584.php
+Xiaomi 11T,Xiaomi,229,xiaomi_11t-11099.php
+Xiaomi 11 Lite 5G NE,Xiaomi,228,xiaomi_11_lite_5g_ne-11101.php
+Samsung Galaxy A73 5G,Samsung,222,samsung_galaxy_a73_5g-11257.php
+Redmi Note 12 Pro 4G,Xiaomi,217,xiaomi_redmi_note_12_pro_4g-12209.php
+Samsung Galaxy A23,Samsung,217,samsung_galaxy_a23-11373.php
+Mi 11,Xiaomi,211,xiaomi_mi_11-10656.php
+Samsung Galaxy A22,Samsung,207,samsung_galaxy_a22-10948.php
+Xiaomi 13 Pro,Xiaomi,199,xiaomi_13_pro-11962.php
+Redmi Pad Pro,Xiaomi,197,xiaomi_redmi_pad_pro-12922.php
+Samsung Galaxy A05,Samsung,197,samsung_galaxy_a05-12583.php
+Xiaomi 13,Xiaomi,196,xiaomi_13-12013.php
+Redmi Turbo 3,Xiaomi,192,xiaomi_redmi_turbo_3-12920.php
+Xiaomi 14,Xiaomi,191,xiaomi_14-12626.php
+Xiaomi 13 Ultra,Xiaomi,190,xiaomi_13_ultra-12236.php
+Samsung Galaxy A04,Samsung,188,samsung_galaxy_a04-11817.php
+Samsung Galaxy A04e,Samsung,187,samsung_galaxy_a04e-11945.php
+Xiaomi 14 Ultra,Xiaomi,180,xiaomi_14_ultra-12827.php
+Redmi Note 12S,Xiaomi,179,xiaomi_redmi_note_12s-12218.php
+Samsung Galaxy A31,Samsung,172,samsung_galaxy_a31-10149.php
+Xiaomi 13T,Xiaomi,171,xiaomi_13t-12389.php
+Redmi Note 5 (Pro),Xiaomi,161,xiaomi_redmi_note_5_pro-8893.php
+Samsung Galaxy A22 5G,Samsung,157,samsung_galaxy_a22_5g-10873.php
+Redmi Pad SE,Xiaomi,149,xiaomi_redmi_pad_se-12466.php
+Samsung Galaxy A11,Samsung,144,samsung_galaxy_a11-10132.php
+Samsung Galaxy A30,Samsung,143,samsung_galaxy_a30-9579.php
+Samsung Galaxy A03s,Samsung,141,samsung_galaxy_a03s-10937.php
+Mi 10 5G,Xiaomi,139,xiaomi_mi_10_5g-10082.php
+Samsung Galaxy A10,Samsung,139,samsung_galaxy_a10-9580.php
+Xiaomi Pad 6S Pro 12.4,Xiaomi,135,xiaomi_pad_6s_pro_12_4-12838.php
+Samsung Galaxy S20 5G,Samsung,132,samsung_galaxy_s20_5g-10044.php
+Xiaomi 14T,Xiaomi,128,xiaomi_14t-13329.php
+Redmi Pad,Xiaomi,126,xiaomi_redmi_pad-11911.php
+Xiaomi 12X,Xiaomi,124,xiaomi_12x-11292.php
+Samsung Galaxy A20,Samsung,122,samsung_galaxy_a20-9640.php
+Redmi Pad Pro 5G,Xiaomi,108,xiaomi_redmi_pad_pro_5g-13071.php
+MIX Flip,Xiaomi,107,xiaomi_mix_flip-13221.php
+Mi 11 Lite 5G,Xiaomi,99,xiaomi_mi_11_lite_5g-10815.php
+Redmi Turbo 4,Xiaomi,96,xiaomi_redmi_turbo_4-13598.php
+Xiaomi 15 Ultra,Xiaomi,93,xiaomi_15_ultra-13657.php
+Xiaomi Pad 7 Pro,Xiaomi,93,xiaomi_pad_7_pro-13474.php
+Samsung Galaxy A03 Core,Samsung,92,samsung_galaxy_a03_core-11215.php
+Samsung Galaxy A12,Samsung,92,samsung_galaxy_a12-10604.php
+Xiaomi Pad 7,Xiaomi,90,xiaomi_pad_7-13475.php
+Redmi K80 Pro,Xiaomi,87,xiaomi_redmi_k80_pro-13524.php
+Mi MIX 2S,Xiaomi,85,xiaomi_mi_mix_2s-9067.php
+Mi 10 Pro 5G,Xiaomi,84,xiaomi_mi_10_pro_5g-10055.php
+Redmi Note 10 5G,Xiaomi,82,xiaomi_redmi_note_10_5g-10768.php
+Mi 9,Xiaomi,81,xiaomi_mi_9-9507.php
+Samsung Galaxy A02s,Samsung,80,samsung_galaxy_a02s-10603.php
+Redmi 13C 5G,Xiaomi,78,xiaomi_redmi_13c_5g-12726.php
+Samsung Galaxy A01,Samsung,74,samsung_galaxy_a01-9999.php
+Mi MIX 2,Xiaomi,73,xiaomi_mi_mix_2-8529.php
+Mi 11 Lite,Xiaomi,71,xiaomi_mi_11_lite-10665.php
+Samsung Galaxy A32 5G,Samsung,71,samsung_galaxy_a32_5g-10648.php
+Xiaomi Redmi Pad SE 8.7,Xiaomi,68,xiaomi_redmi_pad_se_8_7-13225.php
+Samsung Galaxy A15,Samsung,67,samsung_galaxy_a15-12637.php
+Mi 8,Xiaomi,66,xiaomi_mi_8-9065.php
+Redmi 8,Xiaomi,66,xiaomi_redmi_8-9800.php
+Samsung Galaxy S21 FE 5G,Samsung,63,samsung_galaxy_s21_fe_5g-10954.php
+Mi 9 SE,Xiaomi,62,xiaomi_mi_9_se-9583.php
+Mi Note 10 Lite,Xiaomi,60,xiaomi_mi_note_10_lite-10183.php
+Redmi 8A,Xiaomi,60,xiaomi_redmi_8a-9897.php
+Samsung Galaxy A53 5G,Samsung,60,samsung_galaxy_a53_5g-11268.php
+Redmi Note 7,Xiaomi,59,xiaomi_redmi_note_7-9513.php
+Xiaomi 14 Pro,Xiaomi,58,xiaomi_14_pro-12643.php
+Redmi 10A,Xiaomi,56,xiaomi_redmi_10a-11449.php
+Samsung Galaxy A03,Samsung,56,samsung_galaxy_a03-11244.php
+POCO M4 Pro 5G,Xiaomi,55,xiaomi_poco_m4_pro_5g-11193.php
+Redmi 7,Xiaomi,52,xiaomi_redmi_7-9498.php
+Mix Fold 2,Xiaomi,50,xiaomi_mix_fold_2-11758.php
+POCO M5S,Xiaomi,50,xiaomi_poco_m5s-11832.php
+Redmi 7A,Xiaomi,48,xiaomi_redmi_7a-9716.php
+Redmi K50,Xiaomi,47,xiaomi_redmi_k50-11430.php
+Redmi K60 Pro,Xiaomi,47,xiaomi_redmi_k60_pro-12046.php
+Xiaomi 15T,Xiaomi,47,xiaomi_15t_5g-14177.php
+Mix Fold 3,Xiaomi,46,xiaomi_mix_fold_3-12468.php
+Redmi Note 8 2021,Xiaomi,46,xiaomi_redmi_note_8_2021-10919.php
+Xiaomi 12S Pro,Xiaomi,46,xiaomi_12s_pro-11651.php
+Xiaomi 12S Ultra,Xiaomi,46,xiaomi_12s_ultra-11614.php
+Xiaomi 12S,Xiaomi,45,xiaomi_12s-11645.php
+Redmi 6,Xiaomi,44,xiaomi_redmi_6-9237.php
+Mi 5,Xiaomi,43,xiaomi_mi_5-6948.php
+Mi MAX 3,Xiaomi,43,xiaomi_mi_max_3-8963.php
+Mi Note 3,Xiaomi,43,xiaomi_mi_note_3-8707.php
+Redmi K50 Pro,Xiaomi,43,xiaomi_redmi_k50_pro-11372.php
+Mi MIX,Xiaomi,42,xiaomi_mi_mix-8400.php
+Redmi 6A,Xiaomi,42,xiaomi_redmi_6a-9217.php
+Redmi 9C NFC,Xiaomi,41,xiaomi_redmi_9c_nfc-10277.php
+Redmi Note 8T,Xiaomi,41,xiaomi_redmi_note_8t-9946.php
+Samsung Galaxy A33 5G,Samsung,40,samsung_galaxy_a33_5g-11429.php
+Redmi K70 Pro,Xiaomi,38,xiaomi_redmi_k70_pro-12714.php
+Xiaomi CIVI 3,Xiaomi,38,xiaomi_civi_3-12134.php
+POCO C40,Xiaomi,37,xiaomi_poco_c40-11468.php
+Mi MIX 3,Xiaomi,36,xiaomi_mi_mix_3-9378.php
+Redmi Note 11S 5G,Xiaomi,36,xiaomi_redmi_note_11s_5g-11419.php
+Redmi Note 12T Pro,Xiaomi,36,xiaomi_redmi_note_12t_pro-12298.php
+Mi 10 Lite 5G,Xiaomi,35,xiaomi_mi_10_lite_5g-10159.php
+Redmi K60E,Xiaomi,34,xiaomi_redmi_k60e-12047.php
+Xiaomi Pad 6 Pro,Xiaomi,34,xiaomi_pad_6_pro-12238.php
+Mi 5s,Xiaomi,33,xiaomi_mi_5s-7260.php
+Mi A3,Xiaomi,33,xiaomi_mi_a3-9769.php
+Xiaomi Pad 8,Xiaomi,33,xiaomi_pad_8-14184.php
+Mi Play,Xiaomi,31,xiaomi_mi_play-9499.php
+Mix Fold 4,Xiaomi,30,xiaomi_mix_fold_4-13222.php
+Pocophone F1,Xiaomi,30,xiaomi_pocophone_f1-9293.php
+Samsung Galaxy A23 5G,Samsung,30,samsung_galaxy_a23_5g-11736.php
+Mi Note 2,Xiaomi,29,xiaomi_mi_note_2-8014.php
+Redmi A3x,Xiaomi,29,xiaomi_redmi_a3x-13053.php
+Redmi K Pad,Xiaomi,29,xiaomi_redmi_k_pad-13960.php
+Xiaomi Civi 1S,Xiaomi,29,xiaomi_civi_1s-11487.php
+Redmi 5,Xiaomi,28,xiaomi_redmi_5-8768.php
+Xiaomi 15 Pro,Xiaomi,27,xiaomi_15_pro-13473.php
+Xiaomi Redmi K30 Ultra,Xiaomi,27,xiaomi_redmi_k30_ultra-10349.php
+Mi 10S,Xiaomi,26,xiaomi_mi_10s-10780.php
+Mi 5s Plus,Xiaomi,25,xiaomi_mi_5s_plus-8350.php
+Mi MAX 2,Xiaomi,25,xiaomi_mi_max_2-8582.php
+Redmi 5A,Xiaomi,25,xiaomi_redmi_5a-8898.php
+Samsung Galaxy A15 5G,Samsung,25,samsung_galaxy_a15_5g-12638.php
+Xiaomi Mi 10 Ultra,Xiaomi,25,xiaomi_mi_10_ultra-10361.php
+Mi MIX 3 5G,Xiaomi,24,xiaomi_mi_mix_3_5g-9602.php
+Mi 6,Xiaomi,23,xiaomi_mi_6-8507.php
+Mi Mix Fold,Xiaomi,23,xiaomi_mi_mix_fold-10817.php
+Redmi 10X 5G,Xiaomi,23,xiaomi_redmi_10x_5g-10266.php
+Redmi Note 9 5G,Xiaomi,23,xiaomi_redmi_note_9_5g-10581.php
+Redmi Note 14S,Xiaomi,21,xiaomi_redmi_note_14s-13730.php
+Samsung Galaxy A35,Samsung,21,samsung_galaxy_a35-12705.php
+Redmi Note 7 Pro,Xiaomi,20,xiaomi_redmi_note_7_pro-9521.php
+Mi 5C,Xiaomi,19,xiaomi_mi_5c-8439.php
+Redmi 10X Pro 5G,Xiaomi,19,xiaomi_redmi_10x_pro_5g-10267.php
+Redmi Note 6 Pro,Xiaomi,19,xiaomi_redmi_note_6_pro-9333.php
+Xiaomi 17 Pro,Xiaomi,19,xiaomi_17_pro_5g-14182.php
+Mi 4i,Xiaomi,18,xiaomi_mi_4i-7211.php
+Mi 8 SE,Xiaomi,18,xiaomi_mi_8_se-9219.php
+Mi 4c,Xiaomi,17,xiaomi_mi_4c-7512.php
+Mi 9 Pro 5G,Xiaomi,17,xiaomi_mi_9_pro_5g-9892.php
+Xiaomi CIVI,Xiaomi,17,xiaomi_civi-11119.php
+MIX Flip 2,Xiaomi,16,xiaomi_mix_flip_2_5g-13980.php
+Xiaomi 15S Pro,Xiaomi,16,xiaomi_15s_pro_5g-13895.php
+Mi CC9e,Xiaomi,14,xiaomi_mi_cc9e-9759.php
+Mi Pad 4,Xiaomi,14,xiaomi_mi_pad_4-9249.php
+Redmi Go,Xiaomi,14,xiaomi_redmi_go-9534.php
+Redmi K80 Ultra,Xiaomi,14,xiaomi_redmi_k80_ultra_5g-13965.php
+Redmi Note 11R,Xiaomi,13,xiaomi_redmi_note_11r-11904.php
+Mi 4s,Xiaomi,12,xiaomi_mi_4s-7962.php
+Redmi 4A,Xiaomi,12,xiaomi_redmi_4a-8420.php
+Redmi K30i 5G,Xiaomi,12,xiaomi_redmi_k30i_5g-10200.php
+Xiaomi Pad 7 Ultra,Xiaomi,11,xiaomi_pad_7_ultra-13896.php
+Redmi Note 10T 5G,Xiaomi,10,xiaomi_redmi_note_10t_5g-11008.php
+Xiaomi Pad 7S Pro 12.5,Xiaomi,10,xiaomi_pad_7s_pro_12_5-13968.php
+Mi 2A,Xiaomi,8,xiaomi_mi_2a-5646.php
+Redmi Note 2,Xiaomi,7,xiaomi_redmi_note_2-6992.php
+Mi Note,Xiaomi,5,xiaomi_mi_note-6944.php
+Mi Pad 3,Xiaomi,4,xiaomi_mi_pad_3-8477.php
+Redmi 3/Pro,Xiaomi,4,xiaomi_redmi_3_pro-8007.php
+Redmi Note 11 4G,Xiaomi,4,xiaomi_redmi_note_11_4g-11241.php
+Redmi Pro,Xiaomi,4,xiaomi_redmi_pro-8233.php
+Mi Pad 2,Xiaomi,3,xiaomi_mi_pad_2-7770.php
+Mi Note Pro,Xiaomi,2,xiaomi_mi_note_pro-6952.php
+Redmi 2A,Xiaomi,2,xiaomi_redmi_2a-7159.php
+Redmi K20 Pro (Premium),Xiaomi,2,xiaomi_redmi_k20_pro_premium-9884.php
+Samsung Galaxy A70,Samsung,2,samsung_galaxy_a70-9646.php
+Mi 1S,Xiaomi,1,xiaomi_mi_1s-4929.php
+iPhone 18 Pro,Apple,1,apple_iphone_18_pro-14934.php
+iPhone 18 Pro Max,Apple,1,apple_iphone_18_pro_max-14716.php

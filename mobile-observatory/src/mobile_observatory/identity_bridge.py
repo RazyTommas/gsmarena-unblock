@@ -15,8 +15,35 @@ def _id(*parts: str) -> str:
     return str(uuid.uuid5(_NS, "\x1f".join(parts)))
 
 
-def _norm(value: str) -> str:
-    return " ".join(value.casefold().replace("xiaomi ", "", 1).split())
+def _norm(value: str, maker: str = "xiaomi") -> str:
+    """Normalise a product name for use as an identity key.
+
+    The manufacturer's own name is stripped when it LEADS the product name, because
+    source_products already carries the manufacturer in its own column and the UNIQUE
+    key is (manufacturer, normalized_name). Repeating the brand inside the name makes
+    the same device storable twice.
+
+    This used to hardcode "xiaomi ", so exactly one vendor was handled: 'Xiaomi 12'
+    normalised to '12' while 'TECNO POVA Neo' stayed 'tecno pova neo' and the same
+    device arriving as 'POVA Neo' produced 'pova neo'. Two keys, so the
+    ON CONFLICT(manufacturer, normalized_name) upsert never fired and both rows were
+    inserted -- seven TECNO devices ended up stored twice, all review_state=approved.
+
+    Only a LEADING, whole-token occurrence is removed, and never if that would empty
+    the name. Sub-brands are unaffected: with maker='Xiaomi', 'Redmi 12' keeps its
+    'redmi' because Redmi is not the manufacturer token -- which is what keeps
+    'Redmi 12' and 'Xiaomi 12' correctly distinct.
+
+    The default keeps every pre-existing call site byte-identical; only the product
+    identity path passes a real maker.
+    """
+    s = " ".join(value.casefold().split())
+    m = " ".join((maker or "").casefold().split())
+    if m:
+        stripped = re.sub(rf"^{re.escape(m)}\s+", "", s, count=1)
+        if stripped:
+            s = stripped
+    return s
 
 
 def _product_name(source: str, payload: dict) -> tuple[str, str, str, str] | None:
@@ -46,7 +73,7 @@ def rebuild_identity_registry(connection: sqlite3.Connection, specs_csv: Path | 
             if not resolved:
                 continue
             maker, name, namespace, source_value = resolved
-            normalized_name = _norm(name)
+            normalized_name = _norm(name, maker)
             product_id = _id("product", maker, normalized_name)
             identity_id = _id("identity", row["source_id"], namespace, _norm(source_value))
             spec = specs.get(normalized_name) if maker == "Xiaomi" else None

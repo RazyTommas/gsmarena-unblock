@@ -19,7 +19,7 @@ class XiaomiFirmwareTrackerAdapter(SourceAdapter):
 
     source_id = "xiaomi.community.firmware_tracker"
     parser_name = "xiaomi_firmware_tracker_csv"
-    parser_version = "1.0.0"
+    parser_version = "1.1.0"
     health_policy = SourceHealthPolicy(minimum_observations=100, required_kinds=("firmware_release",))
 
     def __init__(self, artifact: Path, observed_at: str = "2026-09-13T10:55:00Z"):
@@ -103,13 +103,18 @@ def _yaml_rows(text: str) -> list[dict[str, str]]:
 
 
 def _region_from_codename_and_name(codename: str, name: str) -> str:
-    value = f"{codename} {name}".lower()
-    for needle, region in (
-        ("_eea_", "EEA"), (" eea", "EEA"), ("_global", "GLOBAL"),
-        (" global", "GLOBAL"), (" india", "IN"), ("_in_", "IN"),
-        (" china", "CN"), (" japan", "JP"), (" taiwan", "TW"),
-        (" turkey", "TR"), (" russia", "RU"), (" indonesia", "ID"),
-    ):
-        if needle in value:
-            return region
+    # Regional feeds intentionally end in `_global` too (e.g. umi_tr_global).
+    # Interpret the explicit market suffix before the broad Global label.
+    markets = {'eea':'EEA','in':'IN','id':'ID','ru':'RU','tr':'TR','tw':'TW','jp':'JP'}
+    specific = re.search(r'_(eea|in|id|ru|tr|tw|jp)(?:_global)?$', codename.lower())
+    by_code = markets[specific.group(1)] if specific else None
+    names = {'eea':'EEA','india':'IN','china':'CN','japan':'JP','taiwan':'TW',
+             'turkey':'TR','russia':'RU','indonesia':'ID'}
+    named = {region for token,region in names.items() if re.search(r'\b'+token+r'\b', name.lower())}
+    if len(named)>1 or by_code and named and named!={by_code}:
+        return 'SOURCE_UNSPECIFIED'  # Preserve conflicting source labels as unknown.
+    if by_code or named:
+        return by_code or next(iter(named))
+    if codename.lower().endswith('_global') or re.search(r'\bglobal\b',name.lower()):
+        return 'GLOBAL'
     return "SOURCE_UNSPECIFIED"

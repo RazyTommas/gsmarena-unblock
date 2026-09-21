@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .watches import migrate_watches, list_watches, save_watch
+from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
@@ -64,29 +66,48 @@ class ObservatoryService:
           requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )""")
         migrate_collection_queue(self.local)
+        migrate_watches(self.local)
         self.local.execute("""CREATE TABLE IF NOT EXISTS identity_decisions (
           source_namespace TEXT NOT NULL, source_value TEXT NOT NULL, canonical_type TEXT NOT NULL,
           canonical_id TEXT, decision TEXT NOT NULL CHECK(decision IN ('same','different','defer')),
           decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, rationale TEXT,
           PRIMARY KEY(source_namespace,source_value,canonical_type,canonical_id))""")
         self.local.commit()
+        migrate_proposals(self.local)
+        self._reapply_product_reviews()
+        try:
+            CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()
+        except ValueError:
+            pass  # Another live worker owns the lock; preserve its active jobs.
 
     @property
     def meta(self) -> dict:
         row = self.corpus.connection.execute(
             "SELECT max(observed_at) FROM observations"
         ).fetchone()
-        data_as_of = row[0] if row and row[0] else DEMO_TIME
+        data_as_of = row[0] if row and row[0] else (DEMO_TIME if self.demonstration else None)
         return {
-            "snapshot": f"DEMONSTRATION · {data_as_of}" if self.demonstration else f"IMPORTED SNAPSHOT · {data_as_of}",
+            "snapshot": f"DEMONSTRATION · {data_as_of}" if self.demonstration else f"IMPORTED SNAPSHOT · {data_as_of or 'observation time unknown'}",
             "mode": "demonstration" if self.demonstration else "snapshot",
             "dataAsOf": data_as_of,
         }
+
+    def _current_event_source(self) -> str:
+        available = self.corpus.connection.execute("SELECT 1 FROM sqlite_schema WHERE type='view' AND name='v_current_domain_events'").fetchone()
+        return "v_current_domain_events" if available else "domain_events"
+
+    def _radar_event_source(self) -> str:
+        return f"(SELECT * FROM {self._current_event_source()} WHERE event_type IN ('firmware_first_observed','firmware_replaced','android_version_changed','security_patch_changed','baseband_changed'))"
 
     def updates(self, query: dict[str, list[str]]) -> list[dict]:
         return self.updates_page(query).items
 
     def updates_page(self, query: dict[str, list[str]]) -> QueryPage:
+        with self.local_lock:
+            watched = {(r["subject_type"], r["subject_id"]) for r in list_watches(self.local)}
+            seen = [r[0] for r in self.local.execute("SELECT event_id FROM acknowledgements")]
+        tab = _first(query, "tab", "history")
+        change_filter = _first(query, "change")
         event_count = self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0]
         if event_count:
             q = _first(query, "q").strip()
@@ -102,8 +123,19 @@ class ObservatoryService:
                 if value:
                     clauses.append(f"{column} LIKE ? COLLATE NOCASE")
                     params.append(f"%{value}%")
+            if tab == "new":
+                clauses.append("de.id NOT IN (SELECT value FROM json_each(?))")
+                params.append(json.dumps(seen))
+            if tab == "watched":
+                clauses.append("(fr.hardware_model_id IN (SELECT value FROM json_each(?)) OR sp.id IN (SELECT value FROM json_each(?)))")
+                params.extend([json.dumps([i for t,i in watched if t=="hardware_model"]),
+                               json.dumps([i for t,i in watched if t=="source_product"])])
+            if change_filter == "Android upgrade":
+                clauses.append("json_extract(de.before_json,'$.android') IS NOT NULL AND json_extract(de.after_json,'$.android') IS NOT NULL AND CAST(json_extract(de.before_json,'$.android') AS TEXT)!=CAST(json_extract(de.after_json,'$.android') AS TEXT)")
+            elif change_filter == "Security patch":
+                clauses.append("de.event_type='security_patch_changed'")
             where = " AND ".join(clauses)
-            joins = """FROM domain_events de
+            joins = f"""FROM {self._radar_event_source()} de
                 LEFT JOIN firmware_releases fr ON fr.id=de.subject_id
                 LEFT JOIN v_device_catalog dc ON dc.hardware_model_id=fr.hardware_model_id
                 LEFT JOIN firmware_targets ft ON ft.id=fr.firmware_target_id
@@ -112,7 +144,8 @@ class ObservatoryService:
             total = self.corpus.connection.execute(f"SELECT count(DISTINCT de.id) {joins} WHERE {where}", params).fetchone()[0]
             limit, offset = _pagination(query)
             rows = self.corpus.connection.execute(
-                f"""SELECT de.id, de.event_type, de.occurred_at, de.before_json, de.after_json,
+                f"""SELECT de.id, de.event_type, de.occurred_at, de.recorded_at, de.before_json, de.after_json,
+                           fr.hardware_model_id watch_hardware_id,sp.id watch_product_id,
                            coalesce(dc.brand,sp.manufacturer) maker,
                            coalesce(dc.variant,sp.canonical_name) device,
                            coalesce(dc.model_code,
@@ -120,7 +153,7 @@ class ObservatoryService:
                               WHERE esi.id=json_extract(de.after_json,'$.source_identity')),
                              min(sir.source_value)) model,
                            coalesce(ft.display_name,ft.target_code,json_extract(de.after_json,'$.region'),'Unknown target') region
-                    {joins} WHERE {where} GROUP BY de.id ORDER BY de.occurred_at DESC, de.id DESC LIMIT ? OFFSET ?""",
+                    {joins} WHERE {where} GROUP BY de.id ORDER BY de.recorded_at DESC, de.id DESC LIMIT ? OFFSET ?""",
                 [*params, limit, offset]).fetchall()
             result = []
             for row in rows:
@@ -130,26 +163,38 @@ class ObservatoryService:
                                    after.get("android") is not None and
                                    str(before["android"]) != str(after["android"]))
                 change = ("Android upgrade" if android_changed else
+                          "Security patch" if row["event_type"] == "security_patch_changed" else
                           row["event_type"].replace("_", " ").title())
-                result.append({"id": row["id"], "maker": row["maker"], "device": row["device"],
-                    "model": row["model"], "region": row["region"], "age": row["occurred_at"],
+                subject_type = "hardware_model" if row["watch_hardware_id"] else "source_product"
+                subject_id = row["watch_hardware_id"] or row["watch_product_id"]
+                result.append({"id": row["id"], "subjectType": subject_type, "subjectId": subject_id, "maker": row["maker"], "device": row["device"],
+                    "model": row["model"], "region": row["region"], "age": row["recorded_at"],
+                    "detectedAt": row["recorded_at"], "effectiveAt": row["occurred_at"],
                     "buildFrom": before.get("build", "No prior observation"), "buildTo": after.get("build", "Unknown"),
                     "androidFrom": before.get("android") or "Unknown", "androidTo": after.get("android") or "Unknown",
                     "patchFrom": before.get("security_patch") or "Unknown", "patchTo": after.get("security_patch") or "Unknown",
-                    "change": change, "importance": "high" if android_changed else "medium", "watched": False})
+                    "change": change, "importance": "high" if android_changed else "medium", "watched": (subject_type,subject_id) in watched})
             return QueryPage(result, total, limit, offset)
-        clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_name",
+        clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
                                                "model": "model_code"},
                                       ("brand", "variant", "model_code", "target_code", "target_name", "build_id"))
+        if tab == "new":
+            clauses.append("firmware_release_id NOT IN (SELECT value FROM json_each(?))")
+            params.append(json.dumps(seen))
+        if tab == "watched":
+            clauses.append("hardware_model_id IN (SELECT value FROM json_each(?))")
+            params.append(json.dumps([i for t,i in watched if t=="hardware_model"]))
+        if change_filter in ("Android upgrade", "Security patch"):
+            clauses.append("0")  # A lone release has no previous observation proving change.
         where = " AND ".join(clauses) if clauses else "1=1"
         total = self.corpus.connection.execute(
             f"SELECT count(*) FROM v_device_region_history WHERE {where}", params).fetchone()[0]
         limit, offset = _pagination(query)
         rows = self.corpus.connection.execute(
-            f"""SELECT firmware_release_id id, brand maker, variant device,
+            f"""SELECT firmware_release_id id, hardware_model_id,brand maker, variant device,
                        model_code model, coalesce(target_name,target_code) region,
                        build_id build_to, os_major android_to,
-                       security_patch_level patch_to
+                       security_patch_level patch_to,first_observed_at,vendor_released_at
                 FROM v_device_region_history WHERE {where}
                 ORDER BY first_observed_at DESC, firmware_release_id DESC LIMIT ? OFFSET ?""",
             [*params, limit, offset]).fetchall()
@@ -157,11 +202,13 @@ class ObservatoryService:
             {
                 "id": row["id"], "maker": row["maker"], "device": row["device"],
                 "model": row["model"], "region": row["region"] or "Unknown target",
-                "age": "synthetic snapshot", "buildFrom": "No prior observation",
+                "age": row["first_observed_at"], "detectedAt": row["first_observed_at"],
+                "effectiveAt": row["vendor_released_at"], "buildFrom": "No prior observation",
                 "buildTo": row["build_to"], "androidFrom": "Unknown",
                 "androidTo": row["android_to"], "patchFrom": "Unknown",
                 "patchTo": row["patch_to"], "change": "First observation",
-                "importance": "medium", "watched": False,
+                "importance": "medium", "watched": ("hardware_model",row["hardware_model_id"]) in watched,
+                "subjectType": "hardware_model", "subjectId": row["hardware_model_id"],
             }
             for row in rows
         ]
@@ -175,28 +222,41 @@ class ObservatoryService:
             "maker": "dc.brand", "vendor": "cd.silicon_vendor", "family": "cd.silicon_family",
             "part": "cd.part_number", "region": "ft.target_code", "model": "dc.model_code"},
             ("dc.brand", "dc.variant", "dc.model_code", "dc.codename", "cd.marketing_name", "cd.part_number"))
+        support = _first(query, "support").strip()
+        support_codes = {"Supported": "officially_supported", "Likely supported": "likely_supported",
+                         "End announced": "end_announced", "Unsupported": "unsupported", "Unknown": "unknown"}
+        if support and support != "all":
+            clauses.append("coalesce(sa.status,'unknown')=?")
+            params.append(support_codes.get(support, support))
         max_android = _first(query, "max_android").strip()
         if max_android:
             try:
-                clauses.append("(os.major IS NOT NULL AND os.major <= ?)")
+                clauses.append("(os.major IS NOT NULL AND os.major <= ? AND lf.latest_basis!='observation_order_only')")
                 params.append(int(max_android))
             except ValueError:
                 clauses.append("0")
         base = f"""FROM v_device_catalog dc
+               LEFT JOIN support_assertions sa ON sa.id=(
+                 SELECT sa2.id FROM support_assertions sa2
+                 WHERE sa2.subject_type='hardware_model' AND sa2.subject_id=dc.hardware_model_id
+                   AND (sa2.valid_from IS NULL OR datetime(sa2.valid_from)<=datetime('now'))
+                   AND (sa2.valid_to IS NULL OR datetime(sa2.valid_to)>datetime('now'))
+                 ORDER BY sa2.asserted_at DESC,sa2.id DESC LIMIT 1)
                LEFT JOIN hardware_silicon hs ON hs.hardware_model_id = dc.hardware_model_id
                LEFT JOIN silicon_parts sp ON sp.id = hs.part_id
                LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
                                              AND cd.part_id = sp.id
-               LEFT JOIN v_latest_firmware lf ON lf.firmware_release_id = (
-                 SELECT lf2.firmware_release_id FROM v_latest_firmware lf2
-                 WHERE lf2.hardware_model_id = dc.hardware_model_id
-                 ORDER BY coalesce(lf2.vendor_released_at,lf2.first_observed_at) DESC,
-                          lf2.firmware_release_id DESC LIMIT 1)
+               LEFT JOIN (SELECT candidate.*,row_number() OVER (
+                   PARTITION BY hardware_model_id ORDER BY
+                   CASE latest_basis WHEN 'source_manifest_latest' THEN 0
+                     WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
+                   coalesce(declared_latest_at,vendor_released_at,first_observed_at) DESC,
+                   firmware_target_id,firmware_release_id) device_rank
+                   FROM v_latest_firmware candidate) lf
+                 ON lf.hardware_model_id=dc.hardware_model_id AND lf.device_rank=1
                LEFT JOIN os_releases os ON os.id = lf.os_release_id
                LEFT JOIN firmware_targets ft ON ft.id = lf.firmware_target_id
                WHERE {' AND '.join(clauses) if clauses else '1=1'}"""
-        total = self.corpus.connection.execute(
-            "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
         limit, offset = _pagination(query)
         sort = _first(query, "sort", "latest_desc")
         order = {"latest_desc": "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code",
@@ -204,8 +264,9 @@ class ObservatoryService:
                  "android_desc": "os.major IS NULL,os.major DESC,dc.brand,dc.variant"}.get(
                      sort, "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code")
         rows = self.corpus.connection.execute(
-            """SELECT dc.brand maker, dc.variant name, dc.model_code model,
-                      sp.marketing_name chip, sp.part_number part, os.major android,
+            """SELECT count(*) OVER() _total,dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
+                      sa.status support_status,sa.evidence_id support_evidence_id,sa.asserted_at support_asserted_at,
+                      sp.marketing_name chip, sp.part_number part, os.major android, lf.latest_basis software_state_basis,
                       lf.security_patch_level patch, group_concat(DISTINCT ft.target_code) region,
                       (SELECT count(*) FROM firmware_releases history
                        WHERE history.hardware_model_id=dc.hardware_model_id) firmware_count,
@@ -214,13 +275,18 @@ class ObservatoryService:
                        WHERE history.hardware_model_id=dc.hardware_model_id) latest_firmware_at """
             + base + f" GROUP BY dc.hardware_model_id ORDER BY {order} LIMIT ? OFFSET ?",
             [*params, limit, offset]).fetchall()
+        total = rows[0]["_total"] if rows else self.corpus.connection.execute(
+            "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
         result = [
-            {**dict(row), "android": row["android"] or "Unknown", "patch": row["patch"] or "Unknown",
+            {**dict(row), "android": (row["android"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
+             "patch": (row["patch"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
              "region": row["region"] or "Catalogued; firmware not observed",
              "firmwareCoverage": "observed" if row["firmware_count"] else "not_observed",
-             "support": "Supported", "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
+             "support": {v:k for k,v in support_codes.items()}.get(row["support_status"], "Unknown"), "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
             for row in rows
         ]
+        for item in result:
+            item.pop("_total",None)
         return QueryPage(result, total, limit, offset)
 
     def chips(self, query: dict[str, list[str]]) -> list[dict]:
@@ -237,8 +303,8 @@ class ObservatoryService:
             FROM observed_product_silicon ops JOIN source_products prod ON prod.id=ops.product_id
             WHERE vendor IS NOT NULL AND part_number IS NOT NULL AND prod.review_state!='rejected' GROUP BY vendor,part_number),
           security_counts AS (SELECT ac.subject_id part_id,count(DISTINCT ac.vulnerability_id) advisories,
-            count(DISTINCT CASE WHEN fc.id IS NULL THEN ac.vulnerability_id END) open
-            FROM applicability_claims ac LEFT JOIN fix_claims fc ON fc.vulnerability_id=ac.vulnerability_id
+            count(DISTINCT CASE WHEN fc.vulnerability_id IS NULL THEN ac.vulnerability_id END) open
+            FROM applicability_claims ac LEFT JOIN (SELECT DISTINCT vulnerability_id FROM fix_claims) fc ON fc.vulnerability_id=ac.vulnerability_id
             WHERE ac.subject_type='silicon_part' AND ac.relationship='affected' GROUP BY ac.subject_id),
           chip_index AS (
           SELECT sp.id chip_key,sv.canonical_name vendor,sf.canonical_name family,
@@ -271,7 +337,8 @@ class ObservatoryService:
         rows = self.corpus.connection.execute(index + f""" SELECT *,canonical_devices+product_devices devices,
           count(*) OVER() _total
           FROM chip_index WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?""", [*params,limit,offset]).fetchall()
-        total = rows[0]["_total"] if rows else 0
+        total = rows[0]["_total"] if rows else self.corpus.connection.execute(
+            index + f" SELECT count(*) FROM chip_index WHERE {where}", params).fetchone()[0]
         return QueryPage([{k: value for k, value in dict(row).items() if k != "_total"}
                           for row in rows], total, limit, offset)
 
@@ -313,7 +380,7 @@ class ObservatoryService:
         if silicon:
             silicon['evidence'] = json.loads(silicon.pop('evidence_json'))
         upgrades = []
-        for event in db.execute('''SELECT * FROM domain_events WHERE subject_type='source_product'
+        for event in db.execute(f'''SELECT * FROM {self._current_event_source()} WHERE subject_type='source_product'
             AND subject_id=? AND event_type='android_version_changed' ORDER BY occurred_at DESC,id''', (product_id,)):
             upgrades.append({'id': event['id'], 'effective_at': event['occurred_at'],
                 'observed_at': event['recorded_at'], 'before': json.loads(event['before_json']),
@@ -327,8 +394,15 @@ class ObservatoryService:
                                 ([silicon['observed_at']] if silicon else []) + [product['created_at']]),
             'firmware': _page_payload(self.product_releases_page({'product':[product_id], 'limit':['50']}), self.meta),
             'security': _page_payload(self.product_security_page({'product':[product_id], 'limit':['50']}), self.meta),
+            'sourceBuilds': _page_payload(self.product_source_builds_page({'product':[product_id], 'limit':['50']}), self.meta),
             'coverage': {'identity': 'product_only', 'hardware': 'not_established',
                          'securityApplicability': 'not_established'}, 'meta': self.meta}
+
+    def product_source_builds_page(self, query: dict[str,list[str]]) -> QueryPage:
+        from .google_builds import product_source_builds
+        limit,offset=_pagination(query)
+        rows,total=product_source_builds(self.corpus.connection,_first(query,'product'),limit=limit,offset=offset)
+        return QueryPage(rows,total,limit,offset)
 
     def releases(self, query: dict[str, list[str]]) -> list[dict]:
         return self.releases_page(query).items
@@ -406,25 +480,75 @@ class ObservatoryService:
           [*params, limit, offset]).fetchall()
         return QueryPage([dict(row) for row in rows], total, limit, offset)
 
+    def _apply_product_review(self, product_id: str, decision: str) -> None:
+        with self.corpus.transaction():
+            self.corpus.connection.execute("UPDATE source_products SET review_state=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                                           (decision, product_id))
+            self.corpus.connection.execute("UPDATE source_identity_registry SET resolution_state=?,resolution_method='manual_product_review' WHERE product_id=?",
+                                           (decision, product_id))
+            self.corpus.connection.execute("UPDATE observation_product_links SET link_state=? WHERE product_id=?",
+                                           ("approved" if decision == "approved" else "proposed", product_id))
+
+    def _reapply_product_reviews(self) -> None:
+        # Local human decisions survive replacement of the derived corpus.
+        # Reapply only this exact source-product workflow; no hardware identities
+        # or accepted agent proposals are promoted by startup.
+        for row in self.local.execute("SELECT canonical_id,decision FROM identity_decisions WHERE source_namespace='source_product' AND canonical_type='source_product'").fetchall():
+            product = self.corpus.connection.execute("SELECT review_state FROM source_products WHERE id=?", (row["canonical_id"],)).fetchone()
+            if product:
+                decision = {"same":"approved", "different":"rejected", "defer":"proposed"}[row["decision"]]
+                self._apply_product_review(row["canonical_id"], decision)
+
     def review_source_product(self, product_id: str, decision: str) -> dict:
         if decision not in ("approved", "rejected", "proposed"):
             raise ValueError("invalid product decision")
         if self.corpus.connection.execute("SELECT 1 FROM source_products WHERE id=?", (product_id,)).fetchone() is None:
             raise KeyError(product_id)
-        with self.corpus.connection:
-            self.corpus.connection.execute("UPDATE source_products SET review_state=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                                           (decision, product_id))
-            identity_state = "approved" if decision == "approved" else "rejected" if decision == "rejected" else "proposed"
-            self.corpus.connection.execute("UPDATE source_identity_registry SET resolution_state=?,resolution_method='manual_product_review' WHERE product_id=?",
-                                           (identity_state, product_id))
-            self.corpus.connection.execute("UPDATE observation_product_links SET link_state=? WHERE product_id=?",
-                                           ("approved" if decision == "approved" else "proposed", product_id))
+        with self.local_lock:
+            # Record intent first so a power loss can replay the review projection.
+            save_decision(self.local, {"sourceNamespace":"source_product", "sourceValue":product_id,
+                "canonicalType":"source_product", "canonicalId":product_id,
+                "decision":{"approved":"same", "rejected":"different", "proposed":"defer"}[decision],
+                "rationale":"Explicit manual source-product review; no hardware identity promotion"})
+            self._apply_product_review(product_id, decision)
         return {"ok": True, "productId": product_id, "decision": decision}
+
+    def device_detail(self, model: str) -> dict:
+        c = self.corpus.connection
+        device = c.execute("SELECT * FROM v_device_catalog WHERE model_code=? COLLATE NOCASE", (model,)).fetchone()
+        if device is None:
+            raise KeyError(model)
+        device = dict(device)
+        model = device['model_code']
+        identifier = device['hardware_model_id']
+        silicon = [dict(row) for row in c.execute("SELECT * FROM v_chip_devices WHERE hardware_model_id=? ORDER BY role,part_number", (identifier,))]
+        aliases = [dict(row) for row in c.execute("SELECT namespace,alias,review_state FROM aliases WHERE entity_type='hardware_model' AND entity_id=? ORDER BY namespace,alias", (identifier,))]
+        regions = [dict(row) for row in c.execute("SELECT target_code region,channel,count(*) count FROM v_device_region_history WHERE hardware_model_id=? GROUP BY target_code,channel ORDER BY target_code,channel", (identifier,))]
+        latest = [dict(row) for row in c.execute('''SELECT lf.build_id build,ft.target_code region,lf.channel,
+            os.major android,lf.security_patch_level patch,lf.latest_basis,lf.declared_latest_at,
+            lf.vendor_released_at released,lf.first_observed_at observed
+            FROM v_latest_firmware lf LEFT JOIN firmware_targets ft ON ft.id=lf.firmware_target_id
+            LEFT JOIN os_releases os ON os.id=lf.os_release_id
+            WHERE lf.hardware_model_id=? AND lf.latest_basis!='observation_order_only'
+            ORDER BY ft.target_code,lf.channel''', (identifier,))]
+        from .lineage_specs import hardware_specification_evidence
+        return {'latestFirmware': latest, 'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
+                'specifications': hardware_specification_evidence(c, model),
+                'firmware': _page_payload(self.releases_page({'model_exact':[model],'limit':['50']}), self.meta),
+                'security': _page_payload(self.security_page({'model':[model],'limit':['50']}), self.meta),
+                'boundaries': {'identity': 'Reviewed hardware identity; incomplete specifications remain unknown.',
+                               'history': 'All captured releases are accessible through pagination; this does not imply complete vendor coverage.',
+                               'security': 'Containing a claimed affected part does not establish a firmware verdict. No linked findings is not proof of safety.'},
+                'meta': self.meta}
 
     def releases_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
                                                "model": "model_code", "channel": "channel"},
                                       ("brand", "variant", "model_code", "codename", "target_code", "build_id", "baseband_version"))
+        for key, column in (('model_exact','model_code'),('region_exact','target_code'),('channel_exact','channel')):
+            value = _first(query,key).strip()
+            if value:
+                clauses.append(f'{column}=? COLLATE NOCASE');params.append(value)
         where = " AND ".join(clauses) if clauses else "1=1"
         total = self.corpus.connection.execute(
             f"SELECT count(*) FROM v_device_region_history WHERE {where}", params).fetchone()[0]
@@ -448,6 +572,9 @@ class ObservatoryService:
         result = [{**dict(row), "android": row["android"] or "Unknown",
                          "patch": row["patch"] or "Unknown", "baseband": row["baseband"] or "Unknown"}
                         for row in rows]
+        from .source_corrections import firmware_date_evidence
+        for item in result:
+            item.update(firmware_date_evidence(self.corpus.connection, item['id']))
         return QueryPage(result, total, limit, offset)
 
     def product_releases_page(self, query: dict[str, list[str]]) -> QueryPage:
@@ -481,6 +608,9 @@ class ObservatoryService:
           sp.manufacturer maker,sp.canonical_name device,sir.source_value source_identity,
           pfr.region_code region,pfr.build_id build,pfr.channel,pfr.android_version android,
           pfr.vendor_released_at released,pfr.delivery_method,pfr.source_id source,
+          json_extract(o.payload_json,'$.data.security_patch_level') security_patch_level,
+          json_extract(o.payload_json,'$.data.release_scope') release_scope,
+          json_extract(o.payload_json,'$.data.comments') vendor_comments,
           json_extract(o.payload_json,'$.data.download_url') download_url,
           ar.source_url source_url,o.observed_at observed,
           coalesce(json_extract(ops.evidence_json,'$[0].slug'),json_extract(sp.specification_json,'$.slug')) spec_slug
@@ -519,6 +649,9 @@ class ObservatoryService:
         rows = self.corpus.connection.execute(f"""SELECT psp.id,sp.id product_id,
           sp.manufacturer maker,sp.canonical_name device,sir.source_value source_identity,
           psp.security_patch_month patch,psp.published_at,psp.title,psp.source_id source,
+          json_extract(o.payload_json,'$.data.security_patch_level') security_patch_level,
+          json_extract(o.payload_json,'$.data.release_date') first_live_release,
+          json_extract(o.payload_json,'$.data.release_scope') release_scope,
           coalesce(json_extract(o.payload_json,'$.data.source_url'),ar.source_url) source_url,
           coalesce(json_extract(ops.evidence_json,'$[0].slug'),json_extract(sp.specification_json,'$.slug')) spec_slug
           {joins} WHERE {where} ORDER BY {order},psp.id DESC LIMIT ? OFFSET ?""",
@@ -526,48 +659,14 @@ class ObservatoryService:
         return QueryPage([dict(row) for row in rows],total,limit,offset)
 
     def security_page(self, query: dict[str, list[str]]) -> QueryPage:
-        q = _first(query, "q").strip()
-        clauses = ["1=1"]
-        params: list[object] = []
-        if q:
-            clauses.append("(v.cve_id LIKE ? COLLATE NOCASE OR v.summary LIKE ? COLLATE NOCASE OR a.title LIKE ? COLLATE NOCASE OR s.name LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 4)
-        where = " AND ".join(clauses)
-        joins = """FROM vulnerabilities v JOIN advisory_vulnerabilities av ON av.vulnerability_id=v.id
-          JOIN advisories a ON a.id=av.advisory_id JOIN sources s ON s.id=a.source_id
-          LEFT JOIN evidence ae ON ae.id=a.evidence_id LEFT JOIN artifacts aa ON aa.id=ae.artifact_id"""
-        total = self.corpus.connection.execute(f"SELECT count(DISTINCT v.id) {joins} WHERE {where}", params).fetchone()[0]
+        from .security_read import query_catalog
         limit, offset = _pagination(query)
-        rows = self.corpus.connection.execute(f"""SELECT v.id vulnerability_id,v.cve_id cve,min(a.title) bulletin,
-          coalesce(v.published_at,max(a.published_at)) published_at,
-          coalesce(v.summary,'Component not specified') component,
-          group_concat(DISTINCT s.name) evidence,
-          group_concat(DISTINCT coalesce(aa.source_url,s.base_url)) source_urls,
-          (SELECT count(*) FROM applicability_claims ac WHERE ac.vulnerability_id=v.id) claim_count,
-          (SELECT count(DISTINCT hs.hardware_model_id) FROM applicability_claims ac
-             JOIN hardware_silicon hs ON ac.subject_type='silicon_part' AND hs.part_id=ac.subject_id
-             WHERE ac.vulnerability_id=v.id AND ac.relationship='affected') device_count,
-          (SELECT group_concat(DISTINCT sp.part_number) FROM applicability_claims ac
-             JOIN silicon_parts sp ON ac.subject_type='silicon_part' AND sp.id=ac.subject_id
-             WHERE ac.vulnerability_id=v.id AND ac.relationship='affected') affected_parts,
-          (SELECT count(*) FROM fix_claims fc WHERE fc.vulnerability_id=v.id) fix_count {joins} WHERE {where}
-          GROUP BY v.id ORDER BY published_at DESC,v.cve_id DESC LIMIT ? OFFSET ?""", [*params, limit, offset]).fetchall()
-        result = [{**dict(row), "severity": "Unscored", "score": "—",
-                   "cve_url": f"https://nvd.nist.gov/vuln/detail/{row['cve']}",
-                   "chip": row["affected_parts"] or "Applicability unresolved",
-                   "devices": row["device_count"],
-                   "state": ("Part applicability + fix coordinate" if row["affected_parts"] and row["fix_count"]
-                             else "Part applicability" if row["affected_parts"]
-                             else "Component applicability" if row["claim_count"]
-                             else "Catalog only"),
-                   "reasoning": ("Exact affected silicon part and a fix coordinate are both linked."
-                                 if row["affected_parts"] and row["fix_count"] else
-                                 "The vendor maps this CVE to an exact silicon part, but no fix coordinate is linked."
-                                 if row["affected_parts"] else
-                                 "An applicability claim exists, but it does not identify an exact silicon part."
-                                 if row["claim_count"] else
-                                 "The CVE appears in a captured bulletin only; device impact is not established.")} for row in rows]
-        return QueryPage(result, total, limit, offset)
+        rows, total = query_catalog(self.corpus.connection, query, limit, offset)
+        return QueryPage(rows, total, limit, offset)
+
+    def security_detail(self, cve: str) -> dict:
+        from .security_read import detail
+        return {**detail(self.corpus.connection, cve), 'meta': self.meta}
 
     def security_coverage(self) -> dict:
         rows = self.corpus.connection.execute(
@@ -585,30 +684,49 @@ class ObservatoryService:
         if not prompt.is_file() or not candidates.is_file():
             return {"candidateCount": 0, "pastePrompt": "", "candidates": []}
         candidate_data = json.loads(candidates.read_text(encoding="utf-8"))
+        with self.local_lock:
+            memory = [dict(r) for r in self.local.execute("SELECT product_id,status,reviewer,rationale,json_extract(payload_json,'$.canonical_name') canonical_name,json_extract(payload_json,'$.model_codes') model_codes FROM agent_proposals WHERE status!='pending' GROUP BY target_key")]
+        remembered_products = {r["product_id"] for r in memory if r["status"] in ("approved","deferred")}
+        candidate_data = [c for c in candidate_data if c.get("id",c.get("product_id")) not in remembered_products]
+        for candidate in candidate_data:
+            candidate["remembered_reviews"] = [r for r in memory if r["product_id"] == candidate.get("id",candidate.get("product_id"))]
         prompt_text = prompt.read_text(encoding="utf-8")
+        prompt_text += "\n\nImport contract: return a JSON array. confidence must be low, medium, or high. Every evidence entry must include note and at least one of url (HTTP/HTTPS), artifact_id, observation_id (existing captured IDs). No additional fields. Submit to POST /api/v1/identity/agent-proposals; every output is a proposal only. Approval remembers a review; it never promotes model codes, aliases, silicon, security, or firmware facts. Previously reviewed targets must not be proposed again.\n"
         paste = prompt_text + "\n\n# Candidate data\n```json\n" + json.dumps(candidate_data, indent=2) + "\n```\n"
-        return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data}
+        return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data, "rememberedReviews": memory}
 
     def health(self) -> list[dict]:
-        rows = self.corpus.connection.execute("""SELECT s.name source, s.authority_scope scope,
-          ir.outcome status, ir.finished_at last, ir.accepted_count records
+        rows = self.corpus.connection.execute("""SELECT s.id source_id,s.name source,s.authority_scope scope,
+          ir.id run_id,ir.outcome status,ir.finished_at last,ir.accepted_count records,
+          (SELECT max(a.retrieved_at) FROM artifacts a WHERE a.source_id=s.id) captured_at,
+          (SELECT max(o.observed_at) FROM observations o WHERE o.source_id=s.id) observed_at
           FROM ingestion_runs ir JOIN sources s ON s.id=ir.source_id
-          WHERE ir.started_at=(SELECT max(ir2.started_at) FROM ingestion_runs ir2 WHERE ir2.source_id=ir.source_id)
+          WHERE ir.id=(SELECT ir2.id FROM ingestion_runs ir2 WHERE ir2.source_id=ir.source_id
+                       ORDER BY ir2.started_at DESC,ir2.id DESC LIMIT 1)
           ORDER BY s.name""").fetchall()
         if rows:
-            return [{**dict(row), "next": "According to configured cadence"} for row in rows]
+            return [{**dict(row), "next": "Manual only · no scheduler installed",
+                     "execution_mode": "captured_replay" if row["run_id"].startswith("manual-") else "snapshot_import",
+                     "live_network": False, "freshness": "Captured evidence; import success is not a vendor refresh"}
+                    for row in rows]
+        if not self.demonstration:
+            return [{"source": r["name"], "scope": r["authority_scope"], "status": "No imported run",
+                     "last": None, "next": "Manual only · no scheduler installed", "records": 0,
+                     "captured_at": None, "observed_at": None, "execution_mode": "unknown", "live_network": False}
+                    for r in self.corpus.connection.execute("SELECT name,authority_scope FROM sources ORDER BY name")]
         return [{"source": "Synthetic demonstration fixture", "scope": "Sample only", "status": "Demo",
-                 "last": DEMO_TIME, "next": "No collection scheduled", "records": "0"}]
+                 "last": DEMO_TIME, "next": "No collection scheduled", "records": "0",
+                 "captured_at": None, "observed_at": None, "execution_mode": "demonstration", "live_network": False}]
 
     def overview(self) -> dict:
         with self.local_lock:
             acknowledged = {row[0] for row in self.local.execute("SELECT event_id FROM acknowledgements").fetchall()}
-        event_ids = {row[0] for row in self.corpus.connection.execute("SELECT id FROM domain_events")}
-        if not event_ids:
+        event_ids = {row[0] for row in self.corpus.connection.execute(f"SELECT id FROM {self._radar_event_source()}")}
+        if not event_ids and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             event_ids = {row[0] for row in self.corpus.connection.execute("SELECT id FROM firmware_releases")}
-        failures = self.corpus.connection.execute("SELECT count(*) FROM ingestion_runs WHERE outcome!='succeeded'").fetchone()[0]
+        failures = sum(r["status"] not in ("healthy", "succeeded", "Demo") for r in self.health())
         android_upgrades = self.corpus.connection.execute(
-            """SELECT count(*) FROM domain_events
+            f"""SELECT count(*) FROM {self._radar_event_source()}
                WHERE event_type='android_version_changed'
                   OR (json_extract(before_json,'$.android') IS NOT NULL
                       AND json_extract(after_json,'$.android') IS NOT NULL
@@ -616,11 +734,12 @@ class ObservatoryService:
                           <> CAST(json_extract(after_json,'$.android') AS TEXT))"""
         ).fetchone()[0]
         return {**self.meta, "meta": self.meta, "unseen": len(event_ids - acknowledged), "androidUpgrades": android_upgrades,
-                "securityPatches": self.corpus.connection.execute("SELECT count(*) FROM observations WHERE record_type='security_patch_publication'").fetchone()[0],
-                "sourceWarnings": failures, "lastRun": self.meta["dataAsOf"]}
+                "securityPatches": self.corpus.connection.execute(f"SELECT count(*) FROM {self._radar_event_source()} WHERE event_type='security_patch_changed'").fetchone()[0],
+                "securityPublications": self.corpus.connection.execute("SELECT count(*) FROM observations WHERE record_type='security_patch_publication'").fetchone()[0],
+                "sourceWarnings": failures, "lastRun": self.corpus.connection.execute("SELECT max(finished_at) FROM ingestion_runs").fetchone()[0]}
 
     def acknowledge(self, event_id: str) -> None:
-        found = self.corpus.connection.execute("SELECT 1 FROM domain_events WHERE id = ?", (event_id,)).fetchone()
+        found = self.corpus.connection.execute(f"SELECT 1 FROM {self._radar_event_source()} WHERE id = ?", (event_id,)).fetchone()
         if found is None and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             found = self.corpus.connection.execute("SELECT 1 FROM firmware_releases WHERE id = ?", (event_id,)).fetchone()
         if found is None:
@@ -635,8 +754,8 @@ class ObservatoryService:
         ids = list(dict.fromkeys(str(item).strip() for item in event_ids if str(item).strip()))
         if len(ids) > 5000:
             raise ValueError("too many update ids")
-        valid = {row[0] for row in self.corpus.connection.execute("SELECT id FROM domain_events")}
-        if not valid:
+        valid = {row[0] for row in self.corpus.connection.execute(f"SELECT id FROM {self._radar_event_source()}")}
+        if not valid and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             valid = {row[0] for row in self.corpus.connection.execute("SELECT id FROM firmware_releases")}
         missing = [item for item in ids if item not in valid]
         if missing:
@@ -737,22 +856,37 @@ class ObservatoryService:
         unique = {item["id"]: item for item in profiles}
         return {"profiles": list(unique.values())}
 
+    def watches(self) -> list[dict]:
+        with self.local_lock:
+            return list_watches(self.local)
+
+    def save_watch(self, value: dict) -> dict:
+        with self.local_lock:
+            return save_watch(self.local, self.corpus.connection, value)
+
     def identity_decisions(self) -> list[dict]:
         return [dict(row) for row in self.local.execute(
             "SELECT * FROM identity_decisions ORDER BY decided_at DESC")]
 
     def save_identity_decision(self, value: dict) -> dict:
-        required = ("sourceNamespace", "sourceValue", "canonicalType", "decision")
-        if any(not str(value.get(k, "")).strip() for k in required):
-            raise ValueError("missing identity decision fields")
-        if value["decision"] not in ("same", "different", "defer"):
-            raise ValueError("invalid decision")
-        self.local.execute("""INSERT OR REPLACE INTO identity_decisions
-          (source_namespace,source_value,canonical_type,canonical_id,decision,rationale)
-          VALUES(?,?,?,?,?,?)""", (value["sourceNamespace"], value["sourceValue"],
-          value["canonicalType"], value.get("canonicalId"), value["decision"], value.get("rationale")))
-        self.local.commit()
-        return {"ok": True, "decision": value["decision"]}
+        with self.local_lock:
+            return save_decision(self.local, value)
+
+    def identity_history(self) -> list[dict]:
+        with self.local_lock:
+            return [dict(row) for row in self.local.execute("SELECT * FROM identity_decision_history ORDER BY id DESC LIMIT 1000")]
+
+    def agent_proposals(self) -> list[dict]:
+        with self.local_lock:
+            return list_proposals(self.local)
+
+    def import_agent_proposals(self, values: list) -> dict:
+        with self.local_lock:
+            return import_proposals(self.local, self.corpus.connection, values)
+
+    def review_agent_proposal(self, identifier: str, value: dict) -> dict:
+        with self.local_lock:
+            return review_proposal(self.local, identifier, value)
 
     def collection_requests(self) -> list[dict]:
         worker = CollectionWorker(self.local, self.corpus.connection, self.worker_paths)
@@ -774,11 +908,21 @@ class ObservatoryService:
                 "scope": scope, "status": "queued", "execution_mode": "captured_replay",
                 "live_network": False}
 
+    def recover_collection_requests(self) -> dict:
+        with self.local_lock:
+            return {"interrupted": CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()}
+
+    def retry_collection_request(self, request_id: int) -> dict:
+        with self.local_lock:
+            return CollectionWorker(self.local, self.corpus.connection, self.worker_paths).retry(request_id)
+
     def process_collection_request(self, request_id: int) -> dict:
-        return CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process(request_id)
+        with self.local_lock:
+            return CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process(request_id)
 
     def process_next_collection_request(self) -> dict:
-        item = CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process_next()
+        with self.local_lock:
+            item = CollectionWorker(self.local, self.corpus.connection, self.worker_paths).process_next()
         return item or {"status": "idle", "message": "No queued collection request."}
 
 
@@ -797,6 +941,7 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/releases": lambda: _page_payload(service.releases_page(query), service.meta),
                 "/api/v1/product-releases": lambda: _page_payload(service.product_releases_page(query), service.meta),
                 "/api/v1/product-security": lambda: _page_payload(service.product_security_page(query), service.meta),
+                "/api/v1/product-source-builds": lambda: _page_payload(service.product_source_builds_page(query), service.meta),
                 "/api/v1/source-records": lambda: _page_payload(service.source_records_page(query), service.meta),
                 "/api/v1/identity/products": lambda: _page_payload(service.source_products_page(query), service.meta),
                 "/api/v1/security/findings": lambda: _page_payload(service.security_page(query), service.meta),
@@ -807,10 +952,25 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/admin/options": service.config_options,
                 "/api/v1/admin/real-sample": service.real_sample,
                 "/api/v1/admin/review-profiles": service.review_profiles,
+                "/api/v1/identity/history": lambda: {"items": service.identity_history()},
+                "/api/v1/identity/agent-proposals": lambda: {"items": service.agent_proposals()},
+                "/api/v1/watches": lambda: {"items": service.watches()},
                 "/api/v1/identity/decisions": lambda: {"items": service.identity_decisions()},
                 "/api/v1/identity/agent-bundle": service.agent_review_bundle,
                 "/api/v1/admin/collection-requests": lambda: {"items": service.collection_requests()},
             }
+            if parsed.path.startswith('/api/v1/security/cves/'):
+                try:
+                    self._json(HTTPStatus.OK, service.security_detail(unquote(parsed.path[len('/api/v1/security/cves/'):])) )
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {'error': 'cve_not_found'})
+                return
+            if parsed.path.startswith('/api/v1/devices/'):
+                try:
+                    self._json(HTTPStatus.OK, service.device_detail(unquote(parsed.path[len('/api/v1/devices/'):])) )
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {'error': 'device_not_found'})
+                return
             if parsed.path.startswith('/api/v1/products/'):
                 try:
                     self._json(HTTPStatus.OK, service.product_detail(unquote(parsed.path[len('/api/v1/products/'):])) )
@@ -842,6 +1002,37 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_config"})
                 return
+            if parsed.path == "/api/v1/identity/agent-proposals":
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= 1_000_000:
+                        raise ValueError("Proposal import must be at most 1 MB")
+                    payload = json.loads(self.rfile.read(length))
+                    self._json(HTTPStatus.CREATED, service.import_agent_proposals(payload))
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_agent_proposals", "detail": str(exc)})
+                return
+            proposal_prefix = "/api/v1/identity/agent-proposals/"
+            if parsed.path.startswith(proposal_prefix) and parsed.path.endswith("/review"):
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= 20_000:
+                        raise ValueError("Review must be at most 20 KB")
+                    payload = json.loads(self.rfile.read(length))
+                    self._json(HTTPStatus.OK, service.review_agent_proposal(unquote(parsed.path[len(proposal_prefix):-len("/review")]),payload))
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "proposal_not_found"})
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_proposal_review", "detail": str(exc)})
+                return
+            if parsed.path == "/api/v1/watches":
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    payload = json.loads(self.rfile.read(length) or b"{}")
+                    self._json(HTTPStatus.OK, service.save_watch(payload))
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_watch"})
+                return
             if parsed.path == "/api/v1/identity/decisions":
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
@@ -863,6 +1054,21 @@ def make_handler(service: ObservatoryService, web_root: Path):
                     self._json(HTTPStatus.OK, service.process_next_collection_request())
                 except (ValueError, OSError) as exc:
                     self._json(HTTPStatus.CONFLICT, {"error": "collection_failed", "detail": str(exc)})
+                return
+            if parsed.path == "/api/v1/admin/collection-requests/recover":
+                try:
+                    self._json(HTTPStatus.OK, service.recover_collection_requests())
+                except (ValueError, OSError) as exc:
+                    self._json(HTTPStatus.CONFLICT, {"error": "worker_active", "detail": str(exc)})
+                return
+            request_prefix, retry_suffix = "/api/v1/admin/collection-requests/", "/retry"
+            if parsed.path.startswith(request_prefix) and parsed.path.endswith(retry_suffix):
+                try:
+                    self._json(HTTPStatus.CREATED, service.retry_collection_request(int(parsed.path[len(request_prefix):-len(retry_suffix)])))
+                except KeyError:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "collection_request_not_found"})
+                except (ValueError, OSError) as exc:
+                    self._json(HTTPStatus.CONFLICT, {"error": "retry_conflict", "detail": str(exc)})
                 return
             request_prefix, process_suffix = "/api/v1/admin/collection-requests/", "/process"
             if parsed.path.startswith(request_prefix) and parsed.path.endswith(process_suffix):

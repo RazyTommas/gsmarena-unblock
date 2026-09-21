@@ -55,6 +55,10 @@ class SamsungFirmwarePromoter:
 
     def _promote_one(self, row: sqlite3.Row, hardware_id: str) -> int:
         payload = json.loads(row["payload_json"]); data = payload["data"]; now = utc_now()
+        parser = self.db.execute('SELECT parser_name FROM ingestion_runs WHERE id=?',(row['run_id'],)).fetchone()
+        # Old immutable history observations retain the original parser's wrong
+        # release_time field; never promote its build-derived month as a date.
+        release_time = None if parser and parser['parser_name']=='samsung_fota_history_csv' else data.get('release_time')
         target_id = _id("target", "samsung", data["region_code"])
         release_id = _id("firmware", hardware_id, target_id, data["build"], data.get("channel", "stable"))
         evidence_id = _id("evidence", row["id"])
@@ -81,7 +85,7 @@ class SamsungFirmwarePromoter:
            baseband_version=COALESCE(excluded.baseband_version,baseband_version),
            security_patch_level=COALESCE(excluded.security_patch_level,security_patch_level)""",
           (release_id, hardware_id, target_id, data["build"], data.get("channel", "stable"), os_id,
-           data.get("security_patch"), data.get("baseband"), data.get("release_time"), row["observed_at"], row["observed_at"], now))
+           data.get("security_patch"), data.get("baseband"), release_time, row["observed_at"], row["observed_at"], now))
         for role in (("availability", "baseband") if data.get("baseband") else ("availability",)):
             self.db.execute("INSERT OR IGNORE INTO firmware_release_evidence VALUES(?,?,?)", (release_id, evidence_id, role))
         self.db.execute("UPDATE observations SET validation_state='promoted' WHERE id=?", (row["id"],))

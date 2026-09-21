@@ -20,11 +20,14 @@ const params = input => {
 };
 
 export const api = {
+  watches: () => request('/watches'),
+  saveWatch: value => request('/watches', {method:'POST',body:JSON.stringify(value)}),
   overview: () => request('/radar/overview'),
   updates: filters => request(`/updates${params(filters)}`),
   acknowledge: id => request(`/updates/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }),
   acknowledgeMany: ids => request('/updates/acknowledge-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
   acknowledgements: () => request('/updates/acknowledgements'),
+  deviceDetail: model => request(`/devices/${encodeURIComponent(model)}`),
   devices: filters => request(`/devices${params(filters)}`),
   productDetail: id => request(`/products/${encodeURIComponent(id)}`),
   chipProducts: filters => request(`/chips/products${params(filters)}`),
@@ -32,10 +35,16 @@ export const api = {
   releases: filters => request(`/releases${params(filters)}`),
   productReleases: filters => request(`/product-releases${params(filters)}`),
   productSecurity: filters => request(`/product-security${params(filters)}`),
+  productSourceBuilds: filters => request(`/product-source-builds${params(filters)}`),
   sourceRecords: filters => request(`/source-records${params(filters)}`),
   sourceProducts: filters => request(`/identity/products${params(filters)}`),
   reviewSourceProduct: (id, decision) => request(`/identity/products/${encodeURIComponent(id)}/review`, {method:'POST',body:JSON.stringify({decision})}),
+  agentProposals: () => request('/identity/agent-proposals'),
+  importAgentProposals: proposals => request('/identity/agent-proposals', {method:'POST',body:JSON.stringify(proposals)}),
+  reviewAgentProposal: (id,value) => request(`/identity/agent-proposals/${encodeURIComponent(id)}/review`, {method:'POST',body:JSON.stringify(value)}),
+  identityHistory: () => request('/identity/history'),
   agentBundle: () => request('/identity/agent-bundle'),
+  securityDetail: cve => request(`/security/cves/${encodeURIComponent(cve)}`),
   security: filters => request(`/security/findings${params(filters)}`),
   securityCoverage: () => request('/security/coverage'),
   health: () => request('/admin/health'),
@@ -49,6 +58,8 @@ export const api = {
   saveIdentityDecision: value => request('/identity/decisions', { method: 'POST', body: JSON.stringify(value) }),
   collectionRequests: () => request('/admin/collection-requests'),
   requestCollection: value => request('/admin/collection-requests', { method: 'POST', body: JSON.stringify(value) }),
+  recoverCollections: () => request('/admin/collection-requests/recover', { method: 'POST', body: '{}' }),
+  retryCollection: id => request(`/admin/collection-requests/${encodeURIComponent(id)}/retry`, { method: 'POST', body: '{}' }),
   processNextCollection: () => request('/admin/collection-requests/process-next', { method: 'POST', body: '{}' }),
 };
 

@@ -15,7 +15,9 @@ _PROCESS = re.compile(r"\s*\(\d+(?:\.\d+)?\s*nm\)\s*$", re.I)
 _SOC_VENDOR = (("qualcomm", "Qualcomm"), ("snapdragon", "Qualcomm"),
                ("mediatek", "MediaTek"), ("dimensity", "MediaTek"), ("helio", "MediaTek"),
                ("exynos", "Samsung"), ("samsung", "Samsung"), ("xring", "Xiaomi"),
-               ("unisoc", "Unisoc"), ("kirin", "Huawei"), ("apple", "Apple"))
+               ("unisoc", "Unisoc"), ("kirin", "Huawei"), ("apple", "Apple"),
+               ("google tensor", "Google"), ("nvidia tegra", "NVIDIA"),
+               ("intel atom", "Intel"), ("ti omap", "Texas Instruments"))
 _MT_PART = re.compile(r"\bMT\d{4,5}\b", re.I)
 
 
@@ -219,19 +221,30 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
         for row in rows:
             data = json.loads(row["payload_json"])["data"]
             if data.get("build"):
+                region = data.get("region_code") or "SOURCE_UNSPECIFIED"
+                if row['source_id'] == 'xiaomi.community.firmware_tracker':
+                    from .collectors.adapters.xiaomi_tracker import _region_from_codename_and_name
+                    region = _region_from_codename_and_name(data['model_code'],data['source_device_name'])
                 android = str(data.get("android") or "").strip() or None
                 major = None
                 if android:
                     match = re.match(r"^(\d+)", android)
                     major = int(match.group(1)) if match else None
                 release_id = _id("product-firmware", row["observation_id"])
+                existing = connection.execute('''SELECT id FROM product_firmware_releases
+                    WHERE product_id=? AND identity_id=? AND source_id=? AND region_code=?
+                      AND build_id=? AND channel=? AND delivery_method IS ? LIMIT 1''',
+                    (row['product_id'],row['identity_id'],row['source_id'],region,data['build'],
+                     data.get('branch') or 'unknown',data.get('delivery_method'))).fetchone()
+                if existing:
+                    release_id = existing['id']
                 before = connection.total_changes
                 connection.execute("""INSERT OR IGNORE INTO product_firmware_releases
                   (id,product_id,identity_id,observation_id,source_id,region_code,build_id,channel,
                    android_version,android_major,vendor_released_at,delivery_method,created_at)
                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (release_id,row["product_id"],row["identity_id"],row["observation_id"],row["source_id"],
-                   data.get("region_code") or "SOURCE_UNSPECIFIED",data["build"],data.get("branch") or "unknown",
+                   region,data["build"],data.get("branch") or "unknown",
                    android,major,data.get("release_date") or None,data.get("delivery_method"),row["observed_at"]))
                 promoted_firmware += connection.total_changes > before
             elif data.get("aspl_month"):
@@ -249,7 +262,7 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
         # downgrades are deliberately not labelled upgrades.
         histories = connection.execute("""SELECT pfr.*,sp.canonical_name
           FROM product_firmware_releases pfr JOIN source_products sp ON sp.id=pfr.product_id
-          WHERE android_major IS NOT NULL
+          WHERE android_major IS NOT NULL AND region_code!='SOURCE_UNSPECIFIED'
           ORDER BY product_id,region_code,channel,vendor_released_at,id""").fetchall()
         previous: dict[tuple[str, str, str], sqlite3.Row] = {}
         for release in histories:

@@ -33,3 +33,32 @@ Live collection is a separate adapter capability to add later. It should use
 the same queue contract, preserve raw evidence, identify its execution mode as
 live, apply timeouts/rate limits, and never fall back to replay without saying
 so in the result.
+
+## Power loss, retries and observation dates
+
+A nonblocking operating-system lock permits one collection worker per local
+store. The lock is released when its process exits, including crashes. On server
+startup or before processing another request, abandoned `running` jobs become
+`interrupted`; their original run ID and logs remain. They are never silently
+replayed. Some evidence may already have committed before interruption, so
+accepted/rejected counts remain unknown until a new attempt finishes.
+
+Admin exposes preserved logs, **Recover interrupted jobs**, and **Queue retry**.
+A retry is a new request linked by `retry_of`; repeated clicks reuse an existing
+queued/running retry. Recovery refuses to interrupt a worker holding the lock.
+
+- `POST /api/v1/admin/collection-requests/recover`
+- `POST /api/v1/admin/collection-requests/{id}/retry`
+
+Captured replay preserves the artifact's original retrieval timestamp when its
+hash is already known, and otherwise uses the capture date documented by the
+installed fixture adapter. It never substitutes replay time for observation
+of the upstream source. Admin health separates captured evidence time from
+import completion. The saved cadence is only a preference: no automatic live
+scheduler is installed.
+
+Capture-time fallback is bound to the exact SHA-256 values in the preserved
+manifest, not to filenames. Replaced bytes without matching corpus metadata or a
+known distribution hash fail before ingestion. Failure summaries identify their
+phase; if parsing/import already succeeded before promotion failed, accepted
+counts retain that work. An interruption during import leaves counts unknown.

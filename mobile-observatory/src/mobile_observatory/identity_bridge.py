@@ -56,12 +56,66 @@ def _product_name(source: str, payload: dict) -> tuple[str, str, str, str] | Non
     return None
 
 
+CHILD_TABLES = ("observation_product_links", "source_identity_registry",
+                "identity_conclusions", "observed_product_silicon",
+                "product_firmware_releases", "product_security_publications",
+                "source_specifications", "source_build_product_links")
+
+
+def repair_derived_ids(connection: sqlite3.Connection) -> int:
+    """Re-derive product ids that no longer match their normalised name.
+
+    source_products.id is uuid5(manufacturer, normalized_name) -- the id is DERIVED,
+    not arbitrary. Anything that rewrites normalized_name without recomputing the id
+    breaks that invariant, and the break is invisible until the next ingest: the bridge
+    computes the correct id, the upsert lands on the existing row via
+    ON CONFLICT(manufacturer, normalized_name) and leaves the OLD id in place, and then
+    the link insert references an id that does not exist. FOREIGN KEY constraint failed.
+
+    That is exactly what migration 0016 did. It merged the brand-prefixed duplicates
+    correctly and rewrote their normalized_name, and SQL cannot compute a uuid5, so the
+    ids were left stale. Running this makes the repair idempotent and self-healing: a
+    later migration that touches names cannot leave the corpus unloadable.
+
+    Foreign keys are suspended for the swap because the new and old rows cannot both
+    satisfy UNIQUE(manufacturer, normalized_name) while children are repointed. They
+    are re-enabled and verified before returning.
+    """
+    rows = connection.execute(
+        "SELECT id, manufacturer, normalized_name FROM source_products").fetchall()
+    stale = [(r[0], _id("product", r[1], r[2])) for r in rows]
+    stale = [(old, new) for old, new in stale if old != new]
+    if not stale:
+        return 0
+    fk = connection.execute("PRAGMA foreign_keys").fetchone()[0]
+    connection.execute("PRAGMA foreign_keys=OFF")
+    try:
+        for old, new in stale:
+            connection.execute("UPDATE source_products SET id=? WHERE id=?", (new, old))
+            for t in CHILD_TABLES:
+                try:
+                    connection.execute(f"UPDATE {t} SET product_id=? WHERE product_id=?",
+                                       (new, old))
+                except sqlite3.OperationalError:
+                    pass
+        connection.commit()
+    finally:
+        connection.execute(f"PRAGMA foreign_keys={'ON' if fk else 'OFF'}")
+    bad = connection.execute(
+        "SELECT COUNT(*) FROM observation_product_links "
+        "WHERE product_id NOT IN (SELECT id FROM source_products)").fetchone()[0]
+    if bad:
+        raise RuntimeError(f"id repair left {bad} dangling product links")
+    return len(stale)
+
+
 def rebuild_identity_registry(connection: sqlite3.Connection, specs_csv: Path | None = None) -> dict[str, int]:
     specs: dict[str, dict] = {}
     if specs_csv and specs_csv.is_file():
         with specs_csv.open(encoding="utf-8-sig") as handle:
             for row in csv.DictReader(handle):
                 specs[_norm(row["device_name"])] = row
+    repaired = repair_derived_ids(connection)
     products: set[str] = set()
     identities: set[str] = set()
     links = 0
@@ -100,4 +154,5 @@ def rebuild_identity_registry(connection: sqlite3.Connection, specs_csv: Path | 
               (row["id"], product_id, identity_id, "approved" if remembered == "approved" else "proposed", now))
             products.add(product_id); identities.add(identity_id); links += 1
     return {"products": len(products), "identities": len(identities), "links": links,
+            "ids_repaired": repaired,
             "specification_matches": connection.execute("SELECT count(*) FROM source_products WHERE specification_json IS NOT NULL").fetchone()[0]}

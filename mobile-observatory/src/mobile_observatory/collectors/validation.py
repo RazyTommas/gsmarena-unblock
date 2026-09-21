@@ -63,4 +63,29 @@ def validate_observation(item: Observation) -> list[ValidationIssue]:
         month = str(item.data.get("aspl_month", ""))
         if month and not re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])", month):
             issues.append(ValidationIssue("format", "data.aspl_month", "expected YYYY-MM; day precision must not be invented"))
+        # OPTIONAL exact date, for vendors that actually publish one.
+        #
+        # aspl_month stays required and stays month-precision, so the original rule --
+        # never invent a day -- is untouched. But the inverse error is just as bad:
+        # DISCARDING a day the vendor did publish. Samsung states 2026-08-05, and that
+        # day is not decoration. Google's two patch tiers are -01 (Framework, System,
+        # Play) and -05 (which additionally carries Kernel, Arm, MediaTek, Qualcomm),
+        # so a build at -01 cannot adjudicate a chipset CVE however recent its month.
+        # Flatten that to '2026-08' and every chipset verdict downstream is wrong in
+        # the permissive direction, which is the worst direction.
+        #
+        # So: supply aspl_date only when the source published a day, and it must agree
+        # with aspl_month rather than contradict it.
+        date = str(item.data.get("aspl_date", "") or "")
+        if date:
+            if not re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])", date):
+                issues.append(ValidationIssue("format", "data.aspl_date", "expected YYYY-MM-DD"))
+            elif month and not date.startswith(month):
+                issues.append(ValidationIssue("consistency", "data.aspl_date",
+                                              "does not fall inside data.aspl_month"))
+        tier = item.data.get("patch_tier")
+        if tier is not None and tier not in (1, 5):
+            issues.append(ValidationIssue("format", "data.patch_tier",
+                                          "Google publishes tiers 1 and 5; anything else "
+                                          "is unclassifiable and must be omitted, not guessed"))
     return issues

@@ -6,12 +6,14 @@ import json
 import sqlite3
 from pathlib import Path
 
+from .collectors.adapters.samsung_aspl import SamsungAsplAdapter
 from .collectors.adapters.samsung_fota import SamsungFotaArtifactAdapter
 from .collectors.adapters.samsung_history import SamsungFotaHistoryAdapter
 from .collectors.adapters.tecno_security import TecnoSecurityPatchAdapter
 from .collectors.adapters.xiaomi_tracker import XiaomiFirmwareTrackerAdapter
 from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
+from .dedupe import merge_confirmed_duplicates
 from .collectors.promotion import SamsungFirmwarePromoter
 from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
@@ -75,6 +77,10 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
                                         model_code="SM-S938B", csc="ILO", observed_at="2026-09-16T06:00:00Z"),
              "samsung-captured-sm-s938b-ilo"),
             (SamsungFotaHistoryAdapter(samsung_history), "samsung-fota-history-captured"),
+            # Android patch level per build. Without this nothing in the corpus can be
+            # adjudicated -- a device with no patch level is undecidable, not safe.
+            (SamsungAsplAdapter(legacy_root / "samsung-aspl" / "samsung_aspl.csv"),
+             "samsung-aspl-captured"),
         ]
         for adapter, run_id in adapters:
             result = pipeline.run(adapter, run_id)
@@ -95,6 +101,10 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml",
             specs_csv=legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv",
             google_play_csv=legacy_root / "google-play-devices" / "supported_devices.csv", decisions=decisions)
+        # Must run on EVERY batch: the TECNO source re-emits both spellings each time,
+        # so a merge done once is undone by the next ingest.
+        results["dedupe"] = merge_confirmed_duplicates(
+            db.connection, legacy_root / "google-play-devices" / "supported_devices.csv")
         results["product_promotion"] = promote_approved_product_observations(db.connection)
         results["canonical_silicon"] = enrich_canonical_silicon(
             db.connection, legacy_root / "cross-reference" / "device-chipset-cve-xref.csv")

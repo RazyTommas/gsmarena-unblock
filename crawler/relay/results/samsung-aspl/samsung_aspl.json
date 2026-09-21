@@ -1,0 +1,14 @@
+{
+ "source": "https://doc.samsungmobile.com/",
+ "source_authority": "vendor-official",
+ "collector": "device-crawler/samsung_aspl.py",
+ "rows": 15738,
+ "distinct_models": 81,
+ "sha256": "ad368b8e524a10c69b2dc82604caa203f8fb4ba73ab198cc5b7e53f1cc495612",
+ "exported_at": "2026-09-21T09:27:10Z",
+ "notes": [
+  "Android security patch level per Samsung firmware build, from Samsung's own Notify-Update publisher.",
+  "Day-of-month distribution was verified at collection: a column landing on any day other than 01 or 05 is refused, because a scattered day means the value is a RELEASE date wearing the patch level's name.",
+  "spl is a full date; 01 and 05 are Google's two patch tiers and the distinction decides which CVEs a build can adjudicate."
+ ]
+}

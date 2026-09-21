@@ -51,6 +51,17 @@ def _product_name(source: str, payload: dict) -> tuple[str, str, str, str] | Non
     if source == "xiaomi.community.firmware_tracker":
         name = _REGION_SUFFIX.sub("", data["source_device_name"]).strip()
         return "Xiaomi", name, "codename", data["model_code"]
+    if source == "mifirm.community.firmware_archive":
+        # Deliberately IDENTICAL to the tracker branch above. Both sources describe
+        # the same Xiaomi devices, so they must normalise to the same key: product
+        # id is uuid5(manufacturer, normalized_name), and any divergence here would
+        # file the archive's history under a second product row for a device the
+        # tracker already owns -- the exact duplicate-device failure migration 0016
+        # had to repair. Same manufacturer, same region-suffix strip, same namespace.
+        name = _REGION_SUFFIX.sub("", data["source_device_name"]).strip()
+        if not name:
+            return None
+        return "Xiaomi", name, "codename", data["model_code"]
     if source == "tecno.vendor.security_device_scope":
         return "TECNO", data["device"].strip(), "commercial_name", data["device"].strip()
     return None

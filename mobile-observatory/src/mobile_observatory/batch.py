@@ -6,6 +6,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from .collectors.adapters.mifirm_archive import MifirmArchiveAdapter
 from .collectors.adapters.samsung_aspl import SamsungAsplAdapter
 from .collectors.adapters.samsung_fota import SamsungFotaArtifactAdapter
 from .collectors.adapters.samsung_history import SamsungFotaHistoryAdapter
@@ -81,6 +82,13 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             # adjudicated -- a device with no patch level is undecidable, not safe.
             (SamsungAsplAdapter(legacy_root / "samsung-aspl" / "samsung_aspl.csv"),
              "samsung-aspl-captured"),
+            # Xiaomi firmware HISTORY. The tracker adapter above carries only the
+            # LATEST build per device (4,886 rows); this is the archive behind it,
+            # re-parsed from the 337 captured mifirm.net model pages. The legacy
+            # corpus held 21,843 of these and collapsed fastboot/recovery into a
+            # single row -- see MifirmArchiveAdapter for the measured difference.
+            (MifirmArchiveAdapter(legacy_root / "mifirm-archive" / "mifirm-firmware-archive.csv"),
+             "mifirm-archive-captured"),
         ]
         for adapter, run_id in adapters:
             result = pipeline.run(adapter, run_id)

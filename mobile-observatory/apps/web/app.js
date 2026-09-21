@@ -620,3 +620,67 @@ window.addEventListener('resize', () => {
   clearTimeout(window.__titleTimer);
   window.__titleTimer = setTimeout(titleOverflowingCells, 150);
 });
+
+// ===========================================================================
+// DEEP-LINKABLE VIEWS
+//
+// The app had no URL routing: every view lived at "/", so a refresh always
+// dumped you back on Radar and no view could be bookmarked, shared, or reopened
+// where you left it. This adds a hash route without touching the existing
+// navigation -- it drives the same buttons the rail does, so there is exactly
+// one code path that changes a view.
+//
+// The nav handler starts with `if(!state.data)return;`, so a click before the
+// first load silently does nothing. That is why applying a hash has to retry
+// until the button actually goes active rather than firing once on load.
+// ===========================================================================
+const ROUTES = ['radar', 'explore', 'products', 'security', 'admin'];
+const routeFromHash = () => {
+  const h = (location.hash || '').replace(/^#/, '').toLowerCase();
+  return ROUTES.includes(h) ? h : null;
+};
+
+// The requested route is captured ONCE, at load, and never re-read from the URL
+// while we are still trying to reach it.
+//
+// The first version re-read the hash on every retry, and lost a race it could
+// not win: the app boots on 'radar', writes "Radar" into #crumb, and the
+// sync-out observer below rewrote the URL to #radar -- so the next retry read
+// #radar and obediently went there. Opening /#security reliably landed on the
+// default view. Latching the target and gating the writer is what breaks the
+// loop; the two halves must not both own the hash at the same time.
+let pendingRoute = routeFromHash();
+
+(function applyPendingRoute(tries = 0) {
+  if (!pendingRoute) return;
+  const btn = document.querySelector(`.rail button[data-route="${pendingRoute}"]`);
+  if (btn && btn.classList.contains('active')) { pendingRoute = null; return; }
+  // the rail's own handler starts with `if(!state.data)return;`, so a click
+  // before the first load is a no-op rather than an error -- hence retrying
+  // until the button actually goes active instead of firing once.
+  btn?.click();
+  if (btn?.classList.contains('active')) { pendingRoute = null; return; }
+  if (tries < 60) setTimeout(() => applyPendingRoute(tries + 1), 250);
+  else pendingRoute = null;   // give up rather than spin forever
+})();
+
+// Keep the hash in step with the view. #crumb is rewritten on every render and
+// holds the route name, so it is the one signal guaranteed to fire for every
+// navigation -- including those from search results and the chip findings link.
+const crumbEl = document.getElementById('crumb');
+if (crumbEl) {
+  new MutationObserver(() => {
+    if (pendingRoute) return;            // do not fight the route being applied
+    const r = crumbEl.textContent.trim().toLowerCase();
+    if (ROUTES.includes(r) && routeFromHash() !== r) {
+      history.replaceState(null, '', `#${r}`);
+    }
+  }).observe(crumbEl, { childList: true, characterData: true, subtree: true });
+}
+
+window.addEventListener('hashchange', () => {
+  const want = routeFromHash();
+  if (!want) return;
+  const btn = document.querySelector(`.rail button[data-route="${want}"]`);
+  if (btn && !btn.classList.contains('active')) { pendingRoute = want; btn.click(); pendingRoute = null; }
+});

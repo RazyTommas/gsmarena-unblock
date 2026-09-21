@@ -1,0 +1,37 @@
+{
+  "task": "frbox-transsion-catalog",
+  "outcome": "ok",
+  "source": "asmofrbox/firmware_catalog.json (FRBox / Aliyun PDS catalog)",
+  "source_url": "https://frbox.transsion.com",
+  "authority": "vendor-official-aftersales",
+  "retrieved_at": "2026-09-21T23:55:10.622166+00:00",
+  "total_rows": 2947,
+  "brands": {
+    "Infinix": 790,
+    "TECNO": 1279,
+    "itel": 878
+  },
+  "unique_models": {
+    "TECNO": 424,
+    "Infinix": 245,
+    "itel": 420
+  },
+  "unique_platforms": 217,
+  "chipset_families": {
+    "other": 23,
+    "MediaTek": 147,
+    "Unisoc/Spreadtrum": 40,
+    "Qualcomm": 7
+  },
+  "sha256": "ab21b9b16686768b5eca7e9a79909af5881d411be7f054130c29bc03b16540e5",
+  "notes": [
+    "ALL download links are expired (ShareLink.Expired from Aliyun PDS API)",
+    "Metadata is the value: model code, version string, chipset/platform, market region",
+    "version_date is extracted from version strings where present (YYMMDD pattern) \u2014 it is a BUILD DATE, not a patch level. Do not treat as security_level.",
+    "android_version extracted from project_name 'Android NN' suffix where present",
+    "platform field contains raw MediaTek/Unisoc/Qualcomm chip identifiers with marketing names in parens",
+    "download_status='expired' on all rows \u2014 verified by API probe against fra315.api.aliyunpds.com",
+    "market_type codes: GL=Global, RU=Russia, TR=Turkey, OP=Operator, IN=India, EU=Europe, COCL=Colombia, etc."
+  ],
+  "agent": "prompter@lab2"
+}

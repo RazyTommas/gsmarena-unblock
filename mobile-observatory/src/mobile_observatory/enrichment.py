@@ -12,6 +12,7 @@ from pathlib import Path
 _NS = uuid.UUID("a61652aa-f30a-40c4-9135-7e38dc86f330")
 _REGION = re.compile(r"\s+(EEA|Global|China|India|Indonesia|Japan|Russia|Taiwan|Turkey)$", re.I)
 _PROCESS = re.compile(r"\s*\(\d+(?:\.\d+)?\s*nm\)\s*$", re.I)
+_PROCESS_ANNOTATION = re.compile(r"\(\d+(?:\.\d+)?\s*nm\+?\)", re.I)
 _SOC_VENDOR = (("qualcomm", "Qualcomm"), ("snapdragon", "Qualcomm"),
                ("mediatek", "MediaTek"), ("dimensity", "MediaTek"), ("helio", "MediaTek"),
                ("exynos", "Samsung"), ("samsung", "Samsung"), ("xring", "Xiaomi"),
@@ -317,6 +318,106 @@ def enrich_canonical_silicon(connection: sqlite3.Connection, xref_csv: Path) -> 
                                (hw["id"], part_id, now))
             attached += connection.total_changes > before
     return {"hardware_silicon_attached": attached, "silicon_parts_created": parts}
+
+
+# Must match product_specs.SOURCE. Duplicated (not imported) to avoid a circular
+# import: product_specs already imports helpers from this module.
+GSMARENA_SPECIFICATIONS_SOURCE = "gsmarena.captured.specifications"
+
+
+def enrich_gsmarena_hardware_silicon(connection: sqlite3.Connection, specs_csv: Path) -> dict[str, int]:
+    """Attach a canonical chipset from GSMArena only on an exact, unambiguous name match.
+
+    Authority order is strict, never averaged: GSMArena is community, the lowest
+    tier here. A hardware model that already carries a primary_soc row -- from
+    enrich_canonical_silicon's higher-authority cross-reference, or any other
+    source -- keeps that row untouched; this never overwrites it and never adds a
+    second competing primary_soc row for the same model. Matching is by exact,
+    case-insensitive (brand, variant) name only: no fuzzy matching, no promoting a
+    source_product identity into a hardware model just to attach a chip. When
+    GSMArena's own rows disagree with each other for the same exact name (an
+    unresolved spelling/variant difference), or list an unrecognized vendor
+    string, nothing is attached. A hardware model with no unique match stays
+    without silicon -- that is correct, not a gap to guess at.
+
+    GSMArena also sometimes packs two regional SoC variants into a single
+    chipset cell with no separator, e.g. "...Snapdragon 8 Gen 3 (4 nm) -
+    USA/Canada/ChinaExynos 2400 (4 nm) - International" for one device page
+    (measured: 39 rows in the current capture). Concatenating that string's
+    vendor and part would fabricate a chip that does not exist -- worse than
+    inventing, since it looks sourced. Any row whose chipset string names more
+    than one distinct SoC vendor is treated the same as a conflicting row: skip it.
+    """
+    grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    with specs_csv.open(encoding="utf-8-sig") as handle:
+        for line, row in enumerate(csv.DictReader(handle), 2):
+            brand = (row.get("brand") or "").strip()
+            device = (row.get("device") or "").strip()
+            chipset = (row.get("chipset") or "").strip()
+            if brand and device and chipset:
+                grouped[(brand.casefold(), device.casefold())].append({**row, "_line": str(line)})
+
+    attached = parts = skipped_conflicting = skipped_existing = skipped_unrecognized_vendor = 0
+    with connection:
+        models = connection.execute("SELECT hardware_model_id, brand, variant FROM v_device_catalog").fetchall()
+        for hw in models:
+            rows = grouped.get((hw["brand"].casefold(), hw["variant"].casefold()))
+            if not rows:
+                continue
+            chipsets = {r["chipset"].strip() for r in rows}
+            if len(chipsets) != 1:
+                skipped_conflicting += 1
+                continue
+            spec = rows[0]
+            found_vendors = {name for token, name in _SOC_VENDOR if token in spec["chipset"].casefold()}
+            packed = len(found_vendors) > 1 or len(_PROCESS_ANNOTATION.findall(spec["chipset"])) > 1
+            if packed:
+                # A single cell naming multiple SoC vendors, or carrying more than
+                # one "(N nm)" process annotation, is a packed multi-region
+                # description glued into one string (measured: e.g. two same-vendor
+                # regional part numbers back to back) -- not one device's chip.
+                skipped_conflicting += 1
+                continue
+            if connection.execute(
+                "SELECT 1 FROM hardware_silicon WHERE hardware_model_id=? AND role='primary_soc'",
+                (hw["hardware_model_id"],),
+            ).fetchone():
+                skipped_existing += 1
+                continue
+            vendor, part, marketing = _soc_parts(spec["chipset"])
+            if not vendor:
+                skipped_unrecognized_vendor += 1
+                continue
+            now = (spec.get("fetched_at") or "").strip()
+            if not now:
+                continue  # No invented observation date.
+            url = "https://www.gsmarena.com/" + spec["slug"]
+            evidence_id = _capture_evidence(
+                connection, source_id=GSMARENA_SPECIFICATIONS_SOURCE,
+                source_name="GSMArena captured specifications", source_url=url, path=specs_csv,
+                locator="csv:line=" + spec["_line"],
+                excerpt=json.dumps({k: v for k, v in spec.items() if not k.startswith("_")}, sort_keys=True),
+                now=now)
+            vendor_id = _id("vendor", vendor)
+            family_id = _id("family", vendor, vendor)
+            part_id = _id("part", vendor, part)
+            connection.execute("INSERT OR IGNORE INTO silicon_vendors VALUES(?,?,?)", (vendor_id, vendor, now))
+            connection.execute("INSERT OR IGNORE INTO silicon_families VALUES(?,?,NULL,?,?)",
+                               (family_id, vendor_id, vendor, now))
+            before = connection.total_changes
+            connection.execute("INSERT OR IGNORE INTO silicon_parts VALUES(?,?,?,?,?,?,?)",
+                               (part_id, family_id, part, marketing, None, None, now))
+            parts += connection.total_changes > before
+            before = connection.total_changes
+            connection.execute("INSERT OR IGNORE INTO hardware_silicon VALUES(?,?,NULL,'primary_soc',?,?,NULL)",
+                               (hw["hardware_model_id"], part_id, evidence_id, now))
+            attached += connection.total_changes > before
+        connection.execute("UPDATE sources SET authority_scope='secondary' WHERE id=?",
+                           (GSMARENA_SPECIFICATIONS_SOURCE,))
+    return {"hardware_silicon_attached": attached, "silicon_parts_created": parts,
+            "skipped_conflicting_chipset": skipped_conflicting,
+            "skipped_existing_silicon": skipped_existing,
+            "skipped_unrecognized_vendor": skipped_unrecognized_vendor}
 
 
 def import_security_catalog(connection: sqlite3.Connection, asb_csv: Path) -> dict[str, int]:

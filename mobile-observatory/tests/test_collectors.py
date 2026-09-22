@@ -72,10 +72,63 @@ class CollectorPipelineTest(unittest.TestCase):
             migration = (Path(__file__).parents[1] / "migrations" / "0001_canonical_core.sql").read_text()
             db.executescript(migration)
             importer = IngestionImporter(root, db)
-            self.assertEqual(importer.import_run("fixture.supported_catalog", "import-run"), {"valid": 7, "invalid": 0})
+            self.assertEqual(importer.import_run("fixture.supported_catalog", "import-run"),
+                             {"valid": 7, "invalid": 0, "retired": 0})
             importer.import_run("fixture.supported_catalog", "import-run")
             self.assertEqual(db.execute("SELECT count(*) FROM observations").fetchone()[0], 7)
             self.assertEqual(db.execute("SELECT count(*) FROM artifacts").fetchone()[0], 1)
+
+    def test_reimport_under_same_run_id_retires_a_reshaped_parser_output(self) -> None:
+        """Reproduces the samsung.fota incident: a fixed run_id is replayed with a
+        parser whose output shape changed (same source_key, different `data`), and
+        the previous row must be retired rather than sitting alongside the new one.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = sqlite3.connect(":memory:")
+            db.execute("PRAGMA foreign_keys = ON")
+            migration = (Path(__file__).parents[1] / "migrations" / "0001_canonical_core.sql").read_text()
+            db.executescript(migration)
+            importer = IngestionImporter(root, db)
+
+            key = "device:samsung electronics:sm-s931b"
+            adapter = FixtureCatalogAdapter(FIXTURE)
+            original_parse = adapter.parse
+
+            def reshaped_parse(artifact, digest):
+                rows = list(original_parse(artifact, digest))
+                # Same fact, same source_record_id -- a differently-shaped `data`,
+                # exactly like release_time -> build_derived_month/date_basis.
+                return [replace(row, data={**row.data, "legacy_note": "old-shape-value"})
+                        if row.source_record_id == key else row for row in rows]
+
+            CollectorPipeline(root).run(adapter, "fixed-run")
+            first_import = importer.import_run("fixture.supported_catalog", "fixed-run")
+            self.assertEqual(first_import["retired"], 0)
+            db.execute(
+                "INSERT INTO evidence(id,artifact_id,observation_id,created_at) "
+                "SELECT 'ev-' || id, artifact_id, id, '2026-01-01T00:00:00Z' FROM observations WHERE source_key=?",
+                (key,))
+            db.commit()
+
+            adapter.parse = reshaped_parse  # type: ignore[method-assign]
+            CollectorPipeline(root).run(adapter, "fixed-run")
+            second_import = importer.import_run("fixture.supported_catalog", "fixed-run")
+
+            rows = db.execute(
+                "SELECT id, payload_json FROM observations WHERE source_key=?", (key,)).fetchall()
+            self.assertEqual(len(rows), 1, "the pre-reshape row must be retired, not kept alongside the new one")
+            self.assertIn("old-shape-value", rows[0][1])
+            self.assertEqual(second_import["retired"], 1)
+            self.assertEqual(db.execute("SELECT count(*) FROM evidence WHERE observation_id NOT IN "
+                                        "(SELECT id FROM observations)").fetchone()[0], 0,
+                             "no evidence row may point at a retired observation")
+
+            # Idempotent: importing the already-current shape again retires nothing.
+            third_import = importer.import_run("fixture.supported_catalog", "fixed-run")
+            self.assertEqual(third_import["retired"], 0)
+            self.assertEqual(
+                db.execute("SELECT count(*) FROM observations WHERE source_key=?", (key,)).fetchone()[0], 1)
 
     def test_xiaomi_tracker_preserves_codename_as_unresolved_hint(self) -> None:
         fixture = LEGACY_ROOT / "xiaomi-tracker" / "xiaomi-firmware-latest.csv"

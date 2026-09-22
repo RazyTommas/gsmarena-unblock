@@ -6,6 +6,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from .collectors.adapters.apple_ipsw import AppleIpswFirmwareAdapter
 from .collectors.adapters.mifirm_archive import MifirmArchiveAdapter
 from .collectors.adapters.samsung_aspl import SamsungAsplAdapter
 from .collectors.adapters.samsung_fota import SamsungFotaArtifactAdapter
@@ -89,6 +90,11 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             # single row -- see MifirmArchiveAdapter for the measured difference.
             (MifirmArchiveAdapter(legacy_root / "mifirm-archive" / "mifirm-firmware-archive.csv"),
              "mifirm-archive-captured"),
+            # Apple has no Android-style patch level (no -01/-05 tier, no aspl_month);
+            # this is firmware_release only. See apple_ipsw.py's docstring for why
+            # security_patch_publication is deliberately not attempted here.
+            (AppleIpswFirmwareAdapter(legacy_root / "ipsw-me" / "ipsw-me-firmware.csv"),
+             "ipsw-me-captured"),
         ]
         for adapter, run_id in adapters:
             result = pipeline.run(adapter, run_id)

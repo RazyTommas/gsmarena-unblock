@@ -1,0 +1,22 @@
+{
+  "task": "ipsw-me-apple-firmware",
+  "outcome": "ok",
+  "source": "https://ipsw.me",
+  "source_kind": "community aggregator that indexes Apple's own OTA/IPSW catalog -- the download_url values it lists resolve to secure-appldnld.apple.com, i.e. Apple's own CDN, but the catalog and per-device page (model_url) are ipsw.me's, not Apple's",
+  "authority": "aggregator-indexing-vendor-urls",
+  "precision": "per-build (marketing iOS version + exact build id, no independent patch-level dimension)",
+  "collector": "device-crawler/find_fw.py (legacy repo, table roms WHERE source='ipsw.me')",
+  "exported_by": "mobile-observatory worktree agent-a890b64540531d5db, one-off read-only export from ~/work/git/device-crawler/data/devices.db",
+  "exported_at": "2026-09-22",
+  "records": 4450,
+  "unique_devices": 66,
+  "notes": [
+    "model/codename is Apple's own hardware identifier, e.g. 'iPhone1,1' -- always contains a comma; this is NOT the same vocabulary as an Android model_code",
+    "device<->model is a bijection over this export (66 distinct devices, 66 distinct models, verified 1:1)",
+    "version is always 'iOS <marketing version> (<build id>)' across all 4450 rows -- no tvOS/watchOS/macOS rows in this slice",
+    "security_patch and security_url are the same Apple support-article link (131/4450 rows); Apple ties a security advisory 1:1 to a specific build, there is no Android-style monthly patch-level independent of the OS version",
+    "baseband is a per-build modem firmware string (4415/4450 rows, 403 distinct values) -- present in the source, not derived",
+    "android/downloads/build_key/security_level/name_truncated/android_num columns on the legacy roms table are always NULL for source='ipsw.me' and are not exported here"
+  ],
+  "agent": "apple-import-agent"
+}

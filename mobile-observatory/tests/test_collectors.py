@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from mobile_observatory.collectors.adapters import (
+    AppleIpswFirmwareAdapter,
     FixtureCatalogAdapter,
     TecnoSecurityPatchAdapter,
     XiaomiFirmwareTrackerAdapter,
@@ -129,6 +130,30 @@ class CollectorPipelineTest(unittest.TestCase):
         self.assertEqual(target.data["precision"], "month")
         self.assertEqual(target.data["identity_state"], "unresolved_source_name")
         self.assertEqual(validate_observation(target), [])
+
+
+    def test_apple_ipsw_is_firmware_release_not_android_patch_level(self) -> None:
+        fixture = LEGACY_ROOT / "ipsw-me" / "ipsw-me-firmware.csv"
+        adapter = AppleIpswFirmwareAdapter(fixture)
+        artifact = next(iter(adapter.fetch()))
+        rows = list(adapter.parse(artifact, "c" * 64))
+        # Full legacy slice: 66 distinct Apple devices, 4450 iOS builds.
+        self.assertEqual(len(rows), 4450)
+        self.assertTrue(all(row.kind == "firmware_release" for row in rows))
+        target = next(row for row in rows if row.data["source_model_identifier"] == "iPhone1,1")
+        self.assertEqual(target.data["model_code"], "iPhone1-1")  # comma -> hyphen, contract format only
+        self.assertEqual(target.data["region_code"], "GLOBAL")
+        self.assertNotIn("android", target.data)
+        self.assertNotIn("android_version", target.data)
+        self.assertNotIn("aspl_month", target.data)
+        self.assertNotIn("patch_tier", target.data)
+        self.assertEqual(validate_observation(target), [])
+        # Every row must clear the contract; a previous port quarantined
+        # 15,738 rows by skipping this check before writing the parser.
+        issues = [issue for row in rows for issue in validate_observation(row)]
+        self.assertEqual(issues, [])
+        ids = {row.source_record_id for row in rows}
+        self.assertEqual(len(ids), len(rows))
 
 
 if __name__ == "__main__":

@@ -106,14 +106,23 @@ def _crawl_in_flight():
 
 
 def sync():
-    """Pull other people's messages. Rebase, because our commits are append-only files
-    that always replay cleanly on top of theirs.
+    """Pull other people's messages. FAST-FORWARD ONLY — never rebase, never autostash.
 
-    A rebase refuses outright if the working tree is dirty, and `git` reports that as a
-    bare exit 128. Left as-is the agent sees "pull failed" and has no idea why or what
-    to do — correct behaviour with no forward path. So name the offending files and the
-    fix, and carry on with local state rather than dying: a stale read is recoverable,
-    a crashed collector mid-harvest is not."""
+    The old version ran `git pull --rebase --autostash`. Two guards already stood in
+    front of it: _crawl_in_flight() for a collector mid-write, and a dirty-tree check
+    for uncommitted work. Neither covers the case that actually bit us.
+
+    A rebase on a CLEAN tree that carries local COMMITS rewrites those commits. On
+    2026-09-22 that discarded a five-branch integration six separate times while its
+    author was working in this tree — and twice it did so invisibly: a test suite read
+    132 passed, then 100 passed with 23 test files silently gone, and once 13 "failures"
+    that were only files being rewritten underneath pytest. Committing is what you do to
+    PROTECT work, so the one unguarded path was the one a careful person walks into.
+
+    Fast-forward is the whole fix. Relay traffic is append-only files, so when we are
+    merely behind, a fast-forward gets everything with zero rewriting. When we cannot
+    fast-forward it means this tree holds local commits — precisely the moment to stop
+    and say so rather than replay them. A refusal you can read beats a silent rewrite."""
     busy = _crawl_in_flight()
     if busy:
         print(f"  ! not touching git: {busy.name} was written seconds ago, so a "
@@ -132,16 +141,36 @@ def sync():
             print(f"      ... and {len(dirty)-5} more", file=sys.stderr)
         print("      fix: commit them, or `git stash`, then re-run.", file=sys.stderr)
         return False
+    # A detached HEAD or an in-progress rebase/merge means someone else is mid-operation
+    # in this tree. Touching git here is how you turn their bad afternoon into a lost one.
+    git_dir = Path(sh("git", "rev-parse", "--git-dir", check=False).strip() or ".git")
+    for marker in ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD"):
+        if (git_dir / marker).exists():
+            print(f"  ! not touching git: {marker} exists, so an operation is already in "
+                  f"flight in this working tree. Reading local state.", file=sys.stderr)
+            return False
+
     try:
         sh("git", "fetch", "origin", "--quiet")
-        sh("git", "pull", "--rebase", "--autostash", "--quiet", "origin", branch())
-        return True
     except RuntimeError as e:
-        first = e.args[0].splitlines()
-        detail = next((l for l in first if l.strip() and "->" not in l), first[0])
-        print(f"  ! pull failed: {detail.strip()}", file=sys.stderr)
-        print("      working from local state — results you push may need a manual rebase.",
-              file=sys.stderr)
+        print(f"  ! fetch failed: {e.args[0].splitlines()[0].strip()}", file=sys.stderr)
+        print("      working from local state.", file=sys.stderr)
+        return False
+
+    # Report what WOULD be rewritten, so the refusal below is actionable rather than
+    # mysterious. `ahead` is the count of local commits the old code would have replayed.
+    ahead = sh("git", "rev-list", "--count", f"origin/{branch()}..HEAD", check=False).strip()
+    try:
+        sh("git", "merge", "--ff-only", "--quiet", f"origin/{branch()}")
+        return True
+    except RuntimeError:
+        n = ahead or "?"
+        print(f"  ! cannot fast-forward: this tree has {n} local commit(s) that are not "
+              f"on origin/{branch()}.", file=sys.stderr)
+        print(f"      NOT rebasing them — that is how a five-branch integration got "
+              f"discarded six times. Reading local state instead.", file=sys.stderr)
+        print(f"      fix: whoever owns those commits should `git push`, or merge "
+              f"origin/{branch()} themselves.", file=sys.stderr)
         return False
 
 
@@ -182,11 +211,18 @@ def push(paths, message, tries=4):
             sh("git", "push", "--quiet", "origin", branch())
             return True
         except RuntimeError:
-            print(f"  push rejected, rebasing (attempt {i+1}/{tries})")
+            # MERGE, never rebase. A rejected push means histories diverged, which is
+            # exactly when a rebase rewrites whatever else this tree is carrying --
+            # someone else's commits, not just our append-only relay file. A merge
+            # commit is ugly and harmless; a rebase is tidy and destructive.
+            print(f"  push rejected, merging origin (attempt {i+1}/{tries})")
             try:
-                sh("git", "pull", "--rebase", "--autostash", "--quiet", "origin", branch())
+                sh("git", "fetch", "origin", "--quiet")
+                sh("git", "merge", "--no-edit", "--quiet", f"origin/{branch()}")
             except RuntimeError as e:
-                print(f"  ! rebase failed: {e.args[0].splitlines()[0]}", file=sys.stderr)
+                print(f"  ! merge failed: {e.args[0].splitlines()[0]}", file=sys.stderr)
+                print("      the commit is local and safe; resolve by hand and push.",
+                      file=sys.stderr)
                 return False
             time.sleep(1 + i * 2)
     print("  ! could not push after retries — the commit is local, run `git push` by hand",

@@ -31,6 +31,12 @@ such as `vendor=Qualcomm` and exact parts such as `part=SM8750-AB`.
 - `GET /v1/coverage` — expected versus discovered inventory and explicit
   `complete`, `partial`, `missing`, `stale`, or `unknown` status.
 - `GET /v1/sources/health` — source/run freshness independent of domain results.
+  Each row also carries an advisory `silenceStatus` (`healthy`,
+  `insufficient_data`, or `silent`), `silent` boolean, `expectedIntervalHours`,
+  `overdueHours`, and `silenceAdvisory: true` — see
+  `docs/SOURCE_SILENCE_DETECTION.md`. A source can read `silent` even when its
+  last run's own outcome was `succeeded`: silence is about being overdue for
+  the *next* run, not about how the last one went.
 
 ## Write resources
 

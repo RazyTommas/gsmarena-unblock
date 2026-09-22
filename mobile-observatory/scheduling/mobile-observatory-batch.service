@@ -1,0 +1,24 @@
+[Unit]
+Description=Mobile Observatory ingest batch (advisory alarm on source silence -- see docs/SCHEDULING.md)
+# Paired with mobile-observatory-batch.timer. Neither is installed or
+# enabled by this repository; a human copies and edits both, then runs the
+# systemctl commands in docs/SCHEDULING.md deliberately.
+
+[Service]
+Type=oneshot
+# CHANGE ME: absolute path to this checkout's mobile-observatory/ directory.
+WorkingDirectory=/CHANGE/ME/mobile-observatory
+ExecStart=/CHANGE/ME/mobile-observatory/scheduling/run-batch.sh
+TimeoutStartSec=30m
+
+# batch.py's exit codes: 0 = ran, nothing overdue. 2 = ran fine, but at
+# least one source is silent (advisory -- see docs/SOURCE_SILENCE_DETECTION.md).
+# Any other nonzero = the batch itself failed. systemd treats both 2 and a
+# real failure as a failed unit, which is what makes `systemctl --user
+# status`/`journalctl --user -u mobile-observatory-batch.service` show it,
+# and what a monitoring check against this unit's ActiveState would catch.
+#
+# Uncomment to also fire a notification unit you define yourself on EITHER
+# kind of failure (systemd does not distinguish exit code 2 from any other
+# nonzero code here without a small wrapper; see docs/SCHEDULING.md):
+# OnFailure=mobile-observatory-batch-alert.service

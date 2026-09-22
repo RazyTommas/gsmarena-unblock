@@ -88,3 +88,13 @@ PYTHONPATH=src python3 -m mobile_observatory.snapshots verify observatory-offlin
 The runtime uses only the Python standard library. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for component boundaries and [docs/PRODUCT.md](docs/PRODUCT.md) for the approved
 product behavior.
+
+## Batch ingest and scheduling
+
+`python3 -m mobile_observatory.batch` replays every captured source into the
+corpus; until now it has only ever been run by hand. `scheduling/` has a
+ready-to-enable systemd timer and cron alternative (not installed or enabled
+by this repository) — see [docs/SCHEDULING.md](docs/SCHEDULING.md). Every
+batch run, and every load of the admin health API, also checks each source
+for having gone quiet relative to its own history; see
+[docs/SOURCE_SILENCE_DETECTION.md](docs/SOURCE_SILENCE_DETECTION.md).

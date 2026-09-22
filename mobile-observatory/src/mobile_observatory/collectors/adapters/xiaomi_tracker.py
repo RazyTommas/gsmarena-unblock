@@ -10,6 +10,23 @@ from ..base import SourceAdapter, SourceHealthPolicy
 from ..contracts import Observation, RawArtifact
 
 
+def _norm_key(value: str) -> str:
+    """Collapse a device name to a stable key fragment.
+
+    The record id used to be (codename, branch, build, method), which COLLIDES:
+    the source lists one build of codename HM2013023 under five different device
+    names -- Redmi 1 China, Redmi 1 W China, Redmi 1 Taiwan, Redmi 1 Global and
+    Redmi 1 W Global. Region does not separate them either, because CN and GLOBAL
+    each appear twice in that group.
+
+    57 source keys collided this way. That is not merely untidy: retirement and
+    dedupe match on (run_id, source_key), so five genuinely distinct records looked
+    like five copies of one, and a retire pass was one step away from destroying
+    four of them. The name is what actually distinguishes them, so the name is in
+    the key.
+    """
+    return "".join(ch.lower() if ch.isalnum() else "-" for ch in (value or "").strip())
+
 class XiaomiFirmwareTrackerAdapter(SourceAdapter):
     """Adapter for the captured XiaomiFirmwareUpdater latest-release export.
 
@@ -40,6 +57,11 @@ class XiaomiFirmwareTrackerAdapter(SourceAdapter):
         text = artifact.content.decode("utf-8-sig")
         rows = (_yaml_rows(text) if self.artifact.suffix.lower() in (".yml", ".yaml")
                 else csv.DictReader(io.StringIO(text)))
+        # The upstream catalogue repeats some rows verbatim -- 7 groups are identical
+        # on codename, branch, build, method, region AND device name, i.e. every field
+        # that could distinguish them. Those are one record listed twice, not two
+        # records, so they are suppressed here rather than emitted as colliding keys.
+        seen: set[str] = set()
         for line, row in enumerate(rows, start=2):
             codename = row["codename"].strip()
             build = row["version"].strip()
@@ -47,10 +69,16 @@ class XiaomiFirmwareTrackerAdapter(SourceAdapter):
             branch = row["branch"].strip()
             channel = row["branch"].strip()
             method = row.get("method", "").strip()
+            record_id = (f"{codename}:{branch}:{build}:{method or 'unspecified'}"
+                         f":{_region_from_codename_and_name(codename, name)}"
+                         f":{_norm_key(name)}")
+            if record_id in seen:
+                continue
+            seen.add(record_id)
             yield Observation(
                 kind="firmware_release",
                 source_id=self.source_id,
-                source_record_id=f"{codename}:{branch}:{build}:{method or 'unspecified'}",
+                source_record_id=record_id,
                 observed_at=self.observed_at,
                 artifact_sha256=artifact_sha256,
                 data={

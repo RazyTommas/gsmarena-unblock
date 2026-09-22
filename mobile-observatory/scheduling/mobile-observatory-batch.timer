@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the Mobile Observatory ingest batch periodically (see docs/SCHEDULING.md)
+
+[Timer]
+# Once daily by default. The batch replays whatever captured evidence exists
+# under --legacy-root; running it more often than that evidence actually
+# changes just re-imports the same content (idempotent, but pointless).
+# Adjust to match your real capture cadence.
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

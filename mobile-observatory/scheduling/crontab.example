@@ -1,0 +1,18 @@
+# Cron alternative to the systemd unit/timer pair in this directory.
+# NOT installed -- this is a template. Copy the line you want into your own
+# crontab (`crontab -e`) after editing the path, and only once you actually
+# want scheduling live. See ../docs/SCHEDULING.md.
+
+# MAILTO turns cron's own "command produced output or exited nonzero" mail
+# into the cheapest way to have this actually reach a human -- cron will
+# email $MAILTO whenever run-batch.sh exits nonzero, which includes exit
+# code 2 (a source went silent; see docs/SOURCE_SILENCE_DETECTION.md).
+# Requires a working local MTA (sendmail/postfix) on the machine; if you
+# don't have one, this line is a no-op and you must rely on the log file
+# and/or the admin health API instead.
+MAILTO=you@example.com
+
+# Daily at 03:00. Stdout/stderr here duplicate what's already in
+# $DATA_DIR/batch.log (the durable, line-buffered record); this redirect is
+# only a convenience/backup so `cron`'s own MAILTO has something to attach.
+0 3 * * * /CHANGE/ME/mobile-observatory/scheduling/run-batch.sh >> /CHANGE/ME/mobile-observatory/.observatory-data/cron.stdout.log 2>&1

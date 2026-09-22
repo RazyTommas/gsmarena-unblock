@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 from .collectors.adapters.apple_ipsw import AppleIpswFirmwareAdapter
@@ -21,6 +22,7 @@ from .collectors.device_promotion import promote_approved_products_to_devices
 from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
 from .identity_bridge import rebuild_identity_registry
+from .silence import STATUS_SILENT, detect_silence
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
                          enrich_gsmarena_hardware_silicon, import_mediatek_catalog, import_security_catalog,
                          promote_approved_product_observations, write_agent_review_bundle)
@@ -134,6 +136,12 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             db.connection, legacy_root / "mediatek-cve-chipsets" / "mediatek-cve-chipsets.csv")
         results["agent_review_bundle"] = write_agent_review_bundle(
             db.connection, data_dir / "agent-review")
+        # Advisory only: never gates or alters the run above. See silence.py
+        # and docs/SOURCE_SILENCE_DETECTION.md. `main()` below turns a
+        # "silent" finding into a nonzero process exit and a logged ALARM,
+        # which is the only part of this that can reach anyone -- and only
+        # if the scheduled invocation's exit code is wired to alerting.
+        results["silence"] = detect_silence(db.connection)
         results["totals"] = {
             "devices": db.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0],
             "observations": db.connection.execute("SELECT count(*) FROM observations").fetchone()[0],
@@ -146,13 +154,43 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
 
 
 def main() -> None:
+    from .batch_logging import configure_batch_logging
+
     root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description="Replay captured mobile-source artifacts into a local corpus")
     parser.add_argument("--data-dir", default=".observatory-data")
     parser.add_argument("--legacy-root", default=str(root.parent / "crawler" / "relay" / "results"))
+    parser.add_argument("--log-file", default=None,
+                         help="Defaults to <data-dir>/batch.log. See docs/SOURCE_SILENCE_DETECTION.md.")
     args = parser.parse_args()
-    print(json.dumps(run_batch(data_dir=Path(args.data_dir), legacy_root=Path(args.legacy_root),
-                               fixture_root=root / "fixtures"), indent=2, sort_keys=True))
+    data_dir = Path(args.data_dir)
+    log_path = Path(args.log_file) if args.log_file else data_dir / "batch.log"
+    logger = configure_batch_logging(log_path)
+
+    logger.info("batch starting data_dir=%s legacy_root=%s", data_dir, args.legacy_root)
+    try:
+        results = run_batch(data_dir=data_dir, legacy_root=Path(args.legacy_root), fixture_root=root / "fixtures")
+    except Exception:
+        logger.exception("batch failed before completion")
+        raise
+    print(json.dumps(results, indent=2, sort_keys=True))
+    logger.info("batch finished totals=%s", json.dumps(results.get("totals", {})))
+
+    silent = [f for f in results.get("silence", []) if f["status"] == STATUS_SILENT]
+    for finding in silent:
+        logger.warning(
+            "ALARM source silent (advisory): %s last_activity=%s expected_interval_hours=%.2f overdue_hours=%.2f",
+            finding["source_name"], finding["last_activity_at"],
+            finding["expected_interval_hours"], finding["overdue_hours"],
+        )
+    if silent:
+        logger.warning(
+            "%d source(s) went silent. This process's exit code (2) is the only alarm that "
+            "reaches anyone outside this log and the admin health API -- wire it to your "
+            "scheduler's failure notification (systemd OnFailure=, cron MAILTO, monitoring "
+            "check-on-exit-code) if you want a person actually paged.", len(silent),
+        )
+        sys.exit(2)
 
 
 if __name__ == "__main__":

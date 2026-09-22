@@ -15,10 +15,24 @@ from .watches import migrate_watches, list_watches, save_watch
 from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
+from .silence import STATUS_SILENT, detect_silence
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
 
 REGION_OPTIONS = {"ILO": "Israel (Samsung CSC)", "MID": "Middle East group", "XSG": "United Arab Emirates / Gulf", "EUX": "Europe multi-CSC", "GLOBAL": "Global", "EEA": "European Economic Area"}
 SOURCE_OPTIONS = {"samsung": "Samsung FOTA/OTA", "xiaomi": "Xiaomi firmware tracker", "tecno": "Tecno security", "gsmarena": "GSMArena specifications", "android": "Android bulletins", "qualcomm": "Qualcomm advisories", "mediatek": "MediaTek advisories", "apple": "Apple firmware/security"}
+
+
+def _silence_fields(finding: dict | None) -> dict:
+    """Advisory silence labels merged onto a health() row. `silenceAdvisory`
+    is always True: this never blocks or alters anything by itself; it is a
+    label for a consumer (the admin health page, source-warnings count, or a
+    scheduled batch's own alarm) to act on. See docs/SOURCE_SILENCE_DETECTION.md."""
+    if finding is None:
+        return {"silenceStatus": "not_applicable", "silent": False,
+                "expectedIntervalHours": None, "overdueHours": None, "silenceAdvisory": True}
+    return {"silenceStatus": finding["status"], "silent": finding["status"] == STATUS_SILENT,
+            "expectedIntervalHours": finding["expected_interval_hours"],
+            "overdueHours": finding["overdue_hours"], "silenceAdvisory": True}
 
 
 @dataclass(frozen=True)
@@ -701,6 +715,10 @@ class ObservatoryService:
         return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data, "rememberedReviews": memory}
 
     def health(self) -> list[dict]:
+        # Silence is advisory and computed independently of the last run's own
+        # outcome: a source can end its last run "succeeded" and still be
+        # overdue for its NEXT one. See silence.py and docs/SOURCE_SILENCE_DETECTION.md.
+        silence_by_source = {f["source_id"]: f for f in detect_silence(self.corpus.connection)}
         rows = self.corpus.connection.execute("""SELECT s.id source_id,s.name source,s.authority_scope scope,
           ir.id run_id,ir.outcome status,ir.finished_at last,ir.accepted_count records,
           (SELECT max(a.retrieved_at) FROM artifacts a WHERE a.source_id=s.id) captured_at,
@@ -712,16 +730,19 @@ class ObservatoryService:
         if rows:
             return [{**dict(row), "next": "Manual only · no scheduler installed",
                      "execution_mode": "captured_replay" if row["run_id"].startswith("manual-") else "snapshot_import",
-                     "live_network": False, "freshness": "Captured evidence; import success is not a vendor refresh"}
+                     "live_network": False, "freshness": "Captured evidence; import success is not a vendor refresh",
+                     **_silence_fields(silence_by_source.get(row["source_id"]))}
                     for row in rows]
         if not self.demonstration:
             return [{"source": r["name"], "scope": r["authority_scope"], "status": "No imported run",
                      "last": None, "next": "Manual only · no scheduler installed", "records": 0,
-                     "captured_at": None, "observed_at": None, "execution_mode": "unknown", "live_network": False}
-                    for r in self.corpus.connection.execute("SELECT name,authority_scope FROM sources ORDER BY name")]
+                     "captured_at": None, "observed_at": None, "execution_mode": "unknown", "live_network": False,
+                     **_silence_fields(silence_by_source.get(r["id"]))}
+                    for r in self.corpus.connection.execute("SELECT id,name,authority_scope FROM sources ORDER BY name")]
         return [{"source": "Synthetic demonstration fixture", "scope": "Sample only", "status": "Demo",
                  "last": DEMO_TIME, "next": "No collection scheduled", "records": "0",
-                 "captured_at": None, "observed_at": None, "execution_mode": "demonstration", "live_network": False}]
+                 "captured_at": None, "observed_at": None, "execution_mode": "demonstration", "live_network": False,
+                 **_silence_fields(None)}]
 
     def overview(self) -> dict:
         with self.local_lock:
@@ -729,7 +750,12 @@ class ObservatoryService:
         event_ids = {row[0] for row in self.corpus.connection.execute(f"SELECT id FROM {self._radar_event_source()}")}
         if not event_ids and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
             event_ids = {row[0] for row in self.corpus.connection.execute("SELECT id FROM firmware_releases")}
-        failures = sum(r["status"] not in ("healthy", "succeeded", "Demo") for r in self.health())
+        health_rows = self.health()
+        # A source can be "silent" (overdue for its next run) even while its
+        # last recorded outcome reads "succeeded" -- OR, not add, so a source
+        # that is both failed and overdue is not double-counted.
+        failures = sum((r["status"] not in ("healthy", "succeeded", "Demo")) or r.get("silent", False)
+                       for r in health_rows)
         android_upgrades = self.corpus.connection.execute(
             f"""SELECT count(*) FROM {self._radar_event_source()}
                WHERE event_type='android_version_changed'

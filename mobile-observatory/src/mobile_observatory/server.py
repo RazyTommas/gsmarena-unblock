@@ -388,6 +388,9 @@ class ObservatoryService:
         regions = [dict(r) for r in db.execute('''SELECT region_code region,channel,count(*) releases
             FROM product_firmware_releases WHERE product_id=? GROUP BY region_code,channel
             ORDER BY region_code,channel''', (product_id,))]
+        hardware_link = db.execute('''SELECT phl.hardware_model_id,phl.model_code_source,dc.model_code,dc.brand,dc.variant
+            FROM product_hardware_links phl JOIN v_device_catalog dc ON dc.hardware_model_id=phl.hardware_model_id
+            WHERE phl.product_id=?''', (product_id,)).fetchone()
         return {'product': product, 'identities': identities, 'identityConclusion': conclusion,
             'silicon': silicon, 'androidUpgrades': upgrades, 'regions': regions,
             'lastObserved': max([i['last_seen_at'] for i in identities] +
@@ -395,7 +398,9 @@ class ObservatoryService:
             'firmware': _page_payload(self.product_releases_page({'product':[product_id], 'limit':['50']}), self.meta),
             'security': _page_payload(self.product_security_page({'product':[product_id], 'limit':['50']}), self.meta),
             'sourceBuilds': _page_payload(self.product_source_builds_page({'product':[product_id], 'limit':['50']}), self.meta),
-            'coverage': {'identity': 'product_only', 'hardware': 'not_established',
+            'hardware': dict(hardware_link) if hardware_link else None,
+            'coverage': {'identity': 'product_only',
+                         'hardware': 'established' if hardware_link else 'not_established',
                          'securityApplicability': 'not_established'}, 'meta': self.meta}
 
     def product_source_builds_page(self, query: dict[str,list[str]]) -> QueryPage:

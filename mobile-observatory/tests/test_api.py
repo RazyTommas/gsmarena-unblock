@@ -312,9 +312,9 @@ class ApiTests(unittest.TestCase):
             c.execute('INSERT INTO observations VALUES(?,?,?,?,?,?,?,?,?,?,NULL)',
                 (oid,'products-test','products-run','products-artifact','firmware_release',oid,now,
                  json.dumps({'data':{'download_url':f'https://example.test/rom-{n}.zip'}}),'b'*64,'valid'))
-            c.execute('INSERT INTO product_firmware_releases VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            c.execute('INSERT INTO product_firmware_releases VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                 (oid,'p-one','p-one',oid,'products-test','GLOBAL' if n%2 else 'EEA',f'build-{n}',
-                 'Stable',None,None,now,'Recovery',now))
+                 'Stable',None,None,now,'Recovery',now,None))
         for n,pid in enumerate(('p-one','p-two')):
             c.execute('INSERT INTO product_security_publications VALUES(?,?,?,?,?,?,?,?,?)',
                 (pid,pid,pid,f'product-observation-{n}','products-test','2026-01',now,'Publication',now))

@@ -28,7 +28,8 @@ device. The rule names no vendor and no product.
 CHILD_TABLES = ("observation_product_links", "source_identity_registry",
                 "identity_conclusions", "observed_product_silicon",
                 "product_firmware_releases", "product_security_publications",
-                "source_specifications", "source_build_product_links")
+                "source_specifications", "source_build_product_links",
+                "product_hardware_links")
 
 
 def squash(s: str) -> str:

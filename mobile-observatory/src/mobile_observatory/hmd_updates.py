@@ -96,10 +96,10 @@ def import_hmd_updates(c: sqlite3.Connection, csv_path: Path, *, observed_at: st
             # A vendor screenId is a build variant, not a hardware model. Do not
             # interpret its country-looking prefixes as market/codename identity.
             before=c.total_changes
-            c.execute('INSERT OR IGNORE INTO product_firmware_releases VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            c.execute('INSERT OR IGNORE INTO product_firmware_releases VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                 (_id('hmd-firmware',key),pid,iid,oid,SOURCE,'SOURCE_UNSPECIFIED',data['build'],'unknown',
                  data['android'],int(data['android'].split('.')[0]) if data['android'] else None,
-                 data['release_date'],None,observed_at))
+                 data['release_date'],None,observed_at,None))
             totals['firmware_added']+=c.total_changes>before
             before=c.total_changes
             c.execute('INSERT OR IGNORE INTO product_security_publications VALUES(?,?,?,?,?,?,?,?,?)',

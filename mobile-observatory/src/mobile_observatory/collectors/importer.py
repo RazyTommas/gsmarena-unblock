@@ -41,6 +41,13 @@ class IngestionImporter:
             )
             artifact_ids: dict[str, str] = {}
             digests = {row["artifact_sha256"] for row in valid} | {row["observation"]["artifact_sha256"] for row in invalid}
+            # storage_uri must be ABSOLUTE. It is resolved at write time because the
+            # ledger root comes from the caller: an ingest launched with a relative
+            # --data-dir recorded paths relative to that process's cwd, and the bytes
+            # then only verify if you happen to stand in the same directory. Four
+            # artifacts were written that way on 2026-09-22 and package_portable
+            # refused to build a bundle, reporting them as missing evidence -- the
+            # check was right, the paths were wrong.
             for digest in digests:
                 metadata_path = self.root / "raw" / source_id / digest[:2] / f"{digest}.json"
                 metadata = json.loads(metadata_path.read_text())
@@ -50,7 +57,7 @@ class IngestionImporter:
                 self.db.execute(
                     """INSERT OR IGNORE INTO artifacts(id,source_id,run_id,sha256,media_type,source_url,retrieved_at,storage_uri,byte_length)
                        VALUES(?,?,?,?,?,?,?,?,?)""",
-                    (artifact_id, source_id, run_id, digest, metadata["media_type"], metadata.get("request_url"), metadata["retrieved_at"], str(binary_path), binary_path.stat().st_size),
+                    (artifact_id, source_id, run_id, digest, metadata["media_type"], metadata.get("request_url"), metadata["retrieved_at"], str(binary_path.resolve()), binary_path.stat().st_size),
                 )
             fresh_ids_by_key: dict[tuple[str, str], set[str]] = defaultdict(set)
             for row in valid:

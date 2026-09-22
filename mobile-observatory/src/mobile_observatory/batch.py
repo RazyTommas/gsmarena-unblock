@@ -22,7 +22,7 @@ from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
 from .identity_bridge import rebuild_identity_registry
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
-                         import_mediatek_catalog, import_security_catalog,
+                         enrich_gsmarena_hardware_silicon, import_mediatek_catalog, import_security_catalog,
                          promote_approved_product_observations, write_agent_review_bundle)
 
 
@@ -124,6 +124,10 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
         results["device_promotion"] = vars(promote_approved_products_to_devices(db.connection))
         results["canonical_silicon"] = enrich_canonical_silicon(
             db.connection, legacy_root / "cross-reference" / "device-chipset-cve-xref.csv")
+        # Fills only the gaps enrich_canonical_silicon left empty; never overwrites
+        # its higher-authority rows (see enrich_gsmarena_hardware_silicon docstring).
+        results["gsmarena_canonical_silicon"] = enrich_gsmarena_hardware_silicon(
+            db.connection, legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv")
         results["security_catalog"] = import_security_catalog(
             db.connection, legacy_root / "google-asb-cves" / "android-security-bulletin-cves.csv")
         results["mediatek_security_catalog"] = import_mediatek_catalog(

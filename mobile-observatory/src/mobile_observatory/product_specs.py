@@ -89,6 +89,15 @@ def enrich_product_specs(connection: sqlite3.Connection, *, specs_csv: Path,
         vendor, part, marketing = _soc_parts(spec['chipset'])
         connection.execute('INSERT OR REPLACE INTO observed_product_silicon VALUES(?,?,?,?,?,?,?,?)',
             (product_id, spec['chipset'], vendor, part, marketing, json.dumps([proof, *chain], sort_keys=True), 'high', now))
+        # Retain the captured specification itself, not just the chipset it yields.
+        # 'codename' has no true engineering-codename equivalent in GSMArena's csv;
+        # 'device' (the brand-stripped short name) is the closest captured field,
+        # never fabricated. models_json stays an empty list: GSMArena never asserts
+        # a canonical hardware model code, so none is invented here.
+        connection.execute('INSERT OR IGNORE INTO source_specifications VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (_id('gsmarena-specification', spec['slug'], digest), SOURCE, spec['slug'], product_id, evidence_id,
+             spec['_maker'], spec['device_name'], spec.get('device') or spec['device_name'],
+             spec['chipset'], json.dumps([]), url, now, method))
         claimed.add(spec['slug'])
 
     if not connection.in_transaction:

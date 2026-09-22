@@ -56,6 +56,26 @@ class ProductSpecsTests(unittest.TestCase):
         artifact=self.c.execute('SELECT * FROM artifacts').fetchone()
         self.assertEqual(artifact['sha256'],evidence['artifact_sha256'])
         self.assertEqual(Path(artifact['storage_uri']).read_bytes(),self.specs.read_bytes())
+        # The captured specification itself is retained, not just the chip it yields,
+        # and re-running the exact same capture is idempotent (no duplicate row).
+        spec_row=self.c.execute('SELECT * FROM source_specifications').fetchone()
+        self.assertEqual(self.c.execute('SELECT count(*) FROM source_specifications').fetchone()[0],1)
+        self.assertEqual(spec_row['source_key'],'phone-1.php')
+        self.assertEqual(spec_row['chipset'],'Qualcomm SM1 (4 nm)')
+        self.assertEqual(spec_row['source_url'],'https://www.gsmarena.com/phone-1.php')
+        self.assertEqual(json.loads(spec_row['models_json']),[])
+        self.assertEqual(spec_row['product_id'],
+                          self.c.execute("SELECT id FROM source_products").fetchone()[0])
+        self.assertEqual(spec_row['evidence_id'],evidence['evidence_id'])
+
+    def test_matched_product_spec_is_retained_in_source_specifications(self):
+        self.product('Local Phone','ruby')
+        self.run_specs([('Xiaomi Local Phone','local.php','Qualcomm SM2 (4 nm)')])
+        spec_row=self.c.execute(
+            "SELECT * FROM source_specifications WHERE product_id='Local Phone'").fetchone()
+        self.assertIsNotNone(spec_row)
+        self.assertEqual(spec_row['manufacturer'],'Xiaomi')
+        self.assertEqual(spec_row['match_method'],'exact_product_name')
 
     def test_plus_network_and_brand_are_not_erased(self):
         self.product('Phone Pro+',maker='Xiaomi')

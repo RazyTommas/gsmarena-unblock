@@ -45,6 +45,10 @@ CREATE INDEX product_hardware_links_model_idx ON product_hardware_links(hardware
 ALTER TABLE product_firmware_releases ADD COLUMN hardware_model_id TEXT REFERENCES hardware_models(id);
 CREATE INDEX product_firmware_releases_hw_idx ON product_firmware_releases(hardware_model_id);
 
+-- Renumbered 0017 -> 0018. Two agents authored a migration 0017 in parallel
+-- (evidence_retire_indexes and this one). database.py keys applied migrations by
+-- int(filename.split('_')[0]) into a SET, so two files sharing a number means a
+-- corpus that recorded 17 from one of them would NEVER apply the other.
 INSERT INTO schema_migrations(version,name,applied_at)
-VALUES(17,'product_hardware_promotion',strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+VALUES(18,'product_hardware_promotion',strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 COMMIT;

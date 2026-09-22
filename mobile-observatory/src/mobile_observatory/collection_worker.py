@@ -15,6 +15,7 @@ from .collectors.adapters.xiaomi_tracker import XiaomiFirmwareTrackerAdapter
 from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
 from .collectors.promotion import SamsungFirmwarePromoter
+from .collectors.device_promotion import promote_approved_products_to_devices
 from .worker_lock import exclusive_worker
 from .identity_bridge import rebuild_identity_registry
 from .enrichment import automate_identity_review, promote_approved_product_observations, write_agent_review_bundle
@@ -162,8 +163,9 @@ class CollectionWorker:
                     google_play_csv=self.paths.legacy_root / "google-play-devices" / "supported_devices.csv",
                     decisions=[dict(r) for r in self.local.execute("SELECT * FROM identity_decisions")])
                 product = promote_approved_product_observations(self.corpus)
+                device = vars(promote_approved_products_to_devices(self.corpus))
                 bundle = write_agent_review_bundle(self.corpus, self.paths.ledger.parent / "agent-review")
-                promoted = {"identity": identity, "product": product,
+                promoted = {"identity": identity, "product": product, "device": device,
                             "remainingAgentCandidates": bundle["candidate_count"]}
             status = "succeeded" if result.run.state == "healthy" else "partial"
             summary = {

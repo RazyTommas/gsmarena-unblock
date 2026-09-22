@@ -15,6 +15,7 @@ from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
 from .dedupe import merge_confirmed_duplicates
 from .collectors.promotion import SamsungFirmwarePromoter
+from .collectors.device_promotion import promote_approved_products_to_devices
 from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
 from .identity_bridge import rebuild_identity_registry
@@ -106,6 +107,7 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
         results["dedupe"] = merge_confirmed_duplicates(
             db.connection, legacy_root / "google-play-devices" / "supported_devices.csv")
         results["product_promotion"] = promote_approved_product_observations(db.connection)
+        results["device_promotion"] = vars(promote_approved_products_to_devices(db.connection))
         results["canonical_silicon"] = enrich_canonical_silicon(
             db.connection, legacy_root / "cross-reference" / "device-chipset-cve-xref.csv")
         results["security_catalog"] = import_security_catalog(

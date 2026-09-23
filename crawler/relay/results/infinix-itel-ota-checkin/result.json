@@ -1,0 +1,63 @@
+{
+  "task": "infinix-itel-ota-checkin",
+  "outcome": "ok",
+  "source": "https://android.googleapis.com/checkin",
+  "source_type": "vendor-ota-service",
+  "authority": "google-ota",
+  "authorization": "Ray, 2026-09-23 (same authorization as TECNO OTA probe)",
+  "retrieved_at": "2026-09-23T07:10:42.448067+00:00",
+  "method": "protobuf check-in with synthetic identifiers, no IMEI",
+  "request_shape": {
+    "endpoint": "https://android.googleapis.com/checkin",
+    "content_type": "application/x-protobuffer (gzipped)",
+    "identity_fields": {
+      "imei": "OMITTED \u2014 not required, avoids GSMA-space collision",
+      "id": "0 (new-device path, no prior registration)",
+      "digest": "random 40 hex chars (unallocated space)",
+      "serialNumber": "random 8 hex chars (unallocated space)",
+      "macAddr": "random 6 bytes (unallocated space)"
+    },
+    "device_description": {
+      "fingerprint": "oem/product-region/device:android/build_tag/incremental:user/release-keys",
+      "note": "Infinix uses 'Infinix' as both oem and device prefix; itel uses 'Itel' as oem but 'itel' (lowercase) as device prefix"
+    },
+    "credentials": "NONE"
+  },
+  "side_effects": "each probe causes Google to allocate an ephemeral device registration (androidId). This is inherent to the check-in protocol with id=0 and was disclosed to Ray.",
+  "total_probes": 64,
+  "probes_by_brand": {
+    "Itel": 5,
+    "Infinix": 59
+  },
+  "updates_by_brand": {
+    "Itel": 2,
+    "Infinix": 34
+  },
+  "errors": 0,
+  "stopped_early": false,
+  "rate_limit": "1.5s between probes",
+  "sha256": "3128181e018ad9648ae306622dd2207ff366b53d6f11d70a0e55d395baead464",
+  "fields": {
+    "has_update": "whether the SYNTHETIC fingerprint submitted in this probe is behind the build Google offers for that model+region. The submitted fingerprints use placeholder incrementals from prober configs, NOT real device builds. This field describes our request, NOT any real device population. Do not report the ratio as a measurement of fleet update status.",
+    "update_title": "the build Google currently offers for this model+region. This is the durable finding \u2014 a freshness signal showing what firmware is live at the distribution point right now.",
+    "update_url": "OTA package URL \u2014 NON-DURABLE POINTER, likely signed/session-bound, may not resolve later. Recorded as metadata, NOT fetched.",
+    "update_size": "human-readable OTA package size",
+    "update_size_value": "OTA package size in bytes",
+    "update_description": "HTML description of the update (truncated to 500 chars)",
+    "update_urgency": "Google-assigned urgency level",
+    "update_target_sdk_level": "target Android SDK level",
+    "unexpected_update_fields": "update_* field names in the response not in our extract list \u2014 typically Google Play client config knobs, not OTA metadata"
+  },
+  "stripped_fields": [
+    "update_token \u2014 session-scoped bearer token, credential, never stored",
+    "androidId \u2014 ephemeral registration ID minted by Google per probe, not a device identity"
+  ],
+  "notes": [
+    "Extends the TECNO OTA probe to Infinix and itel brands",
+    "These brands have NO ASPL data from security.tecno.com \u2014 this is the first freshness signal for them",
+    "IMEI deliberately omitted from all requests",
+    "update_url may expire \u2014 same treatment as FRBox expired links",
+    "If any response shape differs from the baseline, it is flagged in unexpected_update_fields"
+  ],
+  "agent": "prompter@lab2"
+}

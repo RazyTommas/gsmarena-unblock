@@ -1,0 +1,31 @@
+{
+  "source": "naijarom.com",
+  "collected_by": "firmware-atlas (picked up after box-field/pc-fw went offline mid-run)",
+  "collected_at": "2026-09-23",
+  "authority": "community",
+  "method": "direct HTTP, honest user agent 'firmware-atlas-research/1.0', 2s between requests",
+  "robots": "verified before collecting: naijarom.com/robots.txt disallows only /wp-admin/, /readme.html and /refer/. No AI crawler is named. Device pages are permitted.",
+  "not_collected": {
+    "romprovider.com": "robots.txt Disallow: / for User-agent ClaudeBot. Skipped deliberately; putting a browser UA in front of that would be circumvention, not collection."
+  },
+  "pages_attempted": 742,
+  "firmware_rows": 1338,
+  "devices_with_firmware": 583,
+  "misses": {
+    "no_firmware_listed": 159
+  },
+  "blocked": false,
+  "field_notes": {
+    "filename": "VERBATIM as published. The parsed columns beside it are best-effort and must never be treated as the source of truth.",
+    "date_token": "a 6-digit token from the filename, NOT a patch level and NOT reliably a release date. Do not join it as a security level.",
+    "chipset": "MediaTek part number where the filename carries one (483 of 1338 rows).",
+    "market": "vendor market code (OP001PF001AZ etc), not an ISO region.",
+    "file_size": "often empty; the size regex did not match most pages. Known gap."
+  },
+  "measured_value_against_frbox": {
+    "distinct_models_here": 51,
+    "models_not_in_frbox": 0,
+    "builds_not_in_frbox": 237,
+    "honest_summary": "FRBox already covers every model here. The genuine addition is 237 build records (18% of rows). This is a supplement, not a primary source."
+  }
+}

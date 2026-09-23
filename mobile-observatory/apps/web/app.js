@@ -31,6 +31,7 @@ const silenceNote = x => x.silent
   : (x.silenceStatus==='insufficient_data' ? '<div class="subtle">Too few runs to judge cadence</div>' : '');
 const toast = text => { const node = $('#toast'); node.textContent = text; node.classList.add('show'); setTimeout(() => node.classList.remove('show'), 2200); };
 
+let __loadAttempt = 0;
 async function load() {
   $('#app').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
   try {
@@ -41,12 +42,23 @@ async function load() {
     state.acknowledged=new Set(items(acknowledgements));
     state.fixtureMode = false;
   } catch (error) {
+    // A failed load during an ingest is almost always a transient SQLite write
+    // lock, not a dead server -- and the failure screen is sticky, so without
+    // this the 04:15 batch leaves the app looking broken until someone clicks
+    // Retry. Back off and try again a few times before giving up.
+    if (__loadAttempt < 3) {
+      __loadAttempt += 1;
+      await new Promise(r => setTimeout(r, 1500 * __loadAttempt));
+      return load();
+    }
+    __loadAttempt = 0;
     state.loadError = error.message || 'The API did not respond.';
     $('#snapshotLabel').textContent = 'Data unavailable';
     $('#navCount').textContent = '—';
     render();
     return;
   }
+  __loadAttempt = 0;
   state.loadError = null;
   $('#snapshotLabel').textContent = state.data.meta?.snapshot || 'Current';
   $('#navCount').textContent = state.data.overview.unseen ?? state.data.updates.length;

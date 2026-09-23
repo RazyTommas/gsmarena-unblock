@@ -39,12 +39,24 @@ def _family_from_variant(variant_name: str) -> str:
 def _observed_model_code(connection: sqlite3.Connection, product_id: str) -> tuple[str | None, str | None]:
     """Return (model_code, codename) genuinely observed for this product, or (None, None).
 
-    Only Google Play's authoritative supported-devices "Model" column is treated as a
-    real hardware model code. A GSMArena captured device name and a GSMArena page slug
-    are not model codes, and a Xiaomi captured "codename" is an internal build codename,
-    not a retail model number -- see collectors/adapters/xiaomi_tracker.py. If more than
-    one distinct code is on record the identifier is not unique, so it is refused rather
-    than guessed.
+    TWO sources are accepted, and the distinction between them is the whole point.
+
+    1. Google Play's supported-devices "Model" column -- authoritative, and the
+       original sole source.
+    2. A VENDOR FIRMWARE MODEL CODE: an approved identity in the `model_code`
+       namespace. Transsion ships firmware as CM8-15.1.3.115SP05-GL001PF001AZ;
+       CM8 is the identifier the vendor organises its own firmware under, carried
+       identically by FRBox, naijarom and Google's OTA endpoint. It is observed,
+       not derived, and refusing it stranded 901 reviewed products outside the
+       device catalogue while their firmware sat in the corpus.
+
+    Still NOT accepted, for the same reasons as before: a GSMArena device name or
+    page slug is not a model code, and a Xiaomi "codename" is an internal build
+    codename rather than a retail model number -- see xiaomi_tracker.py. Those are
+    identifiers for something other than the hardware.
+
+    If more than one distinct code is on record the identifier is not unique, so it
+    is refused rather than guessed.
     """
     row = connection.execute(
         "SELECT evidence_json FROM identity_conclusions WHERE product_id=? AND conclusion='auto_approved'",
@@ -64,8 +76,43 @@ def _observed_model_code(connection: sqlite3.Connection, product_id: str) -> tup
             codename = entry["identity"]
     if len(codes) == 1:
         return next(iter(codes)), codename
+
+    # No Google Play code. Fall back to a vendor firmware model code, which is
+    # only ever present for sources that key on one (identity_bridge records it
+    # in the `model_code` namespace). Still requires a UNIQUE approved identity:
+    # two codes means we do not know which device this is.
+    vendor = {
+        r["source_value"].strip()
+        for r in connection.execute(
+            """SELECT source_value FROM source_identity_registry
+               WHERE product_id=? AND namespace='model_code'
+                 AND resolution_state='approved' AND source_value IS NOT NULL""",
+            (product_id,),
+        )
+        if r["source_value"] and r["source_value"].strip()
+    }
+    if len(vendor) == 1:
+        return next(iter(vendor)), codename
     return None, codename
 
+
+def _from_play(connection: sqlite3.Connection, product_id: str) -> bool:
+    """Did the accepted code come from Google Play, or from the vendor's firmware?
+
+    Recorded per link so provenance is never ambiguous: "we promoted this because
+    Google says so" and "we promoted this because the vendor ships firmware under
+    this name" are different claims and the corpus should be able to tell them
+    apart afterwards.
+    """
+    row = connection.execute(
+        "SELECT evidence_json FROM identity_conclusions "
+        "WHERE product_id=? AND conclusion='auto_approved'", (product_id,)).fetchone()
+    if row is None:
+        return False
+    for entry in json.loads(row["evidence_json"]):
+        if entry.get("source") == "google_play_supported_devices" and entry.get("model_codes"):
+            return True
+    return False
 
 def _find_existing_device(connection: sqlite3.Connection, *, manufacturer: str, variant_name: str) -> list[str]:
     rows = connection.execute(
@@ -187,7 +234,9 @@ def promote_approved_products_to_devices(connection: sqlite3.Connection) -> Devi
                     """INSERT INTO product_hardware_links
                        (product_id, hardware_model_id, model_code_source, evidence_id, created_at)
                        VALUES (?, ?, ?, NULL, ?)""",
-                    (product["id"], hardware_id, "google_play_supported_devices", now),
+                    (product["id"], hardware_id,
+                     "google_play_supported_devices" if _from_play(connection, product["id"])
+                     else "vendor_firmware_model_code", now),
                 )
             except sqlite3.IntegrityError:
                 # The device row itself was created inside this same transaction

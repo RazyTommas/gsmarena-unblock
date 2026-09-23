@@ -56,6 +56,10 @@ class ObservatoryService:
                  fixture_root: str | Path | None = None) -> None:
         self.corpus = corpus
         self.demonstration = demonstration
+        # self.local stays a single connection guarded by self.local_lock below.
+        # It is tiny, write-mostly read-state, and every one of its uses is already
+        # inside that lock, so there is nothing here to make per-thread.
+
         self.sample_path = Path(sample_path) if sample_path else None
         self.data_dir = Path(local_path).parent
         project_root = Path(__file__).resolve().parents[2]
@@ -93,6 +97,15 @@ class ObservatoryService:
             CollectionWorker(self.local, self.corpus.connection, self.worker_paths).recover_interrupted()
         except ValueError:
             pass  # Another live worker owns the lock; preserve its active jobs.
+
+    def release_thread_connections(self) -> None:
+        """Release per-thread database connections held by the calling thread.
+
+        The request handler calls this when it is done with a connection. Kept on
+        the service rather than reaching into `.corpus` from the handler so that a
+        second per-thread database added later has one obvious place to be freed.
+        """
+        self.corpus.release_thread()
 
     @property
     def meta(self) -> dict:
@@ -1037,6 +1050,24 @@ class ObservatoryService:
 
 def make_handler(service: ObservatoryService, web_root: Path):
     class Handler(BaseHTTPRequestHandler):
+        def handle(self) -> None:
+            """Serve this connection, then hand back its corpus connection.
+
+            ThreadingHTTPServer gives every connection its own thread, and the
+            corpus hands every thread its own sqlite connection -- that per-thread
+            isolation is what stops two requests corrupting one connection's
+            statement state. Releasing here, rather than waiting for the thread and
+            its locals to be collected, is what keeps open handles proportional to
+            requests IN FLIGHT instead of requests EVER SERVED.
+
+            In a finally: a client that disconnects mid-response must not keep a
+            handle, and that is the common case under load, not a rare one.
+            """
+            try:
+                super().handle()
+            finally:
+                service.release_thread_connections()
+
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
             query = parse_qs(parsed.query)

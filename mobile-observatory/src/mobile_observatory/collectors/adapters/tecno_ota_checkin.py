@@ -11,7 +11,7 @@ from ..contracts import Observation, RawArtifact
 
 
 class TecnoOtaCheckinAdapter(SourceAdapter):
-    """The firmware Google is CURRENTLY distributing for a TECNO model+region.
+    """The firmware Google is CURRENTLY distributing for a Transsion model+region.
 
     WHY THIS SOURCE IS DIFFERENT FROM EVERY OTHER ONE HERE
     FRBox is a catalogue and naijarom is an archive; both look backwards. This
@@ -40,9 +40,14 @@ class TecnoOtaCheckinAdapter(SourceAdapter):
     date, not a patch level, and not proof that any device has installed it.
     """
 
-    source_id = "google.ota.checkin.tecno"
+    # ONE source id for every Transsion brand. The endpoint, request shape and
+    # response are identical for TECNO, Infinix and itel -- only the fingerprint
+    # differs. Splitting by brand would invent three sources where there is one
+    # method, and make "what is Google serving right now" a three-way union for
+    # no gain. The brand travels in the data, where it belongs.
+    source_id = "google.ota.checkin"
     parser_name = "tecno_ota_checkin_csv"
-    parser_version = "1.0.0"
+    parser_version = "1.1.0"
     health_policy = SourceHealthPolicy(
         minimum_observations=20,
         required_kinds=("firmware_release",),
@@ -100,7 +105,7 @@ class TecnoOtaCheckinAdapter(SourceAdapter):
                     "build": build,
                     "region_code": region,
                     "region_basis": "vendor_market_code_not_iso_region",
-                    "manufacturer": "TECNO",
+                    "manufacturer": (row.get("brand") or "TECNO").strip().upper(),
                     "source_device_name": (row.get("model") or "").strip() or None,
                     "update_title": title,          # verbatim
                     "market_token": market,
@@ -117,7 +122,7 @@ class TecnoOtaCheckinAdapter(SourceAdapter):
                     "identity_state": "unresolved_transsion_model_code",
                 },
                 identity_hints={
-                    "manufacturer": "TECNO",
+                    "manufacturer": (row.get("brand") or "TECNO").strip().upper(),
                     "source_model_code": model,
                     "source_device_name": (row.get("model") or "").strip() or None,
                 },

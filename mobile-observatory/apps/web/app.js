@@ -34,10 +34,10 @@ const toast = text => { const node = $('#toast'); node.textContent = text; node.
 async function load() {
   $('#app').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
   try {
-    const [overview, updates, devices, chips, releases, productReleases, productSecurity, sourceRecords, sourceProducts, security, securityCoverage, health, config, configOptions, realSample, reviewProfiles, decisions, collectionRequests, acknowledgements, agentBundle, watches, agentProposals, identityHistory] = await Promise.all([
-      api.overview(), api.updates(radarFilters()), api.devices({limit:100}), api.chips({limit:500}), api.releases({limit:100}), api.productReleases({limit:100}), api.productSecurity({limit:100}), api.sourceRecords({limit:100}), api.sourceProducts({limit:100,state:'proposed'}), api.security({limit:100}), api.securityCoverage(), api.health(), api.config(), api.configOptions(), api.realSample(), api.reviewProfiles(), api.identityDecisions(), api.collectionRequests(), api.acknowledgements(), api.agentBundle(), api.watches(), api.agentProposals(), api.identityHistory()
+    const [overview, updates, devices, chips, releases, productReleases, productSecurity, sourceRecords, sourceProducts, security, securityCoverage, health, config, configOptions, realSample, reviewProfiles, decisions, collectionRequests, acknowledgements, agentBundle, watches, agentProposals, identityHistory, watchlist] = await Promise.all([
+      api.overview(), api.updates(radarFilters()), api.devices({limit:100}), api.chips({limit:500}), api.releases({limit:100}), api.productReleases({limit:100}), api.productSecurity({limit:100}), api.sourceRecords({limit:100}), api.sourceProducts({limit:100,state:'proposed'}), api.security({limit:100}), api.securityCoverage(), api.health(), api.config(), api.configOptions(), api.realSample(), api.reviewProfiles(), api.identityDecisions(), api.collectionRequests(), api.acknowledgements(), api.agentBundle(), api.watches(), api.agentProposals(), api.identityHistory(), api.watchlist()
     ]);
-    state.data = { meta: overview.meta || {}, overview, updates: items(updates),updatePage:updates.meta?.page||{},watches:items(watches), devices: items(devices),devicePage:devices.meta?.page||{}, chips: items(chips),chipPage:chips.meta?.page||{}, releases:items(releases),releasePage:releases.meta?.page||{}, productReleases:items(productReleases),productReleasePage:productReleases.meta?.page||{},productSecurity:items(productSecurity),productSecurityPage:productSecurity.meta?.page||{}, sourceRecords:items(sourceRecords), sourcePage:sourceRecords.meta?.page||{}, sourceProducts:items(sourceProducts),productPage:sourceProducts.meta?.page||{}, security: items(security),securityPage:security.meta?.page||{},securityCoverage:items(securityCoverage), health: items(health), configOptions, realSample, reviewProfiles:reviewProfiles.profiles||[], decisions:items(decisions), collectionRequests:items(collectionRequests),agentBundle,agentProposals:items(agentProposals),identityHistory:items(identityHistory) }; state.config=config;
+    state.data = { meta: overview.meta || {}, overview, updates: items(updates),updatePage:updates.meta?.page||{},watches:items(watches), watchlist:items(watchlist), devices: items(devices),devicePage:devices.meta?.page||{}, chips: items(chips),chipPage:chips.meta?.page||{}, releases:items(releases),releasePage:releases.meta?.page||{}, productReleases:items(productReleases),productReleasePage:productReleases.meta?.page||{},productSecurity:items(productSecurity),productSecurityPage:productSecurity.meta?.page||{}, sourceRecords:items(sourceRecords), sourcePage:sourceRecords.meta?.page||{}, sourceProducts:items(sourceProducts),productPage:sourceProducts.meta?.page||{}, security: items(security),securityPage:security.meta?.page||{},securityCoverage:items(securityCoverage), health: items(health), configOptions, realSample, reviewProfiles:reviewProfiles.profiles||[], decisions:items(decisions), collectionRequests:items(collectionRequests),agentBundle,agentProposals:items(agentProposals),identityHistory:items(identityHistory) }; state.config=config;
     state.acknowledged=new Set(items(acknowledgements));
     state.fixtureMode = false;
   } catch (error) {
@@ -294,7 +294,41 @@ function render() {
   if(state.loadError||!state.data){$('#app').innerHTML=`<div class="empty"><h2>Data could not be loaded</h2><p>The local API is unavailable. Your stored evidence has not been replaced.</p><p>${escapeHtml(state.loadError||'Waiting for the API')}</p><button class="button primary" id="retryLoad">Retry loading</button></div>`;$('#retryLoad').addEventListener('click',load);return;}
 
   const active=document.activeElement, activeId=active?.id, selection=active?.selectionStart;
-  const renderers={radar:renderRadar, explore:renderExplore, products:renderProducts, security:renderSecurity, admin:renderAdmin};
+  function renderWatchlist(){
+  const rows = state.data.watchlist || [];
+  const head = heading('YOUR WATCHLIST','Everything you are following',
+    'Every subject you starred, with where it stands right now. Radar tells you what CHANGED; this tells you what you HAVE.');
+  if(!rows.length){
+    return head + `<div class="data-card"><div class="empty">
+      Nothing watched yet. Press <b>☆ Watch</b> on any device in Radar, Explore or
+      Product evidence and it will appear here with its latest firmware.
+    </div></div>`;
+  }
+  const canonical = rows.filter(r=>r.layer==='canonical').length;
+  return head + `
+  <div class="metrics">
+    <div class="metric"><small>Watched</small><strong>${rows.length}</strong><span>subjects you follow</span></div>
+    <div class="metric"><small>Reviewed hardware</small><strong>${canonical}</strong><span>identity proven</span></div>
+    <div class="metric"><small>Product evidence</small><strong>${rows.length-canonical}</strong><span>identity not yet proven</span></div>
+    <div class="metric"><small>With firmware</small><strong>${rows.filter(r=>r.latest_build).length}</strong><span>have a build on record</span></div>
+  </div>
+  <div class="data-card"><table class="data-table"><thead><tr>
+    <th>Device</th><th>Layer</th><th>Latest build</th><th>Region</th><th>Android</th>
+    <th>Patch</th><th>Silicon</th><th>Releases</th><th>Last seen</th>
+  </tr></thead><tbody>${rows.map(r=>`<tr>
+    <td class="strong">${val(r.name,'device name')}<div class="subtle">${val(r.maker,'manufacturer')}${r.model_code?' · '+escapeHtml(r.model_code):''}</div></td>
+    <td>${badge(r.layer==='canonical'?'Reviewed':'Evidence', r.layer==='canonical'?'good':'Unknown')}</td>
+    <td>${val(r.latest_build,'latest build')}</td>
+    <td>${val(r.latest_region,'region')}</td>
+    <td>${val(r.latest_android,'Android version')}</td>
+    <td>${val(r.latest_patch,'security patch level')}</td>
+    <td>${val(r.chipset,'chipset')}</td>
+    <td>${r.release_count||0}</td>
+    <td>${val(r.latest_seen,'last seen')}</td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+
+const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExplore, products:renderProducts, security:renderSecurity, admin:renderAdmin};
   $('#app').innerHTML=renderers[state.route]();
   if(state.route==='explore') {
     $('.filters')?.insertAdjacentHTML('beforeend','<label>Filters<button type="button" class="button reset-filters" id="resetFilters">Reset all</button></label>');
@@ -640,7 +674,7 @@ window.addEventListener('resize', () => {
 // first load silently does nothing. That is why applying a hash has to retry
 // until the button actually goes active rather than firing once on load.
 // ===========================================================================
-const ROUTES = ['radar', 'explore', 'products', 'security', 'admin'];
+const ROUTES = ['radar', 'watchlist', 'explore', 'products', 'security', 'admin'];
 const routeFromHash = () => {
   const h = (location.hash || '').replace(/^#/, '').toLowerCase();
   return ROUTES.includes(h) ? h : null;

@@ -891,6 +891,84 @@ class ObservatoryService:
         with self.local_lock:
             return list_watches(self.local)
 
+    def watchlist(self) -> list[dict]:
+        """Every watched subject with its current state, newest first.
+
+        Two subject kinds exist and they live in different layers: a
+        hardware_model is canonical, a source_product is evidence whose identity
+        is not yet proven. Both are watchable, so both are answered here, and the
+        `layer` field says which you are looking at rather than blurring them.
+
+        A subject with no firmware on record returns nulls, which the UI renders
+        as a dash. That is the honest outcome for "we follow this and have seen
+        nothing yet" and must not be confused with "no updates exist".
+        """
+        with self.local_lock:
+            watches = list_watches(self.local)
+        c = self.corpus.connection
+        rows: list[dict] = []
+        for w in watches:
+            kind, sid = w["subject_type"], w["subject_id"]
+            item = {"subject_type": kind, "subject_id": sid,
+                    "watched_since": w.get("created_at"), "layer": None,
+                    "name": None, "maker": None, "model_code": None,
+                    "chipset": None, "latest_build": None, "latest_region": None,
+                    "latest_android": None, "latest_patch": None,
+                    "latest_seen": None, "source": None, "release_count": 0}
+            if kind == "hardware_model":
+                item["layer"] = "canonical"
+                d = c.execute("SELECT * FROM v_device_catalog WHERE hardware_model_id=?",
+                              (sid,)).fetchone()
+                if d:
+                    d = dict(d)
+                    item.update(name=d.get("variant") or d.get("model_code"),
+                                maker=d.get("brand"), model_code=d.get("model_code"))
+                f = c.execute("""SELECT fr.build_id, fr.security_patch_level, fr.baseband_version,
+                                        fr.vendor_released_at, fr.last_observed_at, ft.target_code
+                                 FROM firmware_releases fr
+                                 LEFT JOIN firmware_targets ft ON ft.id=fr.firmware_target_id
+                                 WHERE fr.hardware_model_id=?
+                                 ORDER BY COALESCE(fr.vendor_released_at, fr.last_observed_at) DESC
+                                 LIMIT 1""", (sid,)).fetchone()
+                if f:
+                    f = dict(f)
+                    item.update(latest_build=f.get("build_id"),
+                                latest_patch=f.get("security_patch_level"),
+                                latest_region=f.get("target_code"),
+                                latest_seen=f.get("vendor_released_at") or f.get("last_observed_at"))
+                item["release_count"] = c.execute(
+                    "SELECT count(*) FROM firmware_releases WHERE hardware_model_id=?",
+                    (sid,)).fetchone()[0]
+            else:
+                item["layer"] = "evidence"
+                p = c.execute("SELECT manufacturer, canonical_name, review_state "
+                              "FROM source_products WHERE id=?", (sid,)).fetchone()
+                if p:
+                    p = dict(p)
+                    item.update(name=p.get("canonical_name"), maker=p.get("manufacturer"))
+                r = c.execute("""SELECT build_id, region_code, android_version, source_id,
+                                        vendor_released_at, created_at
+                                 FROM product_firmware_releases WHERE product_id=?
+                                 ORDER BY COALESCE(vendor_released_at, created_at) DESC
+                                 LIMIT 1""", (sid,)).fetchone()
+                if r:
+                    r = dict(r)
+                    item.update(latest_build=r.get("build_id"),
+                                latest_region=r.get("region_code"),
+                                latest_android=r.get("android_version"),
+                                source=r.get("source_id"),
+                                latest_seen=r.get("vendor_released_at") or r.get("created_at"))
+                item["release_count"] = c.execute(
+                    "SELECT count(*) FROM product_firmware_releases WHERE product_id=?",
+                    (sid,)).fetchone()[0]
+                sil = c.execute("""SELECT part_number FROM observed_product_silicon
+                                   WHERE product_id=? LIMIT 1""", (sid,)).fetchone()
+                if sil:
+                    item["chipset"] = sil[0]
+            rows.append(item)
+        rows.sort(key=lambda x: (x["latest_seen"] or ""), reverse=True)
+        return rows
+
     def save_watch(self, value: dict) -> dict:
         with self.local_lock:
             return save_watch(self.local, self.corpus.connection, value)
@@ -986,6 +1064,7 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/identity/history": lambda: {"items": service.identity_history()},
                 "/api/v1/identity/agent-proposals": lambda: {"items": service.agent_proposals()},
                 "/api/v1/watches": lambda: {"items": service.watches()},
+                "/api/v1/watchlist": lambda: {"items": service.watchlist()},
                 "/api/v1/identity/decisions": lambda: {"items": service.identity_decisions()},
                 "/api/v1/identity/agent-bundle": service.agent_review_bundle,
                 "/api/v1/admin/collection-requests": lambda: {"items": service.collection_requests()},

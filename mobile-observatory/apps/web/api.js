@@ -21,6 +21,7 @@ const params = input => {
 
 export const api = {
   watches: () => request('/watches'),
+  watchlist: () => request('/watchlist'),
   saveWatch: value => request('/watches', {method:'POST',body:JSON.stringify(value)}),
   overview: () => request('/radar/overview'),
   updates: filters => request(`/updates${params(filters)}`),

@@ -34,13 +34,15 @@
   "rate_limit": "1.5s between probes",
   "sha256": "b344276f4ed204c27f424021c502c9167751cfc2631be0a15bd432470e5a5aa3",
   "fields": {
-    "update_title": "firmware version identifier (e.g. Tcard_AD10-15.1.3.115SP05-GL001PF001AZ)",
-    "update_url": "OTA package URL \u2014 NON-DURABLE POINTER, likely signed/session-bound, may not resolve later. Recorded as metadata, NOT fetched.",
+    "has_update": "whether the SYNTHETIC fingerprint submitted in this probe is behind the build Google offers for that model+region. The submitted fingerprint is synthetic (placeholder incrementals from prober configs, not real device builds), so this field describes our request, NOT any real device population. Do not report the has_update ratio as a measurement of TECNO's fleet update status.",
+    "update_title": "the build Google currently offers for this model+region. This is the durable finding \u2014 a freshness signal showing what firmware is live at the distribution point right now. Neither FRBox (catalogue) nor naijarom (archive) provides this.",
+    "update_url": "OTA package URL \u2014 NON-DURABLE POINTER, likely signed/session-bound, may not resolve later. Recorded as metadata, NOT fetched. Same treatment as FRBox expired links.",
     "update_size": "human-readable OTA package size",
     "update_size_value": "OTA package size in bytes",
     "update_description": "HTML description of the update (truncated to 500 chars)",
     "update_urgency": "Google-assigned urgency level",
-    "update_target_sdk_level": "target Android SDK level"
+    "update_target_sdk_level": "target Android SDK level",
+    "unexpected_update_fields": "update_* field names present in the response but not in EXTRACT_FIELDS. All 63 rows carry values here \u2014 these are Google Play client config knobs (update_clearcut_log, update_download_min_cache_space, etc.) that share the update_ prefix but are NOT OTA metadata."
   },
   "stripped_fields": [
     "update_token \u2014 session-scoped bearer token, credential, never stored",
@@ -50,7 +52,9 @@
     "IMEI deliberately omitted from all requests \u2014 check-in works without it",
     "update_url is a signed/session-bound pointer that may expire \u2014 same treatment as FRBox expired links",
     "Configs from transsion-ota-prober cover 47 TECNO models across ~120 region variants",
-    "Any response with a different field set from AD10 is flagged in unexpected_update_fields column"
+    "All 63 rows have unexpected_update_fields content — these are Google Play config knobs sharing the update_ prefix, not OTA metadata. The column works as intended (catching update_* fields not in our extract list); the content is benign.",
+    "The fingerprints sent use synthetic incrementals from prober configs (e.g. 135017), not real TECNO builds. has_update=True means our synthetic fingerprint is behind Google's current offering — this is near-tautological and must not be reported as fleet update status.",
+    "The durable finding is update_title: the firmware build Google currently distributes for each model+region. This is a freshness signal unavailable from any other source in the corpus."
   ],
   "agent": "prompter@lab2"
 }

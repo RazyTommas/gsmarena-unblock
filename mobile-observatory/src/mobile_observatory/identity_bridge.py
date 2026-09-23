@@ -62,6 +62,36 @@ def _product_name(source: str, payload: dict) -> tuple[str, str, str, str] | Non
         if not name:
             return None
         return "Xiaomi", name, "codename", data["model_code"]
+    # --- Transsion: FRBox, naijarom and the OTA probe all describe the SAME
+    # devices, so they must converge on one product each or we manufacture the
+    # duplicate-device problem this schema exists to prevent. The MODEL CODE is
+    # what they agree on -- measured: frbox<->naijarom overlap 232, frbox<->ota
+    # 45 of 45 -- while device NAMES diverge wildly ("A14", "Tecno Orange Rise
+    # 32", "TECNO PHANTOM V Fold 5G" for the same class of thing). So the model
+    # code is the identity, which is also how firmware is actually organised by
+    # these vendors.
+    if source in ("frbox.community.transsion_catalog",
+                  "naijarom.community.transsion_firmware",
+                  "google.ota.checkin"):
+        maker = (data.get("manufacturer") or "").strip()
+        code = (data.get("model_code") or "").strip()
+        if not (maker and code):
+            return None
+        # Transsion ships three brands; keep them distinct rather than collapsing
+        # TECNO/Infinix/itel into one manufacturer.
+        maker = {"TECNO": "TECNO", "INFINIX": "Infinix", "ITEL": "itel"}.get(maker.upper(), maker)
+        return maker, code, "model_code", code
+
+    if source == "ipsw.me.firmware_index":
+        # Apple's own per-model identifier is the stable key; the marketing name
+        # ("iPhone 2G") is what a person recognises, so it is the canonical name
+        # and the identifier is the namespace value.
+        name = (data.get("source_device_name") or "").strip()
+        ident = (data.get("source_model_identifier") or data.get("model_code") or "").strip()
+        if not (name and ident):
+            return None
+        return "Apple", name, "apple_identifier", ident
+
     if source == "tecno.vendor.security_device_scope":
         return "TECNO", data["device"].strip(), "commercial_name", data["device"].strip()
     return None

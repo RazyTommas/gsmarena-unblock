@@ -1,0 +1,56 @@
+{
+  "task": "tecno-ota-checkin",
+  "outcome": "ok",
+  "source": "https://android.googleapis.com/checkin",
+  "source_type": "vendor-ota-service",
+  "authority": "google-ota",
+  "authorization": "Ray, 2026-09-23",
+  "retrieved_at": "2026-09-23T02:20:06.910383+00:00",
+  "method": "protobuf check-in with synthetic identifiers, no IMEI",
+  "request_shape": {
+    "endpoint": "https://android.googleapis.com/checkin",
+    "content_type": "application/x-protobuffer (gzipped)",
+    "identity_fields": {
+      "imei": "OMITTED \u2014 not required, avoids GSMA-space collision",
+      "id": "0 (new-device path, no prior registration)",
+      "digest": "random 40 hex chars (unallocated space)",
+      "serialNumber": "random 8 hex chars (unallocated space)",
+      "macAddr": "random 6 bytes (unallocated space)"
+    },
+    "device_description": {
+      "fingerprint": "constructed from public build info: oem/product-region/device:android/build_tag/incremental:user/release-keys",
+      "locale": "en-US",
+      "timeZone": "America/New_York",
+      "fetchSystemUpdates": 1
+    },
+    "credentials": "NONE \u2014 no Google account, no GSF ID, no tokens sent"
+  },
+  "side_effects": "each probe causes Google to allocate an ephemeral device registration (androidId). This is inherent to the check-in protocol with id=0 and was disclosed to Ray.",
+  "total_probes": 63,
+  "unique_models": 47,
+  "with_pending_update": 33,
+  "errors": 0,
+  "stopped_early": false,
+  "rate_limit": "1.5s between probes",
+  "sha256": "b344276f4ed204c27f424021c502c9167751cfc2631be0a15bd432470e5a5aa3",
+  "fields": {
+    "update_title": "firmware version identifier (e.g. Tcard_AD10-15.1.3.115SP05-GL001PF001AZ)",
+    "update_url": "OTA package URL \u2014 NON-DURABLE POINTER, likely signed/session-bound, may not resolve later. Recorded as metadata, NOT fetched.",
+    "update_size": "human-readable OTA package size",
+    "update_size_value": "OTA package size in bytes",
+    "update_description": "HTML description of the update (truncated to 500 chars)",
+    "update_urgency": "Google-assigned urgency level",
+    "update_target_sdk_level": "target Android SDK level"
+  },
+  "stripped_fields": [
+    "update_token \u2014 session-scoped bearer token, credential, never stored",
+    "androidId \u2014 ephemeral registration ID minted by Google per probe, not a device identity"
+  ],
+  "notes": [
+    "IMEI deliberately omitted from all requests \u2014 check-in works without it",
+    "update_url is a signed/session-bound pointer that may expire \u2014 same treatment as FRBox expired links",
+    "Configs from transsion-ota-prober cover 47 TECNO models across ~120 region variants",
+    "Any response with a different field set from AD10 is flagged in unexpected_update_fields column"
+  ],
+  "agent": "prompter@lab2"
+}

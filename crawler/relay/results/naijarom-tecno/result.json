@@ -1,0 +1,25 @@
+{
+  "task": "naijarom-tecno",
+  "outcome": "ok",
+  "source": "https://naijarom.com (index via androidmtk.com)",
+  "source_type": "third-party-firmware-repository",
+  "authority": "community",
+  "retrieved_at": "2026-09-22T01:26:43.993766+00:00",
+  "method": "Playwright headless Chromium, sitemap-driven (no search queries)",
+  "robots_txt": "checked \u2014 no AI bot blocks, /refer/ and /wp-admin/ blocked only",
+  "rate_limit": "2.0s between device pages",
+  "total_rows": 2028,
+  "firmware_versions": 1694,
+  "devices_with_no_firmware": 334,
+  "unique_models": 513,
+  "with_chipset": 1618,
+  "sha256": "2e0413952e0d5ec67e4fa96c8fae7a047e228a07d5ba4e24c616514c7f3e9c01",
+  "notes": [
+    "version is the build number (e.g. 15.0.3.116SP02), NOT a security patch level",
+    "region_code is the firmware regional variant (e.g. OP001PF001AZ = Global/Operator)",
+    "Devices with no firmware versions are explicitly recorded (note column)",
+    "chipset extracted from page text where present",
+    "romprovider.com SKIPPED \u2014 robots.txt blocks ClaudeBot (Disallow: /)"
+  ],
+  "agent": "prompter@lab2"
+}

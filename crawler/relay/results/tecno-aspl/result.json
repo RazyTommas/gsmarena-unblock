@@ -1,0 +1,28 @@
+{
+  "task": "tecno-aspl-refresh",
+  "outcome": "ok",
+  "source": "https://security.tecno.com/slm/deviceScope",
+  "source_type": "vendor-official",
+  "authority": "vendor",
+  "retrieved_at": "2026-09-22T01:04:45.160908+00:00",
+  "method": "JSON API, years 2020-2026",
+  "total_devices": 130,
+  "spl_range": "2021-06 to 2026-08",
+  "brands": {
+    "TECNO": 114,
+    "CAMON": 6,
+    "SPARK": 4,
+    "POVA": 2,
+    "PHANTOM": 2,
+    "POUVOIR": 1,
+    "POP": 1
+  },
+  "sha256": "20161257a60f82f7101120e18102ff37282360893fec9e33aea25c6d43e5af4e",
+  "notes": [
+    "TECNO-only \u2014 no Infinix or itel ASPL available from this source",
+    "spl_month is the latest Android Security Patch Level month for each device",
+    "CAMON/SPARK/POVA/etc without TECNO prefix are older naming convention entries",
+    "Some devices stop receiving patches \u2014 last spl_month indicates EOL timing"
+  ],
+  "agent": "prompter@lab2"
+}

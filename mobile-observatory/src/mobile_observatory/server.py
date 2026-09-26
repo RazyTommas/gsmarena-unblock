@@ -843,6 +843,32 @@ class ObservatoryService:
 
     SEARCH_PER_TYPE = 8
 
+    def _search_releases(self, q: str, limit: int) -> QueryPage:
+        """Release matches, one row per build rather than one per region.
+
+        A build ships to many regions, so matching rows directly filled the whole
+        dropdown with the same build string repeated -- "S23 Ultra" returned
+        S918BXXSAFZH3 eight times, which looks like a broken list and crowds out the
+        device and silicon hits. Grouping by build keeps each hit distinct and puts
+        the region count in the detail line, where it is information rather than
+        repetition. `total` stays the number of matching BUILDS, so the reported
+        count and the listed rows are the same unit.
+        """
+        like = f"%{q}%"
+        base = """FROM v_device_region_history
+                  WHERE build_id LIKE ? COLLATE NOCASE OR model_code LIKE ? COLLATE NOCASE
+                     OR variant LIKE ? COLLATE NOCASE OR target_code LIKE ? COLLATE NOCASE"""
+        params = [like] * 4
+        total = self.corpus.connection.execute(
+            "SELECT count(DISTINCT build_id) " + base, params).fetchone()[0]
+        rows = self.corpus.connection.execute(
+            """SELECT build_id build, min(firmware_release_id) id,
+                      min(variant) device, min(model_code) model,
+                      count(DISTINCT target_code) regions,
+                      min(target_code) region """
+            + base + " GROUP BY build_id ORDER BY build_id LIMIT ?", [*params, limit]).fetchall()
+        return QueryPage([dict(row) for row in rows], total, limit, 0)
+
     def _search_devices(self, q: str, limit: int) -> QueryPage:
         """Device matches for the search box: identity columns only, no heavy joins.
 
@@ -898,7 +924,8 @@ class ObservatoryService:
         # call. A search hit shows a name and a model code, so it reads the catalogue
         # view directly and the type-ahead stops paying for columns it never renders.
         devices = self._search_devices(q, self.SEARCH_PER_TYPE)
-        chips, releases = self.chips_page(ask), self.releases_page(ask)
+        releases = self._search_releases(q, self.SEARCH_PER_TYPE)
+        chips = self.chips_page(ask)
 
         items = (
             [{"type": "device", "id": row["model"], "label": row["name"], "detail": row["model"]}
@@ -906,7 +933,8 @@ class ObservatoryService:
             + [{"type": "chip", "id": row["part"], "label": row["name"], "detail": row["part"]}
                for row in chips.items]
             + [{"type": "release", "id": row["id"], "label": row["build"],
-                "detail": f"{row['device']} · {row['model']} · {row['region']}"}
+                "detail": f"{row['device']} · {row['model']} · "
+                          + (f"{row['regions']} regions" if row["regions"] > 1 else str(row["region"]))}
                for row in releases.items]
         )
         return {"items": items,

@@ -476,7 +476,27 @@ class ObservatoryService:
                    json_extract(o.payload_json,'$.data.release_time'),
                    o.observed_at) effective_at,
           json_extract(o.payload_json,'$.data.identity_state') identity_state
-          ,json_extract(o.payload_json,'$.data.download_url') download_url,
+          ,
+          -- Whether this evidence row can be opened as a canonical device. The UI
+          -- cannot work this out: device_detail() resolves a model_code against
+          -- v_device_catalog, and the browser only holds the current page of
+          -- devices. Answering here is what lets the table link the rows that CAN
+          -- be opened while leaving the unresolved ones as plain text, instead of
+          -- the current all-or-nothing where nothing is clickable.
+          (SELECT v.model_code FROM v_device_catalog v
+            WHERE v.model_code = json_extract(o.payload_json,'$.data.model_code')
+            COLLATE NOCASE LIMIT 1) canonical_model,
+          -- Fallback for rows that name a PRODUCT rather than a hardware model
+          -- (the Transsion vendor feeds): link to the product record instead.
+          -- `sp.canonical_name <> sp.manufacturer` drops the degenerate case where
+          -- a row's device name is just the brand -- "TECNO" does match a product
+          -- literally named TECNO, and linking every such row to it would be a
+          -- confident link to the wrong thing.
+          (SELECT sp.id FROM source_products sp
+            WHERE sp.canonical_name = json_extract(o.payload_json,'$.data.device') COLLATE NOCASE
+              AND sp.canonical_name <> sp.manufacturer COLLATE NOCASE
+            LIMIT 1) canonical_product,
+          json_extract(o.payload_json,'$.data.download_url') download_url,
           coalesce(json_extract(o.payload_json,'$.data.source_url'),a.source_url,s.base_url) source_url
           FROM observations o JOIN artifacts a ON a.id=o.artifact_id JOIN sources s ON s.id=o.source_id WHERE {where}
           ORDER BY {order},o.source_id,o.source_key LIMIT ? OFFSET ?""",
@@ -604,9 +624,13 @@ class ObservatoryService:
         result = [{**dict(row), "android": row["android"] or "Unknown",
                          "patch": row["patch"] or "Unknown", "baseband": row["baseband"] or "Unknown"}
                         for row in rows]
-        from .source_corrections import firmware_date_evidence
+        # One batched lookup for the whole page. This used to call the single-row
+        # firmware_date_evidence() per item, so a 100-row page cost ~200 extra
+        # queries before it could render.
+        from .source_corrections import firmware_date_evidence_many
+        evidence = firmware_date_evidence_many(self.corpus.connection, [i["id"] for i in result])
         for item in result:
-            item.update(firmware_date_evidence(self.corpus.connection, item['id']))
+            item.update(evidence.get(item["id"], {}))
         return QueryPage(result, total, limit, offset)
 
     def product_releases_page(self, query: dict[str, list[str]]) -> QueryPage:
@@ -1283,9 +1307,12 @@ def _first(query: dict[str, list[str]], key: str, default: str = "") -> str:
 
 def _pagination(query: dict[str, list[str]]) -> tuple[int, int]:
     try:
-        limit = max(1, min(200, int(_first(query, "limit", "50"))))
+        # Cap raised from 200 to 500 so the rows-per-page control can offer a page
+        # big enough to scan without paging. Still capped: an uncapped limit turns
+        # one mistyped query string into a full-table render.
+        limit = max(1, min(500, int(_first(query, "limit", "100"))))
     except ValueError:
-        limit = 50
+        limit = 100
     raw_offset = _first(query, "cursor", _first(query, "offset", "0"))
     try:
         offset = max(0, int(raw_offset))

@@ -60,3 +60,10 @@
                 font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
 .brief-actions{display:flex;gap:8px;align-items:center;padding:0 20px 18px}
 .brief-actions .spacer{flex:1}
+
+/* Rows-per-page control. Sits in the same toolbars as the pager buttons, so it
+   borrows their type scale rather than introducing another one. */
+.rows-per-page{display:inline-flex;align-items:center;gap:6px;font-size:12px;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#6b7580)}
+.rows-per-page select{font:inherit;text-transform:none;letter-spacing:normal;
+  padding:4px 6px}

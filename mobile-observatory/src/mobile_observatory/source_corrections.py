@@ -96,6 +96,59 @@ def firmware_date_evidence(c: sqlite3.Connection, release_id: str) -> dict:
             'evidence_id':row['evidence_id']} if row else {}
 
 
+def firmware_date_evidence_many(c: sqlite3.Connection, release_ids: list[str]) -> dict[str, dict]:
+    """firmware_date_evidence for a whole page in two queries instead of 2 per row.
+
+    The per-row version is correct but it was being called in a loop while building
+    a 100-row releases page, so one page cost ~200 queries. Same precedence as the
+    single-row version: a recorded correction wins over the observation-derived
+    month, and a release with neither is simply absent from the returned mapping.
+
+    One deliberate difference: the single-row query ends in `LIMIT 1` with no ORDER
+    BY, so when several evidence rows carry a build_derived_month it returns an
+    arbitrary one -- and not necessarily the same one twice. This picks the lowest
+    evidence id per release, so the page is at least stable between reloads.
+    """
+    if not release_ids:
+        return {}
+    found: dict[str, dict] = {}
+    # Chunked to stay clear of SQLITE_MAX_VARIABLE_NUMBER (999 on older builds);
+    # pages are 100-200 rows today, so this is headroom rather than a live limit.
+    for start in range(0, len(release_ids), 500):
+        chunk = release_ids[start:start + 500]
+        marks = ",".join("?" * len(chunk))
+
+        for row in c.execute(
+            f"""SELECT entity_id, after_json, evidence_id, recorded_at
+                  FROM source_data_corrections
+                 WHERE entity_type='firmware_release' AND entity_id IN ({marks})
+                   AND reason='samsung_build_month_not_release_date'""", chunk):
+            found[row["entity_id"]] = {
+                "build_derived_month": json.loads(row["after_json"])["build_derived_month"],
+                "date_basis": "build_identifier_month_not_vendor_release",
+                "evidence_id": row["evidence_id"], "corrected_at": row["recorded_at"]}
+
+        remaining = [i for i in chunk if i not in found]
+        if not remaining:
+            continue
+        marks = ",".join("?" * len(remaining))
+        for row in c.execute(
+            f"""SELECT fre.firmware_release_id rid,
+                       json_extract(o.payload_json,'$.data.build_derived_month') build_month,
+                       min(e.id) evidence_id
+                  FROM firmware_release_evidence fre
+                  JOIN evidence e ON e.id=fre.evidence_id
+                  JOIN observations o ON o.id=e.observation_id
+                 WHERE fre.firmware_release_id IN ({marks})
+                   AND json_extract(o.payload_json,'$.data.build_derived_month') IS NOT NULL
+                 GROUP BY fre.firmware_release_id""", remaining):
+            found[row["rid"]] = {
+                "build_derived_month": row["build_month"],
+                "date_basis": "build_identifier_month_not_vendor_release",
+                "evidence_id": row["evidence_id"]}
+    return found
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir',type=Path,required=True)

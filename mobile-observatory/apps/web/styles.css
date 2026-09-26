@@ -67,3 +67,7 @@
   letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#6b7580)}
 .rows-per-page select{font:inherit;text-transform:none;letter-spacing:normal;
   padding:4px 6px}
+
+/* Footer on the search dropdown: what the capped list is a slice OF. */
+.search-more{padding:8px 12px;border-top:1px solid var(--rule,#e2e6ea);
+  font-size:12px;line-height:1.45;color:var(--muted,#6b7580)}

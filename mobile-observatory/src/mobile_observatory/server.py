@@ -841,22 +841,81 @@ class ObservatoryService:
             return [row[0] for row in self.local.execute(
                 "SELECT event_id FROM acknowledgements ORDER BY acknowledged_at DESC").fetchall()]
 
+    SEARCH_PER_TYPE = 8
+
+    def _search_devices(self, q: str, limit: int) -> QueryPage:
+        """Device matches for the search box: identity columns only, no heavy joins.
+
+        Matches the same fields devices_page exposes to `q` (brand, variant, model
+        code, codename, and the silicon marketing name/part), so a hit here is a hit
+        there -- but without v_latest_firmware, whose whole-corpus window is what
+        made the type-ahead cost half a second.
+        """
+        like = f"%{q}%"
+        base = """FROM v_device_catalog dc
+                  LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
+                  WHERE dc.brand LIKE ? COLLATE NOCASE OR dc.variant LIKE ? COLLATE NOCASE
+                     OR dc.model_code LIKE ? COLLATE NOCASE OR dc.codename LIKE ? COLLATE NOCASE
+                     OR cd.marketing_name LIKE ? COLLATE NOCASE OR cd.part_number LIKE ? COLLATE NOCASE"""
+        params = [like] * 6
+        total = self.corpus.connection.execute(
+            "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
+        rows = self.corpus.connection.execute(
+            "SELECT DISTINCT dc.brand maker, dc.variant name, dc.model_code model " + base
+            + " ORDER BY dc.variant,dc.model_code LIMIT ?", [*params, limit]).fetchall()
+        return QueryPage([dict(row) for row in rows], total, limit, 0)
+
+    def search_payload(self, query: dict[str, list[str]]) -> dict:
+        """Global search across the WHOLE catalogue, with honest match counts.
+
+        This used to call self.devices({}) / chips({}) / releases({}) with no
+        filter and then filter the result in Python -- which searched only the
+        FIRST PAGE of each table and silently reported everything else as absent.
+        Measured on the live corpus: 6 of 6 devices sampled from past row 100 were
+        invisible, "CAMON 50 Pro 5G" returned nothing, and releases were matched
+        against 100 of 21,186 rows. It was a filter over page one wearing the name
+        of a search, and it is how a device that IS in the catalogue gets reported
+        as missing.
+
+        The query now goes into SQL, so every row is considered. The trade is that
+        matching is over each table's declared searchable columns -- identity
+        fields: brand, variant, model code, codename, marketing name, part number,
+        region, build id -- rather than "any value on the row". That is narrower per
+        row and enormously wider per table, and the old any-value matching only ever
+        worked for the first page anyway.
+
+        `totals` carries how many rows actually matched, so the caller can say
+        "8 of 214" rather than presenting a truncated list as the whole answer.
+        """
+        q = _first(query, "q", "").strip()
+        if not q:
+            return {"items": [], "totals": {"device": 0, "chip": 0, "release": 0}, "query": q}
+
+        ask = {"q": [q], "limit": [str(self.SEARCH_PER_TYPE)]}
+        # Deliberately NOT devices_page() here. That builds the full Explore row --
+        # firmware counts, latest-firmware ranking, silicon, support -- and joins
+        # v_latest_firmware, which recomputes a whole-corpus window (~390ms) on every
+        # call. A search hit shows a name and a model code, so it reads the catalogue
+        # view directly and the type-ahead stops paying for columns it never renders.
+        devices = self._search_devices(q, self.SEARCH_PER_TYPE)
+        chips, releases = self.chips_page(ask), self.releases_page(ask)
+
+        items = (
+            [{"type": "device", "id": row["model"], "label": row["name"], "detail": row["model"]}
+             for row in devices.items]
+            + [{"type": "chip", "id": row["part"], "label": row["name"], "detail": row["part"]}
+               for row in chips.items]
+            + [{"type": "release", "id": row["id"], "label": row["build"],
+                "detail": f"{row['device']} · {row['model']} · {row['region']}"}
+               for row in releases.items]
+        )
+        return {"items": items,
+                "totals": {"device": devices.total, "chip": chips.total, "release": releases.total},
+                "query": q}
+
     def search(self, query: dict[str, list[str]]) -> list[dict]:
-        q = _first(query, "q", "")
-        device_results = [
-            {"type": "device", "id": row["model"], "label": row["name"], "detail": row["model"]}
-            for row in _filter(self.devices({}), {"q": [q]})
-        ]
-        chip_results = [
-            {"type": "chip", "id": row["part"], "label": row["name"], "detail": row["part"]}
-            for row in _filter(self.chips({}), {"q": [q]})
-        ]
-        release_results = [
-            {"type": "release", "id": row["id"], "label": row["build"],
-             "detail": f"{row['device']} · {row['model']} · {row['region']}"}
-            for row in _filter(self.releases({}), {"q": [q]})[:8]
-        ]
-        return (device_results + chip_results + release_results)[:16]
+        """Back-compat list form. Prefer search_payload(), which reports totals."""
+        return self.search_payload(query)["items"]
 
     def config(self) -> dict:
         defaults = {"cadenceHours": 6, "preferredRegions": ["ILO", "MID", "GLOBAL"],
@@ -1111,7 +1170,7 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/security/findings": lambda: _page_payload(service.security_page(query), service.meta),
                 "/api/v1/security/coverage": service.security_coverage,
                 "/api/v1/admin/health": lambda: {"items": service.health(), "meta": service.meta},
-                "/api/v1/search": lambda: {"items": service.search(query), "meta": service.meta},
+                "/api/v1/search": lambda: {**service.search_payload(query), "meta": service.meta},
                 "/api/v1/admin/config": service.config,
                 "/api/v1/admin/options": service.config_options,
                 "/api/v1/admin/real-sample": service.real_sample,
@@ -1343,15 +1402,13 @@ def _page_payload(page: QueryPage, meta: dict) -> dict:
             "data_as_of": meta["dataAsOf"]}
 
 
-def _filter(rows: list[dict], query: dict[str, list[str]]) -> list[dict]:
-    q = _first(query, "q").casefold().strip()
-    if q:
-        rows = [row for row in rows if q in " ".join(str(v) for v in row.values()).casefold()]
-    for key in ("maker", "vendor", "part", "region", "support"):
-        value = _first(query, key).casefold().strip()
-        if value:
-            rows = [row for row in rows if value in str(row.get(key, "")).casefold()]
-    return rows
+# _filter() lived here: an in-Python row matcher applied to an ALREADY PAGED result.
+# It was removed rather than left unused. Its only caller was search(), where it
+# filtered the first page of each table and reported everything beyond it as absent
+# -- a device that exists reading as a device that does not. Filtering belongs in
+# SQL, where it sees every row; a helper that filters a page will eventually be
+# reused on another page. If you need matching, add the column to that query's
+# searchable tuple in _sql_filters.
 
 
 def main() -> None:

@@ -22,6 +22,7 @@ from .collectors.device_promotion import promote_approved_products_to_devices
 from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
 from .current_firmware import ProjectionError, build as build_current_firmware
+from .integrity import check_corpus, summarise
 from .identity_bridge import rebuild_identity_registry
 from .silence import STATUS_SILENT, detect_silence
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
@@ -149,6 +150,14 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
                 "evidence_rows": report.evidence_rows, "digest": report.digest}
         except ProjectionError as error:
             results["current_firmware"] = {"error": str(error), "published": False}
+        # Check the corpus we just produced, against the corpus -- not against a
+        # fresh in-memory schema, which is what every existing validator did and
+        # is why none of them could ever fail. Reported, not raised: the
+        # violations that exist today describe already-ingested data, and
+        # aborting the run repairs none of it.
+        findings = check_corpus(db.connection)
+        results["integrity"] = {"summary": summarise(findings),
+                                "findings": [f.as_dict() for f in findings]}
         # Advisory only: never gates or alters the run above. See silence.py
         # and docs/SOURCE_SILENCE_DETECTION.md. `main()` below turns a
         # "silent" finding into a nonzero process exit and a logged ALARM,

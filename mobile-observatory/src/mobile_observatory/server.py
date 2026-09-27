@@ -15,6 +15,8 @@ from .watches import migrate_watches, list_watches, save_watch
 from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
+from .current_firmware import state as current_firmware_state
+from .integrity import check_corpus, summarise
 from .silence import STATUS_SILENT, detect_silence
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
 
@@ -819,6 +821,18 @@ class ObservatoryService:
         paste = prompt_text + "\n\n# Candidate data\n```json\n" + json.dumps(candidate_data, indent=2) + "\n```\n"
         return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data, "rememberedReviews": memory}
 
+    def integrity(self) -> dict:
+        """Corpus invariant findings, and what the projection is serving.
+
+        Surfaced on an endpoint rather than only written to the batch log,
+        because a finding nobody looks at is not a finding. The Admin page is
+        where an operator already goes to ask whether a run worked.
+        """
+        findings = check_corpus(self.corpus.connection)
+        return {"integrity": {"summary": summarise(findings),
+                              "findings": [f.as_dict() for f in findings]},
+                "projection": current_firmware_state(self.corpus.connection)}
+
     def health(self) -> list[dict]:
         # Silence is advisory and computed independently of the last run's own
         # outcome: a source can end its last run "succeeded" and still be
@@ -1292,7 +1306,8 @@ def make_handler(service: ObservatoryService, web_root: Path):
                 "/api/v1/identity/products": lambda: _page_payload(service.source_products_page(query), service.meta),
                 "/api/v1/security/findings": lambda: _page_payload(service.security_page(query), service.meta),
                 "/api/v1/security/coverage": service.security_coverage,
-                "/api/v1/admin/health": lambda: {"items": service.health(), "meta": service.meta},
+                "/api/v1/admin/health": lambda: {"items": service.health(), "meta": service.meta,
+                                                 **service.integrity()},
                 "/api/v1/search": lambda: {**service.search_payload(query), "meta": service.meta},
                 "/api/v1/admin/config": service.config,
                 "/api/v1/admin/options": service.config_options,

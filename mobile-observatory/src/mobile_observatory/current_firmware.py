@@ -168,6 +168,34 @@ SELECT hardware_model_id,
 """
 
 
+IDENTITY_SQL = """
+INSERT INTO device_catalog_flat_staging
+  (hardware_model_id,manufacturer,brand,family,variant,model_code,codename,
+   chip_marketing_name,chip_part_number,silicon_vendor,silicon_family,silicon_part_count)
+SELECT dc.hardware_model_id,dc.manufacturer,dc.brand,dc.family,dc.variant,dc.model_code,dc.codename,
+       chip.marketing_name, chip.part_number, chip.silicon_vendor, chip.silicon_family,
+       ifnull(chip.part_count,0)
+  FROM v_device_catalog dc
+  LEFT JOIN (
+    -- One row per device: the primary SoC. Ranked by role then part number so
+    -- the choice is deterministic across rebuilds rather than whichever row the
+    -- join happened to yield first. part_count travels with it so a device with
+    -- several parts is never presented as having one.
+    SELECT hardware_model_id, marketing_name, part_number, silicon_vendor, silicon_family, part_count
+      FROM (SELECT hs.hardware_model_id, sp.marketing_name, sp.part_number,
+                   sv.canonical_name AS silicon_vendor, sf.canonical_name AS silicon_family,
+                   count(*) OVER (PARTITION BY hs.hardware_model_id) AS part_count,
+                   row_number() OVER (PARTITION BY hs.hardware_model_id
+                     ORDER BY CASE hs.role WHEN 'primary_soc' THEN 0 ELSE 1 END,
+                              sp.part_number) AS rk
+              FROM hardware_silicon hs
+              JOIN silicon_parts sp ON sp.id = hs.part_id
+              JOIN silicon_families sf ON sf.id = sp.family_id
+              JOIN silicon_vendors sv ON sv.id = sf.vendor_id)
+     WHERE rk = 1) chip ON chip.hardware_model_id = dc.hardware_model_id
+"""
+
+
 @dataclass(frozen=True)
 class BuildReport:
     generation: int
@@ -237,9 +265,19 @@ def _validate(connection) -> None:
     """
     problems: list[str] = []
 
+    # Empty output is only a fault when there was input. A corpus can hold
+    # devices and no firmware at all -- a fresh catalogue, or a fixture that
+    # seeds identities only -- and refusing to publish there would leave the
+    # identity projection unbuilt and every one of those devices invisible.
+    # What must never happen is producing nothing FROM something.
     rows = connection.execute("SELECT count(*) FROM device_current_firmware_staging").fetchone()[0]
-    if rows == 0:
-        problems.append("staging is empty; refusing to replace a populated projection with nothing")
+    available = connection.execute(
+        """SELECT (SELECT count(*) FROM firmware_releases)
+                + (SELECT count(*) FROM product_firmware_releases
+                    WHERE hardware_model_id IS NOT NULL)""").fetchone()[0]
+    if rows == 0 and available:
+        problems.append(f"the corpus holds {available} firmware rows for known devices but the "
+                        "build produced none; refusing to publish an empty projection over them")
 
     # A partition drawing on two publishers would mean the ranking above compared
     # dates that do not share a definition.
@@ -314,6 +352,14 @@ def _validate(connection) -> None:
     if unattributed:
         problems.append(f"{unattributed} staged rows carry a malformed or unattributed patch level")
 
+    # The identity projection must cover the catalogue EXACTLY. A device missing
+    # here is invisible in the grid, not merely missing its firmware.
+    catalogue = connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0]
+    flattened = connection.execute("SELECT count(*) FROM device_catalog_flat_staging").fetchone()[0]
+    if catalogue != flattened:
+        problems.append(f"device_catalog_flat_staging holds {flattened} rows for {catalogue} "
+                        "hardware models; the grid would silently drop the difference")
+
     # Exactly one primary row per device, or the grid either drops a device or
     # renders it twice.
     bad_primary = connection.execute(
@@ -340,6 +386,9 @@ def build(db: Database, *, verbose: bool = False) -> BuildReport:
     # Patch levels first: the canonical select joins them.
     connection.execute("DELETE FROM build_security_patch_levels")
     connection.execute(PATCH_LEVEL_SQL, (built_at,))
+
+    connection.execute("DELETE FROM device_catalog_flat_staging")
+    connection.execute(IDENTITY_SQL)
 
     connection.execute("DELETE FROM device_current_firmware_staging")
     connection.execute(CANONICAL_SQL)
@@ -373,6 +422,15 @@ def build(db: Database, *, verbose: bool = False) -> BuildReport:
 
     # The swap. One transaction, so a reader is never served a partial refresh.
     with db.transaction() as txn:
+        # Both projections swap together. Publishing them separately would let a
+        # reader see identity from one generation beside firmware from another.
+        txn.execute("DELETE FROM device_catalog_flat")
+        txn.execute("""INSERT INTO device_catalog_flat
+                         (hardware_model_id,manufacturer,brand,family,variant,model_code,codename,
+                          chip_marketing_name,chip_part_number,silicon_vendor,silicon_family,silicon_part_count)
+                       SELECT hardware_model_id,manufacturer,brand,family,variant,model_code,codename,
+                              chip_marketing_name,chip_part_number,silicon_vendor,silicon_family,silicon_part_count
+                         FROM device_catalog_flat_staging""")
         txn.execute("DELETE FROM device_current_firmware")
         txn.execute(
             """INSERT INTO device_current_firmware
@@ -396,6 +454,7 @@ def build(db: Database, *, verbose: bool = False) -> BuildReport:
             (generation, built_at, rows, digest))
 
     connection.execute("DELETE FROM device_current_firmware_staging")
+    connection.execute("DELETE FROM device_catalog_flat_staging")
     report = BuildReport(generation, rows, devices, canonical_rows, evidence_rows, built_at, digest)
     if verbose:
         print(report.summary())

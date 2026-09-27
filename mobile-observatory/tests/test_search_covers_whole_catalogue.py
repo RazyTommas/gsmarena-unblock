@@ -52,6 +52,14 @@ class SearchCoverageTest(unittest.TestCase):
             c.execute("INSERT INTO hardware_models(id,variant_id,model_code,model_code_normalized,"
                       "codename,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
                       (f"h{n}", f"v{n}", f"TC-{n:04d}", f"tc{n:04d}", f"code{n:04d}", now, now))
+        # Publish the projections the read path serves from, exactly as
+        # run_batch does after ingesting. A device that exists in
+        # hardware_models but not in device_catalog_flat is invisible to the
+        # grid and to search -- which is the point of
+        # integrity.check_corpus()'s device_missing_from_catalogue_projection,
+        # and why a fixture that skips this step is testing the wrong corpus.
+        from mobile_observatory.current_firmware import build as build_projections
+        build_projections(corpus)
         self.service = ObservatoryService(corpus, self.tmp / "local.sqlite",
                                           demonstration=False)
 

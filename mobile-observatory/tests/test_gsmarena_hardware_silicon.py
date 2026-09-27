@@ -44,6 +44,12 @@ class GsmarenaHardwareSiliconTests(unittest.TestCase):
     def explore_silicon_column(self) -> dict[str, str | None]:
         """Read the chipset exactly the way server.py::devices_page does, not a
         hand-rolled query -- this is the real Explore 'Silicon' column consumer."""
+        # devices_page serves device_catalog_flat, which carries the device's
+        # primary SoC. Publishing it here is what run_batch does after silicon
+        # enrichment (batch.py runs enrich_* then build_current_firmware), so
+        # reading without it would test a corpus production never serves.
+        from mobile_observatory.current_firmware import build as build_projections
+        build_projections(self.db)
         svc = ObservatoryService(self.db, self.root / "local.sqlite", demonstration=False)
         items = svc.devices_page({"limit": ["200"]}).items
         return {i["model"]: i.get("chip") for i in items}

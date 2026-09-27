@@ -88,22 +88,94 @@ class InvariantsCanFailTest(unittest.TestCase):
             "WHERE rowid=(SELECT rowid FROM device_current_firmware LIMIT 1)")
         self.assertIn("malformed_or_unattributed_patch_level", self._checks())
 
-    def test_detects_run_accounting_mismatch(self) -> None:
+    def test_detects_a_run_that_accepted_records_but_holds_none(self) -> None:
+        """A run whose records exist nowhere in the corpus."""
+        self.assertNotIn("run_accepted_but_holds_nothing", self._checks())
         self.con.execute(
             "INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,parser_version,"
             "accepted_count,rejected_count) SELECT 'phantom-run',id,'2026-01-01T00:00:00Z','succeeded',"
-            "'p','1',999,0 FROM sources LIMIT 1")
+            "'parser-with-no-other-run','1',999,0 FROM sources LIMIT 1")
         found = self._checks()
-        self.assertIn("run_accounting_mismatch", found)
-        self.assertGreaterEqual(found["run_accounting_mismatch"], 1)
+        self.assertIn("run_accepted_but_holds_nothing", found)
+        self.assertEqual(found["run_accepted_but_holds_nothing"], 1)
 
-    def test_detects_a_source_product_naming_an_unknown_manufacturer(self) -> None:
+    def test_tolerates_an_adapter_that_fans_one_record_into_several(self) -> None:
+        """The check this replaced got this exact case wrong.
+
+        The TECNO feed accepts 828 source records and emits 862 observations.
+        An invariant demanding accepted_count == count(observations) called that
+        corruption for two runs. Asserting the tolerance so it is not
+        reintroduced.
+        """
+        source = self.con.execute("SELECT id FROM sources LIMIT 1").fetchone()[0]
+        self.con.execute(
+            "INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,parser_version,"
+            "accepted_count,rejected_count) VALUES('fanout-run',?,'2026-01-01T00:00:00Z','succeeded',"
+            "'fanout','1',2,0)", (source,))
+        self.con.execute(
+            "INSERT INTO artifacts VALUES('fanout-art',?,'fanout-run',?,'text/csv',NULL,?,'x',1)",
+            (source, "f" * 64, "2026-01-01T00:00:00Z"))
+        for index in range(3):  # 2 accepted records -> 3 observations
+            self.con.execute(
+                "INSERT INTO observations VALUES(?,?,'fanout-run','fanout-art','firmware_release',"
+                "?,'2026-01-01T00:00:00Z','{}',?,'valid',NULL)",
+                (f"fan-{index}", source, f"fank-{index}", f"{index:064d}"))
+        self.assertNotIn("run_accepted_but_holds_nothing", self._checks())
+
+    def test_tolerates_a_superseded_run_left_empty_by_a_reingest(self) -> None:
+        """Re-ingesting under a new run id empties the old one. Not a fault."""
+        source = self.con.execute("SELECT id FROM sources LIMIT 1").fetchone()[0]
+        self.con.execute(
+            "INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,parser_version,"
+            "accepted_count,rejected_count) VALUES('old-run',?,'2026-01-01T00:00:00Z','succeeded',"
+            "'shared-parser','1',5,0)", (source,))
+        self.con.execute(
+            "INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,parser_version,"
+            "accepted_count,rejected_count) VALUES('new-run',?,'2026-02-01T00:00:00Z','succeeded',"
+            "'shared-parser','1',5,0)", (source,))
+        self.con.execute(
+            "INSERT INTO artifacts VALUES('sup-art',?,'new-run',?,'text/csv',NULL,?,'x',1)",
+            (source, "e" * 64, "2026-02-01T00:00:00Z"))
+        self.con.execute(
+            "INSERT INTO observations VALUES('sup-obs',?,'new-run','sup-art','firmware_release',"
+            "'supk','2026-02-01T00:00:00Z','{}',?,'valid',NULL)", (source, "d" * 64))
+        # old-run holds nothing, but its records live under new-run.
+        self.assertNotIn("run_accepted_but_holds_nothing", self._checks())
+
+    def test_detects_an_approved_product_naming_an_unplaceable_vendor(self) -> None:
+        """An approved product mints its vendor at promotion, so a typo sticks."""
         self.con.execute(
             "INSERT INTO source_products VALUES('p-ghost','Nokia Of Nowhere','Ghost','ghost',"
-            "'proposed',NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')")
+            "'approved',NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')")
         found = self._checks()
-        self.assertIn("source_product_unknown_manufacturer", found)
-        self.assertGreaterEqual(found["source_product_unknown_manufacturer"], 1)
+        self.assertIn("approved_product_unplaceable_vendor", found)
+        self.assertEqual(found["approved_product_unplaceable_vendor"], 1)
+
+    def test_an_unapproved_product_naming_an_unknown_vendor_is_not_a_fault(self) -> None:
+        """The evidence layer exists to hold identities the corpus has not vetted.
+
+        Apple sits here on the live corpus: 66 proposed products, no
+        manufacturer row and no brand row, and nothing wrong. An earlier version
+        of this check flagged all of them, plus all 425 Samsung products,
+        because it resolved against manufacturers only.
+        """
+        self.con.execute(
+            "INSERT INTO source_products VALUES('p-pending','Apple','iPhone 4','iphone 4',"
+            "'proposed',NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')")
+        self.assertNotIn("approved_product_unplaceable_vendor", self._checks())
+
+    def test_a_vendor_named_as_a_brand_resolves(self) -> None:
+        """Sources say "Samsung"; the manufacturer is "Samsung Electronics"."""
+        brand = self.con.execute(
+            "SELECT b.canonical_name, m.canonical_name FROM brands b "
+            "JOIN manufacturers m ON m.id=b.manufacturer_id LIMIT 1").fetchone()
+        self.assertNotEqual(brand[0], brand[1],
+                            "fixture must have a brand whose name differs from its manufacturer, "
+                            "or this test cannot tell the two lookups apart")
+        self.con.execute(
+            "INSERT INTO source_products VALUES('p-brandnamed',?,'Galaxy Z','galaxy z',"
+            "'approved',NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", (brand[0],))
+        self.assertNotIn("approved_product_unplaceable_vendor", self._checks())
 
     def test_detects_foreign_key_orphans(self) -> None:
         self.assertNotIn("foreign_key_orphans", self._checks())

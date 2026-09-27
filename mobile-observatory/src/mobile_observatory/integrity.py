@@ -13,19 +13,32 @@ could lie to a user, rather than to a way SQLite could complain. Each is written
 so it CAN fail -- tests/test_integrity.py plants a violation for each one and
 asserts it is caught, because a check that cannot fail is decoration.
 
-Findings are returned, not raised. Two reasons. Several of these are violated by
-the live corpus today: the run-accounting check finds 4 of 21 runs whose
-accepted_count disagrees with the observations they actually hold, and the
-manufacturer check finds 491 of 2,347 source_products whose manufacturer string
-resolves to no manufacturers row. Those are pre-existing facts about data that
-is already ingested; aborting tonight's batch does not repair them, it only
+Findings are returned, not raised, because a violation usually describes data
+that is already ingested: aborting tonight's batch does not repair it, it only
 stops the corpus being updated. And a finding nobody can see is not a finding,
 so they are surfaced on /api/v1/admin/health as well as in the batch result.
+
+TWO OF THESE CHECKS WERE WRONG, and both reported a healthy corpus as defective
+before being caught. They are documented at their sites rather than quietly
+deleted, because the failure mode -- trusting a new instrument that had never
+been run against data that violates it -- is exactly the one this module exists
+to prevent:
+
+  * run accounting asserted accepted_count == count(observations). Adapters
+    legitimately fan out: the TECNO feed splits a device group without inventing
+    a day, so 828 accepted records emit 862 observations. accepted_count was
+    right and the check was wrong.
+  * vendor resolution checked the manufacturers table only, so all 425 Samsung
+    products failed -- sources say "Samsung" where the canonical manufacturer is
+    "Samsung Electronics", which the brands table already maps -- and it claimed
+    they could "never join the canonical layer" when promotion creates the
+    manufacturer on demand.
 
 Severity is about what a reader would conclude, not about how alarming it
 sounds:
   error   -- the corpus would make the UI state something false
   warning -- the corpus is internally inconsistent but nothing is misreported
+Work that is merely PENDING is not a finding at all; see review_queue().
 """
 from __future__ import annotations
 
@@ -77,6 +90,20 @@ def check_corpus(connection) -> list[Finding]:
             f"{invisible} devices have observed firmware that the read path cannot see; "
             "the projection is stale or was never built (python3 -m mobile_observatory.current_firmware)"))
 
+    # -- the grid must be able to see every device ---------------------------
+    # Sharper than the firmware case: a device missing from the identity
+    # projection is absent from the catalogue entirely, not merely missing its
+    # firmware, and nothing else in the UI would reveal it.
+    unlisted = _scalar(connection, """
+        SELECT count(*) FROM hardware_models hm
+         WHERE NOT EXISTS (SELECT 1 FROM device_catalog_flat d
+                            WHERE d.hardware_model_id = hm.id)""")
+    if unlisted:
+        findings.append(Finding(
+            "device_missing_from_catalogue_projection", "error", unlisted,
+            f"{unlisted} hardware models are invisible in the device grid; the identity "
+            "projection is stale (python3 -m mobile_observatory.current_firmware)"))
+
     # -- the projection must not outlive the evidence it summarises ----------
     stale = connection.execute("""
         SELECT p.built_at, (SELECT max(observed_at) FROM observations)
@@ -104,35 +131,119 @@ def check_corpus(connection) -> list[Finding]:
         findings.append(Finding("malformed_or_unattributed_patch_level", "error", bad_patch,
                                 "a patch level is shown without a publisher, or is not a date"))
 
-    # -- run accounting -------------------------------------------------------
-    # A run whose accepted_count does not match the observations it holds is a
-    # run that CANNOT be audited: a failed-partway run and a clean one look
-    # identical to anything reading the counter. Measured: 4 of 21 live runs,
-    # three of which claim 828/560/33 accepted while holding zero observations.
-    mismatched = connection.execute("""
-        SELECT r.id, r.accepted_count, r.rejected_count,
-               (SELECT count(*) FROM observations o WHERE o.run_id=r.id)
+    # -- a run that accepted records must hold some --------------------------
+    #
+    # This check replaces an earlier one asserting
+    #   accepted_count + rejected_count == count(observations)
+    # which was WRONG, and wrong in the way worth writing down: it assumed one
+    # source record yields one observation. Adapters legitimately fan out. The
+    # TECNO security feed splits a device group without inventing a day, so
+    # 828 accepted CSV records emit 862 observations -- measured exactly: 828
+    # distinct artifact_pointers, 34 of them yielding two observations each.
+    # accepted_count was right and the invariant was wrong, and it spent two
+    # runs reporting a healthy corpus as defective.
+    #
+    # What IS a real fault is a run that claims to have accepted records while
+    # holding none, with nothing else holding them either. A re-ingest under a
+    # new run id is normal and leaves the old run empty -- that is supersession,
+    # matched on parser_name because a re-ingest can also change the source id
+    # (google.ota.checkin.tecno -> google.ota.checkin did exactly that).
+    stranded = connection.execute("""
+        SELECT r.id, r.accepted_count, r.parser_name
           FROM ingestion_runs r
-         WHERE ifnull(r.accepted_count,0)+ifnull(r.rejected_count,0)
-               <> (SELECT count(*) FROM observations o WHERE o.run_id=r.id)""").fetchall()
-    if mismatched:
-        worst = ", ".join(f"{row[0]}: claims {row[1]}, holds {row[3]}" for row in mismatched[:3])
-        findings.append(Finding("run_accounting_mismatch", "warning", len(mismatched),
-                                f"runs whose counters disagree with their observations ({worst})"))
+         WHERE r.accepted_count > 0
+           AND NOT EXISTS (SELECT 1 FROM observations o WHERE o.run_id=r.id)
+           AND NOT EXISTS (
+                 SELECT 1 FROM ingestion_runs sibling
+                  WHERE sibling.parser_name = r.parser_name AND sibling.id <> r.id
+                    AND EXISTS (SELECT 1 FROM observations o2 WHERE o2.run_id=sibling.id))""").fetchall()
+    if stranded:
+        detail = ", ".join(f"{row[0]} claims {row[1]}" for row in stranded[:3])
+        findings.append(Finding("run_accepted_but_holds_nothing", "error", len(stranded),
+                                f"runs that accepted records, hold none, and were not superseded "
+                                f"by a later run of the same parser ({detail})"))
 
-    # -- source products must name a manufacturer the corpus knows ----------
-    unknown_maker = _scalar(connection, """
-        SELECT count(*) FROM source_products sp
-         WHERE NOT EXISTS (SELECT 1 FROM manufacturers m
-                            WHERE m.canonical_name = sp.manufacturer COLLATE NOCASE)""")
-    if unknown_maker:
-        findings.append(Finding("source_product_unknown_manufacturer", "warning", unknown_maker,
-                                "source_products.manufacturer resolves to no manufacturers row, so "
-                                "these products can never join the canonical layer"))
+    # -- source products must name a vendor the corpus can place -------------
+    #
+    # Resolved against brands as well as manufacturers, because
+    # source_products.manufacturer holds whatever the SOURCE called the vendor,
+    # and sources say "Samsung" where the canonical manufacturer is "Samsung
+    # Electronics" -- a brand, which brands already maps. The earlier version
+    # checked manufacturers alone and reported all 425 Samsung products as
+    # unplaceable, along with a claim that they "can never join the canonical
+    # layer". That claim was also false: CanonicalRepository._find_or_insert
+    # creates a manufacturer on demand during promotion.
+    #
+    # What remains worth flagging is a vendor string the corpus cannot place at
+    # ALL -- neither manufacturer nor brand -- because nothing else in the
+    # corpus corroborates that the vendor exists.
+    # Scoped to APPROVED products only, deliberately. An unapproved product
+    # naming an unknown vendor is the evidence layer doing its job -- it exists
+    # to hold identities the corpus has not vetted, and requiring its vendor
+    # strings to pre-exist in the canonical layer would invert the two-layer
+    # model. Apple sits here: 66 proposed products, no manufacturer and no
+    # brand, and nothing wrong. review_queue() reports it as pending work.
+    #
+    # An APPROVED product naming a vendor nothing corroborates is different:
+    # promotion will mint a manufacturer from that string, so a typo becomes a
+    # permanent canonical row.
+    unplaceable = connection.execute("""
+        SELECT sp.manufacturer, count(*) FROM source_products sp
+         WHERE sp.review_state = 'approved'
+           AND NOT EXISTS (SELECT 1 FROM manufacturers m
+                            WHERE m.canonical_name = sp.manufacturer COLLATE NOCASE)
+           AND NOT EXISTS (SELECT 1 FROM brands b
+                            WHERE b.canonical_name = sp.manufacturer COLLATE NOCASE)
+         GROUP BY sp.manufacturer""").fetchall()
+    if unplaceable:
+        total = sum(row[1] for row in unplaceable)
+        names = ", ".join(f"{row[0]} ({row[1]})" for row in unplaceable)
+        findings.append(Finding("approved_product_unplaceable_vendor", "error", total,
+                                f"approved products name a vendor matching no manufacturer and no "
+                                f"brand, so promotion would mint one from the string: {names}"))
 
     order = {"error": 0, "warning": 1}
     findings.sort(key=lambda f: (order.get(f.severity, 2), -f.count))
     return findings
+
+
+def review_queue(connection) -> list[dict]:
+    """Evidence that is captured but not yet serving, and what is holding it.
+
+    This is not a fault, so it is not a Finding -- it is the state of the review
+    queue, and it exists because the UI otherwise shows a vendor as a silent
+    zero. Apple is the clearest case: 4,450 ipsw.me firmware observations are in
+    the corpus and 66 Apple products carry them, but every one is review_state
+    'proposed', so promote_approved_product_observations (enrichment.py:219,
+    `sp.review_state='approved'`) skips them and the catalogue shows no Apple
+    device at all.
+
+    That gate is correct and should stay closed. automate_identity_review
+    approves only "exact, independently supported matches", and it corroborates
+    against the Xiaomi catalogue, the GSMArena specs and the Google Play device
+    list -- none of which carry Apple. So there is no evidence to approve on,
+    and approving anyway would be inventing the corroboration the two-layer
+    model exists to require.
+
+    What was wrong was not the gate but the silence around it. A reader saw
+    "Apple 0" and could not tell whether the corpus had never looked, had
+    looked and found nothing, or was holding thousands of observations behind a
+    review. This reports the third case as the number it is.
+    """
+    return [dict(row) for row in connection.execute("""
+        SELECT sp.manufacturer AS vendor,
+               count(DISTINCT sp.id) AS products,
+               sum(sp.review_state='approved') AS approved,
+               (SELECT count(*) FROM observation_product_links opl
+                  JOIN source_products s2 ON s2.id = opl.product_id
+                 WHERE s2.manufacturer = sp.manufacturer
+                   AND s2.review_state <> 'approved') AS observations_awaiting_review,
+               (SELECT count(DISTINCT phl.hardware_model_id) FROM product_hardware_links phl
+                  JOIN source_products s3 ON s3.id = phl.product_id
+                 WHERE s3.manufacturer = sp.manufacturer) AS canonical_devices
+          FROM source_products sp
+         GROUP BY sp.manufacturer
+         ORDER BY observations_awaiting_review DESC, sp.manufacturer""")]
 
 
 def summarise(findings: list[Finding]) -> str:
@@ -161,6 +272,13 @@ def main() -> None:
         print(summarise(findings))
         for finding in findings:
             print(f"  [{finding.severity}] {finding.check}: {finding.count} — {finding.detail}")
+        print()
+        print("review queue (captured evidence not yet serving):")
+        print("  %-10s %9s %9s %9s %s" % ("vendor", "products", "approved", "devices", "obs awaiting review"))
+        for row in review_queue(db.connection):
+            print("  %-10s %9d %9d %9d %d" % (
+                row["vendor"], row["products"], row["approved"],
+                row["canonical_devices"], row["observations_awaiting_review"]))
         if args.strict and any(f.severity == "error" for f in findings):
             raise SystemExit(1)
     finally:

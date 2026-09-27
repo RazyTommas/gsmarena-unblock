@@ -16,7 +16,7 @@ from .proposals import migrate_proposals, import_proposals, list_proposals, revi
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
 from .current_firmware import state as current_firmware_state
-from .integrity import check_corpus, summarise
+from .integrity import check_corpus, review_queue, summarise
 from .silence import STATUS_SILENT, detect_silence
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
 
@@ -261,19 +261,58 @@ class ObservatoryService:
         ]
         return QueryPage(result, total, limit, offset)
 
+    def _support_for(self, device_ids) -> dict[str, dict]:
+        """Currently-valid support assertion for each device on THIS page.
+
+        One query for the page rather than a correlated subquery per candidate
+        row. As a join condition it ran 53,436 times to render 100 rows and
+        blocked the planner from using the catalogue's name index; measured at
+        176x device volume, moving it here took /devices from 228ms to 18ms.
+
+        Evaluated against now() on every request rather than baked into the
+        nightly projection, because an assertion is valid over a time window and
+        a cached copy would be wrong for up to a day whenever one opens or
+        expires.
+        """
+        ids = list(dict.fromkeys(device_ids))
+        if not ids:
+            return {}
+        placeholders = ",".join("?" * len(ids))
+        rows = self.corpus.connection.execute(
+            f"""SELECT sa.subject_id, sa.status, sa.evidence_id, sa.asserted_at
+                  FROM support_assertions sa
+                 WHERE sa.subject_type='hardware_model'
+                   AND sa.subject_id IN ({placeholders})
+                   AND (sa.valid_from IS NULL OR datetime(sa.valid_from)<=datetime('now'))
+                   AND (sa.valid_to IS NULL OR datetime(sa.valid_to)>datetime('now'))
+                 ORDER BY sa.asserted_at, sa.id""", ids).fetchall()
+        # Later rows win, matching the ORDER BY asserted_at DESC, id DESC the
+        # join used to apply.
+        return {row["subject_id"]: {"support_status": row["status"],
+                                    "support_evidence_id": row["evidence_id"],
+                                    "support_asserted_at": row["asserted_at"]}
+                for row in rows}
+
     def devices(self, query: dict[str, list[str]]) -> list[dict]:
         return self.devices_page(query).items
 
     def devices_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses, params = _sql_filters(query, {
-            "maker": "dc.brand", "vendor": "cd.silicon_vendor", "family": "cd.silicon_family",
-            "part": "cd.part_number", "region": "lf.device_target_codes", "model": "dc.model_code"},
-            ("dc.brand", "dc.variant", "dc.model_code", "dc.codename", "cd.marketing_name", "cd.part_number"))
+            "maker": "dc.brand", "vendor": "dc.silicon_vendor", "family": "dc.silicon_family",
+            "part": "dc.chip_part_number", "region": "lf.device_target_codes", "model": "dc.model_code"},
+            ("dc.brand", "dc.variant", "dc.model_code", "dc.codename",
+             "dc.chip_marketing_name", "dc.chip_part_number"))
         support = _first(query, "support").strip()
         support_codes = {"Supported": "officially_supported", "Likely supported": "likely_supported",
                          "End announced": "end_announced", "Unsupported": "unsupported", "Unknown": "unknown"}
         if support and support != "all":
-            clauses.append("coalesce(sa.status,'unknown')=?")
+            # Filtering by support still needs the join, so it is added only for
+            # the requests that ask for it rather than paid for by every request.
+            clauses.append("""coalesce((SELECT sa2.status FROM support_assertions sa2
+                 WHERE sa2.subject_type='hardware_model' AND sa2.subject_id=dc.hardware_model_id
+                   AND (sa2.valid_from IS NULL OR datetime(sa2.valid_from)<=datetime('now'))
+                   AND (sa2.valid_to IS NULL OR datetime(sa2.valid_to)>datetime('now'))
+                 ORDER BY sa2.asserted_at DESC,sa2.id DESC LIMIT 1),'unknown')=?""")
             params.append(support_codes.get(support, support))
         max_android = _first(query, "max_android").strip()
         if max_android:
@@ -288,17 +327,23 @@ class ObservatoryService:
                 params.append(int(max_android))
             except ValueError:
                 clauses.append("0")
-        base = f"""FROM v_device_catalog dc
-               LEFT JOIN support_assertions sa ON sa.id=(
-                 SELECT sa2.id FROM support_assertions sa2
-                 WHERE sa2.subject_type='hardware_model' AND sa2.subject_id=dc.hardware_model_id
-                   AND (sa2.valid_from IS NULL OR datetime(sa2.valid_from)<=datetime('now'))
-                   AND (sa2.valid_to IS NULL OR datetime(sa2.valid_to)>datetime('now'))
-                 ORDER BY sa2.asserted_at DESC,sa2.id DESC LIMIT 1)
-               LEFT JOIN hardware_silicon hs ON hs.hardware_model_id = dc.hardware_model_id
-               LEFT JOIN silicon_parts sp ON sp.id = hs.part_id
-               LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
-                                             AND cd.part_id = sp.id
+        # device_catalog_flat, not v_device_catalog: the view re-joins five
+        # identity tables per request and its ORDER BY spans three of them, so
+        # the plan ended in USE TEMP B-TREE FOR ORDER BY over the whole
+        # catalogue -- 404ms of the 404ms remaining at 53,436 devices. The flat
+        # projection carries an index in exactly the grid's sort order.
+        # Support is NOT joined here. It was a correlated scalar subquery in a
+        # LEFT JOIN condition, which SQLite must evaluate for every candidate row
+        # before ORDER BY can run -- 53,436 evaluations to render 100 rows, and
+        # it also stopped the planner using device_catalog_flat_name_idx, so the
+        # whole catalogue went through a temp B-tree twice. It is fetched for the
+        # page's own ids below instead.
+        #
+        # Not folded into the projection like silicon, deliberately: an assertion
+        # is valid over a time WINDOW, so a nightly-built copy would be wrong for
+        # up to a day every time one opens or expires. Support status is the one
+        # column here that has to be evaluated against now().
+        base = f"""FROM device_catalog_flat dc
                -- Both of these were computed per request: a row_number() window
                -- over the whole projection to pick one row per device, and a
                -- GROUP BY over the whole projection for the totals -- each in
@@ -332,19 +377,34 @@ class ObservatoryService:
                  "android_desc": "lf.android_major IS NULL,lf.android_major DESC,dc.brand,dc.variant"}.get(
                      sort, "dc.brand,dc.variant,dc.model_code")
         rows = self.corpus.connection.execute(
-            """SELECT count(*) OVER() _total,dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
-                      sa.status support_status,sa.evidence_id support_evidence_id,sa.asserted_at support_asserted_at,
-                      sp.marketing_name chip, sp.part_number part,
+            # No count(*) OVER() here. A window over the result set forces SQLite
+            # to materialise EVERY matching row before LIMIT can discard any, so
+            # the plan ended in USE TEMP B-TREE FOR ORDER BY even once both
+            # projections were seekable. Measured at 53,436 devices: 89ms with
+            # the window, 0.1ms without it plus 1.8ms for the count as its own
+            # query. The separate count below was already there as a fallback.
+            """SELECT dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
+                      dc.chip_marketing_name chip, dc.chip_part_number part,
+                      dc.silicon_part_count part_count,
                       lf.android_version android, lf.latest_basis software_state_basis,
                       lf.security_patch_level patch, lf.security_patch_level_source_id patch_source,
                       lf.build_id build, lf.effective_at_basis date_basis, lf.fact_layer fact_layer,
                       lf.device_target_codes region, lf.device_target_total target_count,
                       coalesce(lf.device_release_total,0) firmware_count,
                       lf.effective_at latest_firmware_at """
-            + base + f" GROUP BY dc.hardware_model_id ORDER BY {order} LIMIT ? OFFSET ?",
+            # No GROUP BY. It was needed when this query joined hardware_silicon
+            # and v_chip_devices, which fan out per device. Both projections are
+            # now exactly one row per device -- device_catalog_flat by primary
+            # key, device_current_firmware by the is_device_primary flag that
+            # _validate() proves unique -- so grouping only forced SQLite to scan
+            # by hardware_model_id and then sort the whole catalogue in a temp
+            # B-tree. Without it the planner walks device_catalog_flat_name_idx
+            # in order and stops at LIMIT.
+            + base + f" ORDER BY {order} LIMIT ? OFFSET ?",
             [*params, limit, offset]).fetchall()
-        total = rows[0]["_total"] if rows else self.corpus.connection.execute(
-            "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
+        total = self.corpus.connection.execute(
+            "SELECT count(*) " + base, params).fetchone()[0]
+        support_by_device = self._support_for(row["id"] for row in rows)
         result = [
             # The Android version and patch level stay suppressed when the only
             # basis is capture order. They describe the build we picked, and on
@@ -357,11 +417,15 @@ class ObservatoryService:
              "patch": (row["patch"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
              "region": row["region"] or "Catalogued; firmware not observed",
              "firmwareCoverage": "observed" if row["firmware_count"] else "not_observed",
-             "support": {v:k for k,v in support_codes.items()}.get(row["support_status"], "Unknown"), "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
+             **support_by_device.get(row["id"], {"support_status": None, "support_evidence_id": None,
+                                                 "support_asserted_at": None}),
+             "support": {v: k for k, v in support_codes.items()}.get(
+                 (support_by_device.get(row["id"]) or {}).get("support_status"), "Unknown"),
+             "confidence": "Demonstration" if self.demonstration else "Reviewed identity"}
             for row in rows
         ]
         for item in result:
-            item.pop("_total",None)
+            item.pop("_total",None)  # kept: other page builders still window
         return QueryPage(result, total, limit, offset)
 
     def chips(self, query: dict[str, list[str]]) -> list[dict]:
@@ -827,7 +891,11 @@ class ObservatoryService:
         findings = check_corpus(self.corpus.connection)
         return {"integrity": {"summary": summarise(findings),
                               "findings": [f.as_dict() for f in findings]},
-                "projection": current_firmware_state(self.corpus.connection)}
+                "projection": current_firmware_state(self.corpus.connection),
+                # Pending work, reported separately from faults. Without this a
+                # vendor whose evidence is all awaiting review shows as a silent
+                # zero and reads as "never collected".
+                "reviewQueue": review_queue(self.corpus.connection)}
 
     def health(self) -> list[dict]:
         # Silence is advisory and computed independently of the last run's own
@@ -975,11 +1043,15 @@ class ObservatoryService:
         made the type-ahead cost half a second.
         """
         like = f"%{q}%"
-        base = """FROM v_device_catalog dc
-                  LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
+        # Reads device_catalog_flat, the same row devices_page reads, which is
+        # what keeps the promise above literally true: both now match against
+        # the device's primary SoC rather than one matching every part and the
+        # other one. It also drops a MATERIALIZE of v_chip_devices per keystroke.
+        base = """FROM device_catalog_flat dc
                   WHERE dc.brand LIKE ? COLLATE NOCASE OR dc.variant LIKE ? COLLATE NOCASE
                      OR dc.model_code LIKE ? COLLATE NOCASE OR dc.codename LIKE ? COLLATE NOCASE
-                     OR cd.marketing_name LIKE ? COLLATE NOCASE OR cd.part_number LIKE ? COLLATE NOCASE"""
+                     OR dc.chip_marketing_name LIKE ? COLLATE NOCASE
+                     OR dc.chip_part_number LIKE ? COLLATE NOCASE"""
         params = [like] * 6
         total = self.corpus.connection.execute(
             "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]

@@ -34,8 +34,13 @@ def seed_demonstration(db: Database, fixture_path: str | Path) -> None:
         (source_id, "Synthetic demonstration fixture", DEMO_TIME),
     )
     con.execute(
+        # fetched 1, accepted 0. The fixture writes firmware_releases and
+        # evidence directly and never creates an observation, so a nonzero
+        # accepted_count claimed records that do not exist anywhere in the
+        # corpus -- which is precisely what integrity.check_corpus flags as
+        # run_accepted_but_holds_nothing. The counter was the wrong part.
         """INSERT INTO ingestion_runs VALUES
-           (?, ?, ?, ?, 'succeeded', 'demo-seed', '1', 1, 1, 0, NULL)""",
+           (?, ?, ?, ?, 'succeeded', 'demo-seed', '1', 1, 0, 0, NULL)""",
         (run_id, source_id, DEMO_TIME, DEMO_TIME),
     )
     con.execute(

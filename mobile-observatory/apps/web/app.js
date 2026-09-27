@@ -1,6 +1,6 @@
 import { api, API_BASE } from './api.js';
 
-const state = { route: 'radar', data: null, fixtureMode: false, filter: '', acknowledged: new Set(), radarTab:'new', radarRegion:'all', radarChange:'all', exploreMode:'devices', exploreSort:{devices:'name_asc',silicon:'mobile_desc',releases:'latest_desc',sources:'latest_desc'}, productMode:'firmware', productQuery:'', productMaker:'', productRegion:'', productSort:'released_desc', maker:'all', chipVendor:'all', chipFamily:'all', chipPart:'all', android:'all', region:'all', support:'all', sourcePage:0, sourceQuery:'', sourceKind:'', sourceName:'', config:null };
+const state = { route: 'radar', data: null, fixtureMode: false, filter: '', acknowledged: new Set(), radarTab:'new', radarTabPinned:false, radarRegion:'all', radarChange:'all', exploreMode:'devices', exploreSort:{devices:'name_asc',silicon:'mobile_desc',releases:'latest_desc',sources:'latest_desc'}, productMode:'firmware', productQuery:'', productMaker:'', productRegion:'', productSort:'released_desc', maker:'all', chipVendor:'all', chipFamily:'all', chipPart:'all', android:'all', region:'all', support:'all', sourcePage:0, sourceQuery:'', sourceKind:'', sourceName:'', config:null };
 state.securityFilters = {};
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -78,15 +78,27 @@ async function load() {
     // Phase 1: only what Radar and the chrome need. The old boot awaited all 24
     // endpoints before painting anything, so first paint was hostage to the
     // slowest of them.
-    const [overview, updates, acknowledgements, health, config, watches, watchlist] = await Promise.all([
-      api.overview(), api.updates(radarFilters()), api.acknowledgements(),
+    const [overview, updates, health, config, watches, watchlist] = await Promise.all([
+      api.overview(), api.updates(radarFilters()),
       api.health(), api.config(), api.watches(), api.watchlist()
     ]);
     state.data = { ...EMPTY_DATA, meta: overview.meta || {}, overview,
       updates: items(updates), updatePage: updates.meta?.page || {},
       health: items(health), watches: items(watches), watchlist: items(watchlist) };
     state.config = config;
-    state.acknowledged = new Set(items(acknowledgements));
+    // Seeded from the rows actually on screen, which is all this set is ever
+    // asked about. The whole-list endpoint shipped 5,785 ids (220KB) on every
+    // cold load -- the boot's largest single response -- to render a feed of
+    // at most a few hundred.
+    state.acknowledged = new Set(items(updates).filter(x => x.acknowledged).map(x => x.id));
+    // Land on a tab that has something in it. "New" means "not yet
+    // acknowledged", and on a corpus whose backlog has been worked through that
+    // is legitimately empty -- 5,785 of 5,850 events acknowledged here -- so the
+    // front page greeted every visitor with "No new updates match." while the
+    // History tab held 5,850 rows. An empty default is a worse answer than a
+    // full one the reader did not ask for.
+    const flipToHistory = !state.radarTabPinned && !(overview.unseen > 0);
+    if (flipToHistory) state.radarTab = 'history';
     state.fixtureMode = false;
     state.pending = true;
     __loadAttempt = 0;
@@ -94,6 +106,12 @@ async function load() {
     $('#snapshotLabel').textContent = state.data.meta?.snapshot || 'Current';
     $('#navCount').textContent = state.data.overview.unseen ?? state.data.updates.length;
     render();
+    // The feed above was fetched for the 'new' tab, because unseen is not known
+    // until overview resolves and both are in the same Promise.all. Setting the
+    // tab alone would show History selected over the empty New results -- which
+    // is worse than the bug it replaced, since the tab would then be lying
+    // about what is under it. Refetch, after first paint so nothing is delayed.
+    if (flipToHistory) loadRadarPage(0).catch(() => {});
     loadRest();
     return;
   } catch (error) {
@@ -171,7 +189,11 @@ async function ensureAgentBundle() {
 }
 
 function radarFilters(offset=0){return {limit:pageSize(),offset,q:state.filter,tab:state.radarTab,region:state.radarRegion==='all'?'':state.radarRegion,change:state.radarChange==='all'?'':state.radarChange};}
-async function loadRadarPage(offset=0){const payload=await api.updates(radarFilters(offset));state.data.updates=items(payload);state.data.updatePage=payload.meta?.page||{};render();}
+async function loadRadarPage(offset=0){const payload=await api.updates(radarFilters(offset));state.data.updates=items(payload);state.data.updatePage=payload.meta?.page||{};
+  // Each page carries its own acknowledged flags, so paging keeps the set in
+  // step without ever fetching the whole acknowledgement table.
+  state.data.updates.forEach(x=>{if(x.acknowledged)state.acknowledged.add(x.id);});
+  render();}
 function watchButton(type,id){if(!id)return '';const enabled=(state.data.watches||[]).some(w=>w.subject_type===type&&w.subject_id===id);return `<button class="button toggle-watch" data-watch-type="${escapeHtml(type)}" data-watch-id="${escapeHtml(id)}" data-enabled="${enabled?'0':'1'}">${enabled?'★ Watching':'☆ Watch'}</button>`;}
 function bindWatches(root=document){
   root.querySelectorAll('.toggle-watch').forEach(button=>{
@@ -214,12 +236,15 @@ function renderRadar() {
       <div class="time">Detected ${escapeHtml(x.detectedAt||x.age)}<br><span class="subtle">Effective ${val(x.effectiveAt,'effective date')}</span><br><button class="button acknowledge" data-id="${escapeHtml(x.id)}">Mark seen</button></div>
     </article>`).join('');
   return heading('Update Radar','What changed since your last visit','A precise feed of new firmware for the devices and regions you care about.') + `
-    <div class="metrics"><div class="metric"><small>New firmware</small><strong>${o.unseen}</strong><span>since your last visit</span></div><div class="metric"><small>Android upgrades</small><strong>${o.androidUpgrades}</strong><span>major version changes</span></div><div class="metric"><small>Security patches</small><strong>${o.securityPatches}</strong><span>new patch levels</span></div><div class="metric"><small>Source warnings</small><strong>${o.sourceWarnings}</strong><span>last run ${o.lastRun}</span></div></div>
+    <div class="metrics"><div class="metric"><small>New firmware</small><strong>${o.unseen}</strong><span>since your last visit</span></div><div class="metric"><small>Android upgrades</small><strong>${o.androidUpgrades}</strong><span>major version changes</span></div><div class="metric"><small>Security patch coverage</small><strong>${o.patchLevelDevices ?? '—'}${o.patchLevelDeviceTotal?` <span class="of">of ${o.patchLevelDeviceTotal}</span>`:''}</strong><span>devices with a known patch level${o.newestPatchLevel?` · newest ${escapeHtml(o.newestPatchLevel)}`:''}</span></div><div class="metric"><small>Source warnings</small><strong>${o.sourceWarnings}</strong><span>last run ${o.lastRun}</span></div></div>
     <div class="toolbar"><div class="segmented" id="radarTabs"><button data-value="new" class="${state.radarTab==='new'?'active':''}">New</button><button data-value="watched" class="${state.radarTab==='watched'?'active':''}">Watched</button><button data-value="history" class="${state.radarTab==='history'?'active':''}">History</button></div><select id="radarRegion"><option value="all">All regions</option><option value="ILO">Israel / ILO</option><option value="MID">Middle East / MID</option><option value="GLOBAL">Global</option></select><select id="radarChange"><option value="all">All changes</option><option value="Android upgrade">Android upgrades</option><option value="Security patch">Security patches</option></select><span class="spacer"></span>${state.radarTab==='new'?'<button class="button" id="markAll">Mark visible seen</button>':''}</div>
     <div class="validation-note">A dash (—) means the captured vendor artifact did not state that value — it is not an empty value and not a guess. Build names are never guessed into Android versions. Click any dash for a research brief, or a device name for its known history.</div><div class="subtle">${page.total?page.offset+1:0}–${(page.offset||0)+visible.length} of ${page.total||0} matching events</div><div class="feed">${cards || `<div class="empty"><b>No ${state.radarTab} updates match.</b><br>Try another region or change type. This does not mean source coverage is complete.</div>`}</div><div class="toolbar">${pageSizeControl('radarRows')}<button class="button" id="radarPrev" ${page.offset?'':'disabled'}>← Previous</button><button class="button" id="radarNext" ${page.nextCursor?'':'disabled'}>Next →</button></div>`;
 }
 
-const deviceRows = rows => rows.map(x => `<tr><td><button class="entity-button" data-device="${escapeHtml(x.model)}">${escapeHtml(x.name)}</button><div class="subtle">${escapeHtml(x.maker)} · ${escapeHtml(x.model)}</div>${watchButton('hardware_model',x.id)}</td><td>${isGap(x.chip)&&isGap(x.part)?val(x.chip,'chipset'):`<button class="entity-button" data-chip="${escapeHtml(x.part)}">${escapeHtml(x.chip)}</button>`+(isGap(x.part)?'':`<div class="subtle">${escapeHtml(x.part)}</div>`)}</td><td><b>Android ${val(x.android,'Android version')}</b><div class="subtle">SPL ${val(x.patch,'security patch level')}${x.patch_source?` <span class="attrib">per ${escapeHtml(x.patch_source)}</span>`:''}</div><small>${escapeHtml(({source_manifest_latest:"Latest in captured regional manifest",vendor_release_date:"Latest known vendor release date",observation_order_only:"Newest by capture order only"})[x.software_state_basis]||"No firmware observed")}</small></td><td>${x.build?`<b>${escapeHtml(x.build)}</b>`:val(null,'build')}<div class="subtle">${x.firmware_count?`${x.firmware_count} build${x.firmware_count===1?'':'s'} · ${x.target_count} region${x.target_count===1?'':'s'}`:''}</div><small>${escapeHtml(x.region)}</small></td><td>${isGap(x.support)?val(x.support,'support status'):badge(x.support,x.support==='Supported'?'good':'Unknown')}</td></tr>`).join('');
+// "samsung.doc.aspl" -> "samsung ASPL". The full source id stays in the
+// title attribute; the cell only has room for enough to tell publishers apart.
+const sourceShort = id => { if(!id) return ''; const p=String(id).split('.'); return p.length>2?`${p[0]} ${p[p.length-1].toUpperCase()}`:String(id); };
+const deviceRows = rows => rows.map(x => `<tr><td><button class="entity-button" data-device="${escapeHtml(x.model)}">${escapeHtml(x.name)}</button><div class="subtle">${escapeHtml(x.maker)} · ${escapeHtml(x.model)}</div>${watchButton('hardware_model',x.id)}</td><td>${isGap(x.chip)&&isGap(x.part)?val(x.chip,'chipset'):`<button class="entity-button" data-chip="${escapeHtml(x.part)}">${escapeHtml(x.chip)}</button>`+(isGap(x.part)?'':`<div class="subtle">${escapeHtml(x.part)}</div>`)}</td><td class="stack"><b>Android ${val(x.android,'Android version')}</b><div class="subtle">SPL ${val(x.patch,'security patch level')}${x.patch_source?` <span class="attrib" title="Security patch level stated by ${escapeHtml(x.patch_source)}, not by the source that named the build">per ${escapeHtml(sourceShort(x.patch_source))}</span>`:''}</div><small>${escapeHtml(({source_manifest_latest:"Latest in captured regional manifest",vendor_release_date:"Latest known vendor release date",observation_order_only:"Newest by capture order only"})[x.software_state_basis]||"No firmware observed")}</small></td><td class="stack">${x.build?`<b>${escapeHtml(x.build)}</b>`:val(null,'build')}<div class="subtle">${x.firmware_count?`${x.firmware_count} build${x.firmware_count===1?'':'s'} · ${x.target_count} region${x.target_count===1?'':'s'}`:''}</div>${x.firmware_count?`<small class="regions" title="${escapeHtml(x.region)}">${escapeHtml(x.region)}</small>`:`<small>${escapeHtml(x.region)}</small>`}</td><td>${isGap(x.support)?val(x.support,'support status'):badge(x.support,x.support==='Supported'?'good':'Unknown')}</td></tr>`).join('');
 const chipRows = rows => rows.map(x => `<tr><td><button class="entity-button" data-chip="${escapeHtml(x.part)}">${escapeHtml(x.name)}</button><div class="subtle">${escapeHtml(x.vendor)} · ${escapeHtml(x.family)}</div></td><td><button class="entity-button" data-chip="${escapeHtml(x.part)}">${escapeHtml(x.part)}</button></td><td><b>${x.devices} mobile links</b><div class="subtle">Reviewed hardware: ${x.canonical_devices} · Product evidence: ${x.product_devices}</div></td><td>${x.advisories}</td><td>${x.open ? badge(`${x.open} without CVE fix coordinate`,'Unknown') : badge(x.advisories?'CVE coordinates captured':'No linked CVEs','Unknown')}</td></tr>`).join('');
 const releaseRows = rows => rows.map(x=>`<tr><td><button class="entity-button" data-device="${escapeHtml(x.model)}">${escapeHtml(x.device)}</button><div class="subtle">${escapeHtml(x.maker)} · ${escapeHtml(x.model)}</div></td><td>${val(x.region,'region')}</td><td><span class="strong">${escapeHtml(x.build)}</span><div class="subtle">${escapeHtml(x.channel)} ${externalLink(x.source_url,'source')}</div></td><td>Android ${val(x.android,'Android version')}</td><td>${val(x.patch,'security patch level')}</td><td>${val(x.baseband,'baseband version')}</td><td>${val(x.released,'release date')}</td></tr>`).join('');
 // The identity cell links when the row resolves to a canonical device and stays
@@ -521,7 +546,7 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   bindSelect('radarRegion','radarRegion'); bindSelect('radarChange','radarChange');
   bindSelect('makerFilter','maker'); bindSelect('chipFilter','chipVendor'); bindSelect('familyFilter','chipFamily'); bindSelect('partFilter','chipPart'); bindSelect('androidFilter','android'); bindSelect('regionFilter','region'); bindSelect('supportFilter','support');
   $('#resetFilters')?.addEventListener('click',()=>{Object.assign(state,{filter:'',maker:'all',chipVendor:'all',chipFamily:'all',chipPart:'all',android:'all',region:'all',support:'all'});searchBox.value='';if(state.exploreMode==='sources')render();else loadCanonicalPage(state.exploreMode,0).catch(()=>render());});
-  $('#radarTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.radarTab=x.dataset.value;loadRadarPage(0).catch(()=>toast('Could not load Radar'));}));
+  $('#radarTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.radarTab=x.dataset.value;state.radarTabPinned=true;loadRadarPage(0).catch(()=>toast('Could not load Radar'));}));
   $('#exploreTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.exploreMode=x.dataset.value;if(state.exploreMode==='sources')loadSourcePage(0).catch(()=>render());else loadCanonicalPage(state.exploreMode,0).catch(()=>render());}));
   if($('#exploreSort')){$('#exploreSort').value=state.exploreSort[state.exploreMode];$('#exploreSort').addEventListener('change',e=>{state.exploreSort[state.exploreMode]=e.target.value;if(state.exploreMode==='sources')loadSourcePage(0).catch(()=>toast('Could not sort records'));else loadCanonicalPage(state.exploreMode,0).catch(()=>toast('Could not sort view'));});}
   $('#productEvidenceTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.productMode=x.dataset.value;loadProductEvidencePage(0).catch(()=>toast('Could not load product evidence'));}));

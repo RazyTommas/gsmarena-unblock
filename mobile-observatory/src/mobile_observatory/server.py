@@ -143,6 +143,7 @@ class ObservatoryService:
         with self.local_lock:
             watched = {(r["subject_type"], r["subject_id"]) for r in list_watches(self.local)}
             seen = [r[0] for r in self.local.execute("SELECT event_id FROM acknowledgements")]
+        seen_ids = set(seen)
         tab = _first(query, "tab", "history")
         change_filter = _first(query, "change")
         event_count = self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0]
@@ -210,7 +211,13 @@ class ObservatoryService:
                     "buildFrom": before.get("build", "No prior observation"), "buildTo": after.get("build", "Unknown"),
                     "androidFrom": before.get("android") or "Unknown", "androidTo": after.get("android") or "Unknown",
                     "patchFrom": before.get("security_patch") or "Unknown", "patchTo": after.get("security_patch") or "Unknown",
-                    "change": change, "importance": "high" if android_changed else "medium", "watched": (subject_type,subject_id) in watched})
+                    "change": change, "importance": "high" if android_changed else "medium", "watched": (subject_type,subject_id) in watched,
+                    # Per row, so the client never needs the whole
+                    # acknowledgement list. Shipping all of it cost 220KB on
+                    # every cold load -- the single largest response in the
+                    # boot -- to answer a question only about the 100 rows on
+                    # screen.
+                    "acknowledged": row["id"] in seen_ids})
             return QueryPage(result, total, limit, offset)
         clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
                                                "model": "model_code"},
@@ -245,6 +252,7 @@ class ObservatoryService:
                 "androidTo": row["android_to"], "patchFrom": "Unknown",
                 "patchTo": row["patch_to"], "change": "First observation",
                 "importance": "medium", "watched": ("hardware_model",row["hardware_model_id"]) in watched,
+                "acknowledged": row["id"] in seen_ids,
                 "subjectType": "hardware_model", "subjectId": row["hardware_model_id"],
             }
             for row in rows
@@ -500,10 +508,12 @@ class ObservatoryService:
         total = self.corpus.connection.execute(f"SELECT count(*) FROM observations o WHERE {where}", params).fetchone()[0]
         limit, offset = _pagination(query)
         sort = _first(query, "sort", "latest_desc")
-        order = {"latest_desc": "effective_at DESC,o.observed_at DESC",
-                 "oldest_asc": "effective_at ASC,o.observed_at ASC",
-                 "source_asc": "o.source_id,o.source_key,effective_at DESC",
-                 "name_asc": "source_name,device,model_code,o.source_key"}.get(sort, "effective_at DESC,o.observed_at DESC")
+        # Qualified with o. so the planner matches observations_effective_at_idx
+        # rather than sorting the SELECT alias through a temp B-tree.
+        order = {"latest_desc": "o.effective_at DESC,o.observed_at DESC",
+                 "oldest_asc": "o.effective_at ASC,o.observed_at ASC",
+                 "source_asc": "o.source_id,o.source_key,o.effective_at DESC",
+                 "name_asc": "source_name,device,model_code,o.source_key"}.get(sort, "o.effective_at DESC,o.observed_at DESC")
         rows = self.corpus.connection.execute(f"""SELECT o.id, o.source_id source, o.record_type kind,
           o.source_key, o.observed_at, o.validation_state,
           json_extract(o.payload_json,'$.data.source_device_name') source_name,
@@ -513,10 +523,7 @@ class ObservatoryService:
           json_extract(o.payload_json,'$.data.build') build,
           json_extract(o.payload_json,'$.data.android') android,
           json_extract(o.payload_json,'$.data.aspl_month') patch,
-          coalesce(json_extract(o.payload_json,'$.data.release_date'),
-                   json_extract(o.payload_json,'$.data.publish_date'),
-                   json_extract(o.payload_json,'$.data.release_time'),
-                   o.observed_at) effective_at,
+          o.effective_at,
           json_extract(o.payload_json,'$.data.identity_state') identity_state
           ,
           -- Whether this evidence row can be opened as a canonical device. The UI
@@ -525,22 +532,35 @@ class ObservatoryService:
           -- devices. Answering here is what lets the table link the rows that CAN
           -- be opened while leaving the unresolved ones as plain text, instead of
           -- the current all-or-nothing where nothing is clickable.
-          (SELECT v.model_code FROM v_device_catalog v
-            WHERE v.model_code = json_extract(o.payload_json,'$.data.model_code')
-            COLLATE NOCASE LIMIT 1) canonical_model,
+          --
+          -- Both of these used to be correlated subqueries, evaluated once per
+          -- OUTPUT ROW: the first planned as a five-table `SCAN hm` through
+          -- v_device_catalog, the second as `SCAN sp` over 2,347 products. At
+          -- limit=100 that is 200 scans to render one page, and it grew with
+          -- page size. As joins each lookup table is built once per query.
+          hmx.model_code canonical_model,
           -- Fallback for rows that name a PRODUCT rather than a hardware model
           -- (the Transsion vendor feeds): link to the product record instead.
-          -- `sp.canonical_name <> sp.manufacturer` drops the degenerate case where
+          -- `canonical_name <> manufacturer` drops the degenerate case where
           -- a row's device name is just the brand -- "TECNO" does match a product
           -- literally named TECNO, and linking every such row to it would be a
           -- confident link to the wrong thing.
-          (SELECT sp.id FROM source_products sp
-            WHERE sp.canonical_name = json_extract(o.payload_json,'$.data.device') COLLATE NOCASE
-              AND sp.canonical_name <> sp.manufacturer COLLATE NOCASE
-            LIMIT 1) canonical_product,
+          spx.id canonical_product,
           json_extract(o.payload_json,'$.data.download_url') download_url,
           coalesce(json_extract(o.payload_json,'$.data.source_url'),a.source_url,s.base_url) source_url
-          FROM observations o JOIN artifacts a ON a.id=o.artifact_id JOIN sources s ON s.id=o.source_id WHERE {where}
+          FROM observations o JOIN artifacts a ON a.id=o.artifact_id JOIN sources s ON s.id=o.source_id
+          -- GROUP BY, not a bare join: the subqueries carried LIMIT 1, and two
+          -- source_products share a canonical_name case-insensitively. Without
+          -- collapsing them a matching row would be DUPLICATED in the page and
+          -- silently inflate the list against its own total.
+          LEFT JOIN (SELECT model_code FROM hardware_models
+                      GROUP BY model_code COLLATE NOCASE) hmx
+            ON hmx.model_code = json_extract(o.payload_json,'$.data.model_code') COLLATE NOCASE
+          LEFT JOIN (SELECT min(id) id, canonical_name FROM source_products
+                      WHERE canonical_name <> manufacturer COLLATE NOCASE
+                      GROUP BY canonical_name COLLATE NOCASE) spx
+            ON spx.canonical_name = json_extract(o.payload_json,'$.data.device') COLLATE NOCASE
+          WHERE {where}
           ORDER BY {order},o.source_id,o.source_key LIMIT ? OFFSET ?""",
           [*params, limit, offset]).fetchall()
         return QueryPage([dict(row) for row in rows], total, limit, offset)
@@ -852,7 +872,26 @@ class ObservatoryService:
         return {**self.meta, "meta": self.meta, "unseen": len(event_ids - acknowledged), "androidUpgrades": android_upgrades,
                 "securityPatches": self.corpus.connection.execute(f"SELECT count(*) FROM {self._radar_event_source()} WHERE event_type='security_patch_changed'").fetchone()[0],
                 "securityPublications": self.corpus.connection.execute("SELECT count(*) FROM observations WHERE record_type='security_patch_publication'").fetchone()[0],
+                # "security_patch_changed events" is honestly 0 here -- no patch
+                # level was ever ingested, so none could be observed changing.
+                # But a bare 0 on a security tool's front page reads as "this
+                # fleet has no patches", which is the opposite of what it means.
+                # These two say how much patch data is actually known, so the
+                # zero can be read as coverage rather than as a finding.
+                **self._patch_level_coverage(),
                 "sourceWarnings": failures, "lastRun": self.corpus.connection.execute("SELECT max(finished_at) FROM ingestion_runs").fetchone()[0]}
+
+    def _patch_level_coverage(self) -> dict:
+        """How many devices have a known current security patch level, and the
+        newest one seen. Absent projection is reported as absent, not as zero."""
+        row = self.corpus.connection.execute(
+            """SELECT count(DISTINCT hardware_model_id), max(security_patch_level)
+                 FROM device_current_firmware WHERE security_patch_level IS NOT NULL"""
+        ).fetchone()
+        total = self.corpus.connection.execute(
+            "SELECT count(*) FROM hardware_models").fetchone()[0]
+        return {"patchLevelDevices": row[0], "patchLevelDeviceTotal": total,
+                "newestPatchLevel": row[1]}
 
     def acknowledge(self, event_id: str) -> None:
         found = self.corpus.connection.execute(f"SELECT 1 FROM {self._radar_event_source()} WHERE id = ?", (event_id,)).fetchone()

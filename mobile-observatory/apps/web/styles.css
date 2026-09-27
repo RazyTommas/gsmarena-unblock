@@ -78,3 +78,27 @@
    enough not to compete with the value, present enough that the value is never
    read as coming from the row's own source. */
 .attrib{font-size:11px;color:var(--muted,#6b7580);white-space:nowrap}
+
+/* "of N" inside a metric. The denominator is the point: a coverage number
+   without its total is just another bare figure to misread. */
+.metric strong .of{font-size:.55em;font-weight:500;color:var(--muted,#6b7580)}
+
+/* Region code list under a build. Ten CSC codes will not fit a table cell, and
+   a run-on string of them reads as corruption rather than as data, so the cell
+   clips on its own line and the full list stays in the title attribute. */
+.data-table small.regions{display:block;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:22ch}
+
+/* Stacked cells.
+   .data-table td is globally max-width:28ch / nowrap / ellipsis, and
+   `.subtle` is forced inline with a "·" separator. That is a good default for
+   an identity column, and the wrong one for a cell holding three distinct
+   facts: Android version, patch level and the basis all collapsed onto one
+   28-character line and came out as "Android — SPL — Latest in capt…".
+   Columns that carry several values opt into stacking them instead. The rest
+   of the table keeps the dense single-line treatment. */
+.data-table td.stack{white-space:normal;max-width:32ch;line-height:1.35}
+.data-table td.stack .subtle{display:block}
+.data-table td.stack .subtle:before{content:none;margin:0}
+.data-table td.stack small{display:block;color:var(--muted,#6b7580);font-size:11px}
+.data-table td.stack .attrib{white-space:normal}

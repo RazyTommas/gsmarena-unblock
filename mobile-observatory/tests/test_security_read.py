@@ -64,7 +64,7 @@ class SecurityReadTests(unittest.TestCase):
         self.assertEqual(len(self.service.security_page({'q':['CVE-2099'],'offset':['100']}).items),25)
 
     def test_monthly_capture_does_not_invent_a_publication_day(self):
-        self.db.connection.execute("INSERT INTO sources VALUES('mediatek.security.bulletins.captured','Captured monthly vendor',NULL,'secondary',1,'2099-01-01')")
+        self.db.connection.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES('mediatek.security.bulletins.captured','Captured monthly vendor',NULL,'secondary',1,'2099-01-01')")
         self.db.connection.execute("UPDATE advisories SET source_id='mediatek.security.bulletins.captured' WHERE id=?",(self.advisory,))
         page=self.service.security_page({'q':['CVE-2099'],'date_from':['2099-01-15'],'date_to':['2099-01-20']})
         self.assertEqual(page.total,125)

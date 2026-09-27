@@ -21,7 +21,7 @@ def _iso(dt: datetime) -> str:
 
 
 def _insert_source(conn, source_id: str, name: str, created_at: str) -> None:
-    conn.execute("INSERT INTO sources VALUES(?,?,NULL,'secondary',1,?)", (source_id, name, created_at))
+    conn.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES(?,?,NULL,'secondary',1,?)", (source_id, name, created_at))
 
 
 def _insert_run(conn, run_id: str, source_id: str, started_at: str, finished_at: str | None,

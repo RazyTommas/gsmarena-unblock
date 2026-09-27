@@ -24,7 +24,7 @@ class SourceCorrectionTests(unittest.TestCase):
         try:
             hardware=CanonicalRepository(db).create_device(manufacturer='Samsung Electronics',brand='Samsung',
                 family='Test',variant='Test',model_code='SM-TEST')
-            c.execute('INSERT INTO sources VALUES(?,?,?,?,?,?)',('samsung.fota','Samsung FOTA',None,'primary',1,NOW))
+            c.execute('INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES(?,?,?,?,?,?)',('samsung.fota','Samsung FOTA',None,'primary',1,NOW))
             c.execute('INSERT INTO ingestion_runs VALUES(?,?,?,?,?,?,?,?,?,?,?)',('r','samsung.fota',NOW,NOW,'succeeded','samsung_fota_history_csv','1.0.0',1,1,0,None))
             c.execute('INSERT INTO artifacts VALUES(?,?,?,?,?,?,?,?,?)',('a','samsung.fota','r','a'*64,'text/csv',None,NOW,'file.csv',1))
             payload=json.dumps({'data':{'release_time':'2026-01-01','build':'BUILD'}})
@@ -73,7 +73,7 @@ class SourceCorrectionTests(unittest.TestCase):
     def test_corrected_product_region_replay_is_idempotent(self):
         db=Database.migrated(); c=db.connection
         try:
-            c.execute('INSERT INTO sources VALUES(?,?,?,?,?,?)',('xiaomi.community.firmware_tracker','Xiaomi',None,'secondary',1,NOW))
+            c.execute('INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES(?,?,?,?,?,?)',('xiaomi.community.firmware_tracker','Xiaomi',None,'secondary',1,NOW))
             c.execute('INSERT INTO ingestion_runs VALUES(?,?,?,?,?,?,?,?,?,?,?)',('r','xiaomi.community.firmware_tracker',NOW,NOW,'succeeded','xiaomi_firmware_tracker_csv','1.0.0',1,1,0,None))
             c.execute('INSERT INTO artifacts VALUES(?,?,?,?,?,?,?,?,?)',('a','xiaomi.community.firmware_tracker','r','a'*64,'text/csv',None,NOW,'file.csv',1))
             c.execute('INSERT INTO source_products VALUES(?,?,?,?,?,?,?,?)',('p','Xiaomi','Phone','phone','approved',None,NOW,NOW))

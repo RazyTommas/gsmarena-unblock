@@ -294,7 +294,7 @@ class ApiTests(unittest.TestCase):
     def test_product_detail_and_reverse_silicon_preserve_full_paged_history(self) -> None:
         c = self.corpus.connection
         now = '2026-01-01T00:00:00Z'
-        c.execute("INSERT INTO sources VALUES('products-test','Product test',NULL,'secondary',1,?)", (now,))
+        c.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES('products-test','Product test',NULL,'secondary',1,?)", (now,))
         c.execute("""INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,parser_version)
             VALUES('products-run','products-test',?,'succeeded','test','1')""", (now,))
         c.execute("INSERT INTO artifacts VALUES('products-artifact','products-test','products-run',?,'text/csv','https://example.test/source',?,'local.csv',1)", ('a'*64,now))

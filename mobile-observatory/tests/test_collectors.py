@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import sqlite3
 import sys
@@ -22,7 +23,29 @@ from mobile_observatory.collectors.validation import validate_observation
 
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "supported_catalog.sample.json"
-LEGACY_ROOT = Path(__file__).parents[2] / "crawler" / "relay" / "results"
+# Verbatim slices of the captured legacy exports, committed inside this repo so the
+# suite no longer reads the sibling `crawler/relay/results` tree (its green used to
+# depend on another repo's working state). Each slice keeps the real header, the real
+# CRLF line endings and real rows copied byte-for-byte -- no value is fabricated;
+# only the row *count* is reduced. Provenance, by source line number in the capture:
+#   xiaomi-firmware-latest.slice.csv <- xiaomi-tracker/xiaomi-firmware-latest.csv
+#       lines 2,3 (earliest entries), 936 (the one row whose codename market and
+#       device name disagree -> SOURCE_UNSPECIFIED), 1013-1019 (the whole songyuan
+#       family, incl. the songyuan_global row this test pins)
+#   tecno-security-updates.slice.csv <- tecno-security-comprehensive/tecno-security-updates.csv
+#       lines 2 (single device), 7,8,9 (fullwidth-comma groups), 13 (quoted comma
+#       group), 41,43 (slash groups, 43 includes a bare "TECNO" member),
+#       486 (the TECNO CAMON 40 Pro 5G row this test pins)
+#   ipsw-me-firmware.slice.csv <- ipsw-me/ipsw-me-firmware.csv
+#       lines 2-35 (all 18 iPhone1,1 builds + all 16 iPhone1,2 builds),
+#       769-773 (modern iPhone11,2 builds, which carry security_url/baseband)
+SAMPLES = Path(__file__).parents[1] / "fixtures" / "collector-samples"
+
+
+def _csv_data_rows(path: Path) -> int:
+    """Number of data rows (header excluded) in a captured CSV slice."""
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        return sum(1 for _ in csv.reader(handle)) - 1
 
 
 class CollectorPipelineTest(unittest.TestCase):
@@ -131,13 +154,17 @@ class CollectorPipelineTest(unittest.TestCase):
                 db.execute("SELECT count(*) FROM observations WHERE source_key=?", (key,)).fetchone()[0], 1)
 
     def test_xiaomi_tracker_preserves_codename_as_unresolved_hint(self) -> None:
-        fixture = LEGACY_ROOT / "xiaomi-tracker" / "xiaomi-firmware-latest.csv"
+        fixture = SAMPLES / "xiaomi-firmware-latest.slice.csv"
         adapter = XiaomiFirmwareTrackerAdapter(fixture)
         artifact = next(iter(adapter.fetch()))
         rows = list(adapter.parse(artifact, "a" * 64))
-        # The captured CSV is the source's latest-per-target export; its result
-        # metadata counts the larger upstream YAML dataset.
-        self.assertGreater(len(rows), 1000)
+        # The captured CSV is the source's latest-per-target export (1316 data rows
+        # in the full capture); its result metadata counts the larger upstream YAML
+        # dataset. Every data row must become exactly one observation -- none
+        # dropped, none invented -- which is what the full-capture row count used
+        # to assert and what the slice asserts exactly.
+        self.assertEqual(len(rows), _csv_data_rows(fixture))
+        self.assertEqual(len(rows), 10)
         target = next(row for row in rows if row.data["build"] == "OS3.0.301.0.WGNMIXM")
         self.assertEqual(target.data["model_code"], "songyuan_global")
         self.assertEqual(target.data["region_code"], "GLOBAL")
@@ -173,11 +200,17 @@ class CollectorPipelineTest(unittest.TestCase):
             self.assertEqual(rows[0].data["region_code"], "GLOBAL")
 
     def test_tecno_patch_feed_splits_group_without_inventing_day(self) -> None:
-        fixture = LEGACY_ROOT / "tecno-security-comprehensive" / "tecno-security-updates.csv"
+        fixture = SAMPLES / "tecno-security-updates.slice.csv"
         adapter = TecnoSecurityPatchAdapter(fixture)
         artifact = next(iter(adapter.fetch()))
         rows = list(adapter.parse(artifact, "b" * 64))
-        self.assertGreater(len(rows), 618)
+        # More observations than CSV data rows: the grouped `device` cells
+        # ("A，B，C", "A / B / C", '"A,B"') must split into one observation per
+        # product. That inequality is the whole point of the old
+        # `> 618` on the 618-row full capture, so it stays an inequality.
+        self.assertGreater(len(rows), _csv_data_rows(fixture))
+        self.assertEqual(len(rows), 24)
+        self.assertEqual(len({row.source_record_id for row in rows}), len(rows))
         target = next(row for row in rows if row.data["device"] == "TECNO CAMON 40 Pro 5G")
         self.assertRegex(target.data["aspl_month"], r"^20\d\d-(0[1-9]|1[0-2])$")
         self.assertEqual(target.data["precision"], "month")
@@ -186,12 +219,16 @@ class CollectorPipelineTest(unittest.TestCase):
 
 
     def test_apple_ipsw_is_firmware_release_not_android_patch_level(self) -> None:
-        fixture = LEGACY_ROOT / "ipsw-me" / "ipsw-me-firmware.csv"
+        fixture = SAMPLES / "ipsw-me-firmware.slice.csv"
         adapter = AppleIpswFirmwareAdapter(fixture)
         artifact = next(iter(adapter.fetch()))
         rows = list(adapter.parse(artifact, "c" * 64))
-        # Full legacy slice: 66 distinct Apple devices, 4450 iOS builds.
-        self.assertEqual(len(rows), 4450)
+        # The full legacy capture was 66 distinct Apple devices / 4450 iOS builds and
+        # every single row parsed -- the adapter skips rows whose `version` or `model`
+        # it cannot read, so "rows out == data rows in" is the assertion that matters.
+        self.assertEqual(len(rows), _csv_data_rows(fixture))
+        self.assertEqual(len(rows), 39)
+        self.assertEqual(len({row.data["source_model_identifier"] for row in rows}), 3)
         self.assertTrue(all(row.kind == "firmware_release" for row in rows))
         target = next(row for row in rows if row.data["source_model_identifier"] == "iPhone1,1")
         self.assertEqual(target.data["model_code"], "iPhone1-1")  # comma -> hyphen, contract format only

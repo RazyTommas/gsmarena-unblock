@@ -30,7 +30,7 @@ def seed_demonstration(db: Database, fixture_path: str | Path) -> None:
     artifact_id = stable_id("artifact", "supported_catalog.sample.json")
     digest = hashlib.sha256(Path(fixture_path).read_bytes()).hexdigest()
     con.execute(
-        "INSERT INTO sources VALUES (?, ?, NULL, 'demonstration', 0, ?)",
+        "INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES (?, ?, NULL, 'demonstration', 0, ?)",
         (source_id, "Synthetic demonstration fixture", DEMO_TIME),
     )
     con.execute(

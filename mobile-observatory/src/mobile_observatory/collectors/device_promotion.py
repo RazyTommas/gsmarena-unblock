@@ -96,6 +96,26 @@ def _observed_model_code(connection: sqlite3.Connection, product_id: str) -> tup
     return None, codename
 
 
+def _corroborated_name(connection: sqlite3.Connection, product_id: str) -> str | None:
+    """The commercial name an approved conclusion matched this product's CODE to.
+
+    Only set when the conclusion matched on the model code and the catalogue
+    gave exactly one name for it; a code listed under several names concludes
+    ambiguous and never reaches promotion.
+    """
+    row = connection.execute(
+        "SELECT evidence_json FROM identity_conclusions "
+        "WHERE product_id=? AND conclusion='auto_approved'", (product_id,)).fetchone()
+    if row is None:
+        return None
+    for entry in json.loads(row["evidence_json"]):
+        if entry.get("source") == "google_play_supported_devices" and entry.get("matched_on") == "model_code":
+            names = entry.get("marketing_names") or []
+            if len(names) == 1:
+                return names[0].strip() or None
+    return None
+
+
 def _from_play(connection: sqlite3.Connection, product_id: str) -> bool:
     """Did the accepted code come from Google Play, or from the vendor's firmware?
 
@@ -196,7 +216,18 @@ def promote_approved_products_to_devices(connection: sqlite3.Connection) -> Devi
                 counts["already_linked"] += 1
                 continue
             manufacturer = product["manufacturer"]
-            variant_name = _strip_brand_prefix(product["canonical_name"], manufacturer)
+            # A product named by a bare hardware code ("X6962") becomes a device
+            # named by the commercial product the catalogue maps that code to
+            # ("ZERO Flip"). Without this a promoted Transsion device would be
+            # called X6962 in the grid, which is the code the user is trying to
+            # look UP, not a name to show them.
+            #
+            # It also resolves the duplicate that would otherwise appear: the
+            # existing-device lookup below matches on variant name, so a code-
+            # named product now links to the device a name-named product already
+            # created, instead of creating a second one beside it.
+            variant_name = _strip_brand_prefix(
+                _corroborated_name(connection, product["id"]) or product["canonical_name"], manufacturer)
             existing = _find_existing_device(connection, manufacturer=manufacturer, variant_name=variant_name)
             now = utc_now()
             if len(existing) > 1:

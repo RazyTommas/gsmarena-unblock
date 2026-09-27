@@ -131,6 +131,21 @@ def check_corpus(connection) -> list[Finding]:
         findings.append(Finding("malformed_or_unattributed_patch_level", "error", bad_patch,
                                 "a patch level is shown without a publisher, or is not a date"))
 
+    # -- one vendor, one spelling --------------------------------------------
+    # Sources capitalise vendors differently ("Tecno"/"TECNO", "Itel"/"itel").
+    # CanonicalRepository matches manufacturers EXACTLY, so two spellings become
+    # two vendors: the grid splits, every per-vendor total is wrong, and nothing
+    # reports it. Caught in a dry run when a spec-only product arrived as
+    # "Tecno" beside 618 products named "TECNO".
+    split_vendors = connection.execute("""
+        SELECT lower(manufacturer), count(DISTINCT manufacturer), group_concat(DISTINCT manufacturer)
+          FROM source_products GROUP BY lower(manufacturer) HAVING count(DISTINCT manufacturer) > 1""").fetchall()
+    if split_vendors:
+        names = "; ".join(row[2] for row in split_vendors)
+        findings.append(Finding("vendor_spelled_several_ways", "error", len(split_vendors),
+                                f"the same vendor appears under more than one spelling, which splits "
+                                f"it into separate vendors on promotion: {names}"))
+
     # -- a run that accepted records must hold some --------------------------
     #
     # This check replaces an earlier one asserting

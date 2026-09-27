@@ -62,7 +62,7 @@ class EnrichmentTests(unittest.TestCase):
                     "Device": "TECNO-CG8", "Model": "TECNO CG8"})
             now = "2026-01-01T00:00:00Z"
             with db.connection:
-                db.connection.execute("INSERT INTO sources VALUES('x','X',NULL,'primary',1,?)", (now,))
+                db.connection.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES('x','X',NULL,'primary',1,?)", (now,))
                 for pid, maker, name, identity in (("p1", "Xiaomi", "Redmi Note 12 Turbo", "ruby"),
                                                    ("p2", "TECNO", "CAMON 17 Pro", "CAMON 17 Pro"),
                                                    ("p3", "TECNO", "Mystery", "Mystery")):

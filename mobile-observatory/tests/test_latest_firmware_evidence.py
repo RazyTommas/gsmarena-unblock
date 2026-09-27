@@ -21,7 +21,7 @@ class LatestFirmwareEvidenceTests(unittest.TestCase):
         self.service=ObservatoryService(self.db,Path(self.temp.name)/'local.sqlite',demonstration=True)
         c=self.db.connection;now='2026-09-01T00:00:00Z'
         self.hardware=CanonicalRepository(self.db).create_device(manufacturer='Samsung',brand='Samsung',family='Latest fixture',variant='Latest fixture',model_code='SM-LATEST')
-        c.execute("INSERT INTO sources VALUES('samsung.fota','Samsung test',NULL,'vendor',1,?)",(now,))
+        c.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES('samsung.fota','Samsung test',NULL,'vendor',1,?)",(now,))
         c.execute("INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,parser_version) VALUES('latest-run','samsung.fota',?,'succeeded','samsung_fota_history_csv','1.0.1')",(now,))
         c.execute("INSERT INTO artifacts VALUES('latest-artifact','samsung.fota','latest-run',?,'text/csv','https://example.test/manifest',?,'fixture.csv',1)",('a'*64,now))
         self.os=c.execute('SELECT id FROM os_releases ORDER BY major DESC LIMIT 1').fetchone()[0]

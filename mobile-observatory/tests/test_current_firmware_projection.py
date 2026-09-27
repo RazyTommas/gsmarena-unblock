@@ -43,7 +43,7 @@ def _evidence_layer_device(db, *, product="p-evi", model="EVI-1",
         manufacturer="Xiaomi", brand="Xiaomi", family="Evidence fixture",
         variant="Evidence fixture", model_code=model)
     src = "xiaomi.community.firmware_tracker"
-    connection.execute("INSERT OR IGNORE INTO sources VALUES(?,'x',NULL,'primary',1,?)", (src, NOW))
+    connection.execute("INSERT OR IGNORE INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES(?,'x',NULL,'primary',1,?)", (src, NOW))
     connection.execute("INSERT OR IGNORE INTO ingestion_runs VALUES('run-evi',?,?,?,'succeeded','p','1',0,0,0,NULL)",
                        (src, NOW, NOW))
     connection.execute("INSERT OR IGNORE INTO artifacts VALUES('art-evi',?,'run-evi',?,'text/csv',NULL,?,'x',1)",

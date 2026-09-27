@@ -245,6 +245,33 @@ class CanonicalRepository:
         return verdict_id
 
 
+def canonical_vendor(connection, value: str) -> str:
+    """The corpus's own spelling of a vendor a source just named.
+
+    Sources disagree about capitalisation: Google Play says "Tecno" and "Itel",
+    GSMArena says "Tecno", the Transsion feeds say "TECNO" and "itel". Left
+    alone these become separate vendors, because CanonicalRepository's
+    manufacturer lookup matches EXACTLY -- so a product named by a source that
+    capitalises differently mints a second manufacturers row beside the first,
+    splits the vendor in every grouped view, and does it silently.
+
+    Resolves against manufacturers first, then brands (sources usually name the
+    brand: "Samsung" is a brand whose manufacturer is "Samsung Electronics"),
+    and returns the input untouched when the corpus knows neither -- inventing a
+    spelling for a vendor nothing corroborates would be worse than keeping the
+    source's.
+    """
+    if not value:
+        return value
+    for table in ("manufacturers", "brands"):
+        row = connection.execute(
+            f"SELECT canonical_name FROM {table} WHERE canonical_name = ? COLLATE NOCASE",
+            (value,)).fetchone()
+        if row:
+            return row[0]
+    return value
+
+
 def normalize_identifier(value: str) -> str:
     """Conservative identifier normalization; punctuation remains significant."""
     normalized = " ".join(value.strip().upper().split())

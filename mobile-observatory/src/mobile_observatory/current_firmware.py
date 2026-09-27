@@ -32,11 +32,22 @@ SELECTION RULES, one per layer, never blended:
       mifirm.community.firmware_archive contributes 19,648 rows with no date at
       all, so for those partitions "latest" is capture order and says so.
 
-Dates are never compared across publishers. Ranking happens strictly inside one
-(device, target, channel) partition, and all 545 such partitions on the live
-corpus draw from exactly one source_id -- asserted in _validate(), so the day
-that stops being true the build fails instead of silently comparing a Xiaomi
-community date against a Samsung build-derived month.
+DATES ARE NEVER COMPARED ACROSS PUBLISHERS. Ranking happens inside one
+(device, target, channel) partition, and inside it the FIRST key is the source's
+currency_rank, so every subsequent comparison -- including every date -- is
+between rows of the same publisher.
+
+That ordering is stored on the source rather than written into the query
+because it is a judgement: google.ota.checkin says what Google's servers would
+hand the device today and cannot name a withdrawn build, while frbox, naijarom
+and mifirm are archives where a row means a build existed, not that it ships.
+Sources sharing a rank are treated as incomparable, and _validate() refuses to
+publish a partition that mixes two of them rather than falling through to
+comparing their dates.
+
+Before the Transsion promotion, all 545 partitions drew on a single source and
+this never came up; promoting 388 devices created 36 that draw on two, which is
+how the rule got tested rather than merely asserted.
 
 PUBLICATION is a build-then-swap. Rows are assembled in a staging table that
 carries the same constraints, validated there, and only then moved across in one
@@ -140,7 +151,13 @@ WITH dated AS (
          count(*) OVER (PARTITION BY hardware_model_id,region_code,channel) AS sibling_count,
          row_number() OVER (
            PARTITION BY hardware_model_id,region_code,channel
-           ORDER BY stated_at IS NULL, stated_at DESC, created_at DESC, id DESC
+           -- Publisher currency first. Everything after it is a comparison
+           -- BETWEEN ROWS OF THE SAME SOURCE, which is the only place a date
+           -- comparison is meaningful: a frbox archive date and a Google OTA
+           -- check-in date do not measure the same event, so they are separated
+           -- by rank before either is looked at.
+           ORDER BY (SELECT currency_rank FROM sources WHERE sources.id=dated.source_id),
+                    stated_at IS NULL, stated_at DESC, created_at DESC, id DESC
          ) AS rank_in_partition
     FROM dated
 )
@@ -281,17 +298,24 @@ def _validate(connection) -> None:
 
     # A partition drawing on two publishers would mean the ranking above compared
     # dates that do not share a definition.
-    mixed = connection.execute(
+    # A partition may draw on several publishers, PROVIDED currency_rank puts
+    # them in a definite order -- then the winner is chosen by rank and no date
+    # crosses a publisher boundary. Two sources sharing a rank in one partition
+    # is the unresolvable case: the ranking would fall through to a date
+    # comparison between publishers, which is exactly what must not happen.
+    tied = connection.execute(
         """SELECT count(*) FROM (
-             SELECT 1 FROM product_firmware_releases
-              WHERE hardware_model_id IS NOT NULL
-              GROUP BY hardware_model_id,region_code,channel
-             HAVING count(DISTINCT source_id)>1)"""
+             SELECT 1 FROM product_firmware_releases pfr
+               JOIN sources s ON s.id = pfr.source_id
+              WHERE pfr.hardware_model_id IS NOT NULL
+              GROUP BY pfr.hardware_model_id, pfr.region_code, pfr.channel, s.currency_rank
+             HAVING count(DISTINCT pfr.source_id) > 1)"""
     ).fetchone()[0]
-    if mixed:
+    if tied:
         problems.append(
-            f"{mixed} (device,target,channel) partitions draw on more than one source; "
-            "ranking them by date would compare publishers that do not share a date definition")
+            f"{tied} (device,target,channel) partitions draw on several publishers that share a "
+            "currency_rank, so the ranking would fall through to comparing their dates against "
+            "each other; give them distinct ranks or leave the partition unresolved")
 
     # Every device the projection claims must exist, and every release it points
     # at must be the row it says it is.

@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .enrichment import _capture_evidence, _id, _soc_parts, _xiaomi_catalog, _REGION
+from .repository import canonical_vendor
 
 SOURCE = 'gsmarena.captured.specifications'
 
@@ -157,10 +158,15 @@ def enrich_product_specs(connection: sqlite3.Connection, *, specs_csv: Path,
             spec = rows[0]
             if spec['slug'] in claimed or not spec.get('fetched_at'):
                 continue
-            pid = _id('specification-product', spec['_maker'], key[1])
+            # The corpus's spelling of the vendor, not GSMArena's. Without this
+            # a spec-only product arrives as "Tecno" beside 618 products named
+            # "TECNO", and promotion -- which matches manufacturers exactly --
+            # would mint a second Tecno manufacturer next to the first.
+            maker = canonical_vendor(connection, spec['_maker'])
+            pid = _id('specification-product', maker, key[1])
             now = spec['fetched_at']
             connection.execute('INSERT OR IGNORE INTO source_products VALUES(?,?,?,?,?,?,?,?)',
-                (pid, spec['_maker'], spec['device_name'], key[1], 'approved', None, now, now))
+                (pid, maker, spec['device_name'], key[1], 'approved', None, now, now))
             save(pid, spec, [], 'standalone_captured_specification')
             connection.execute('INSERT OR IGNORE INTO source_identity_registry VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                 (_id('specification-identity', spec['slug']), SOURCE, 'specification_slug', spec['slug'],

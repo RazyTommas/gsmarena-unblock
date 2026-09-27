@@ -162,7 +162,7 @@ class DevicePromotionTests(unittest.TestCase):
     # -- requirement 5: firmware stays reachable from the promoted device -------
     def test_firmware_is_reachable_from_the_promoted_device(self) -> None:
         now = "2026-09-01T00:00:00Z"
-        self.con.execute("INSERT OR IGNORE INTO sources VALUES('xiaomi.community.firmware_tracker','x',NULL,'primary',1,?)", (now,))
+        self.con.execute("INSERT OR IGNORE INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES('xiaomi.community.firmware_tracker','x',NULL,'primary',1,?)", (now,))
         self.con.execute("INSERT OR IGNORE INTO ingestion_runs VALUES('run-1','xiaomi.community.firmware_tracker',?,?,'succeeded','p','1',0,0,0,NULL)", (now, now))
         self.con.execute("INSERT OR IGNORE INTO artifacts VALUES('art-1','xiaomi.community.firmware_tracker','run-1',?,'text/csv',NULL,?,'x',1)", ("a" * 64, now))
         self.con.execute(

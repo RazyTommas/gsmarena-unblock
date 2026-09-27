@@ -18,7 +18,7 @@ class ProductSpecsTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.db = Database.migrated(self.root / 'corpus.sqlite')
         self.c = self.db.connection
-        self.c.execute("INSERT INTO sources VALUES('test','Test',NULL,'primary',1,?)", (NOW,))
+        self.c.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES('test','Test',NULL,'primary',1,?)", (NOW,))
         self.catalog = self.root / 'devices.yml'
         self.catalog.write_text('')
         self.specs = self.root / 'specs.csv'

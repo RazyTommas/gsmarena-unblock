@@ -73,7 +73,7 @@ def _capture_evidence(connection: sqlite3.Connection, *, source_id: str, source_
     run_id = _id("capture-run", source_id, digest)
     artifact_id = _id("capture-artifact", source_id, digest)
     evidence_id = _id("capture-evidence", artifact_id, locator)
-    connection.execute("INSERT OR IGNORE INTO sources VALUES(?,?,?,?,?,?)",
+    connection.execute("INSERT OR IGNORE INTO sources(id,name,base_url,authority_scope,enabled,created_at) VALUES(?,?,?,?,?,?)",
                        (source_id, source_name, source_url, "primary", 1, now))
     connection.execute("""INSERT OR IGNORE INTO ingestion_runs
       (id,source_id,started_at,finished_at,outcome,parser_name,parser_version,
@@ -99,6 +99,31 @@ def _component_type(name: str) -> str:
     return "other"
 
 
+# Google Play spells these vendors differently from the corpus ("Tecno",
+# "Tecno Mobile" and "Itel" against "TECNO" and "itel"), so both sides are
+# folded before comparison. This is a spelling alias for one vendor, not a
+# judgement that two vendors are the same.
+# Bumped when a rule changes what the corpus can conclude. Conclusions that
+# resolved NOTHING under an older version are re-evaluated; resolved ones are
+# left alone. Version 2 adds the code-keyed Google Play lookup.
+RULE_VERSION = "2"
+
+_PLAY_BRAND_ALIASES = {"tecno mobile": "tecno"}
+# Play's Model column sometimes carries the brand as a prefix ("TECNO CN7c")
+# and sometimes not ("CN7c"); the OTA feed always reports it bare.
+_BRAND_PREFIX = re.compile(r"^(tecno mobile|tecno|infinix|itel)\s+", re.I)
+
+
+def _play_brand(value: str) -> str:
+    folded = value.strip().casefold()
+    return _PLAY_BRAND_ALIASES.get(folded, folded)
+
+
+def _bare_code(value: str) -> str:
+    """A vendor hardware code with any brand prefix removed, case-folded."""
+    return _BRAND_PREFIX.sub("", value.strip()).strip().casefold()
+
+
 def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Path,
                              specs_csv: Path, google_play_csv: Path | None = None,
                              decisions: list[dict] | None = None) -> dict[str, int]:
@@ -110,12 +135,21 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
     catalog = _xiaomi_catalog(devices_yml)
     specs = _spec_index(specs_csv)
     play: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
+    # The same catalogue indexed the other way round: by HARDWARE CODE rather
+    # than marketing name. Transsion products arrive from identity_bridge named
+    # by their bare vendor code ("X6962", "CN7c"), never by a marketing name, so
+    # the name-keyed lookup above can never match one and every Transsion
+    # product concluded insufficient_evidence -- 1,049 of them.
+    play_by_code: dict[tuple[str, str], set[str]] = defaultdict(set)
     if google_play_csv and google_play_csv.is_file():
         with google_play_csv.open(encoding="utf-8-sig") as handle:
             for row in csv.DictReader(handle):
                 brand, name = row["Retail Branding"].strip(), row["Marketing Name"].strip()
                 if brand and name:
                     play[(brand.casefold(), _norm(name))].append(row)
+                model = row["Model"].strip()
+                if brand and name and model:
+                    play_by_code[(_play_brand(brand), _bare_code(model))].add(name)
     totals = defaultdict(int)
     rows = connection.execute("SELECT * FROM source_products ORDER BY manufacturer,canonical_name").fetchall()
     with connection:
@@ -123,13 +157,25 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
             identities = connection.execute(
                 "SELECT * FROM source_identity_registry WHERE product_id=? ORDER BY source_value", (product["id"],)
             ).fetchall()
-            remembered = connection.execute("SELECT conclusion FROM identity_conclusions WHERE product_id=?", (product["id"],)).fetchone()
+            remembered = connection.execute(
+                "SELECT conclusion, rule_version FROM identity_conclusions WHERE product_id=?",
+                (product["id"],)).fetchone()
             blocked = product['review_state'] == 'rejected' or any(
                 i['resolution_state'] == 'rejected' or i['resolution_method'] == 'manual_product_review' for i in identities)
             blocked = blocked or any(d.get('decision') in ('different', 'defer') and
                 (d.get('canonical_id') == product['id'] or any(d.get('source_namespace') in (i['namespace'], i['source_id'])
                     and d.get('source_value') == i['source_value'] for i in identities)) for d in (decisions or []))
-            if remembered or blocked:
+            # A remembered conclusion is normally final: re-deciding an identity
+            # every run would make the corpus depend on when it last ran. The one
+            # exception is a conclusion that resolved nothing under an OLDER rule
+            # version -- there is no decision there to preserve, and a new rule
+            # exists precisely to resolve it. An auto_approved or ambiguous
+            # conclusion is never reopened, and a human decision (`blocked`)
+            # never is either.
+            reconsider = (remembered is not None
+                          and remembered["conclusion"] == "insufficient_evidence"
+                          and remembered["rule_version"] != RULE_VERSION)
+            if (remembered and not reconsider) or blocked:
                 totals[remembered['conclusion'] if remembered else 'insufficient_evidence'] += 1
                 continue
             candidate_names: list[str] = []
@@ -155,6 +201,19 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
                 evidence.append({"source": "google_play_supported_devices", "marketing_name": product["canonical_name"],
                                  "model_codes": play_models,
                                  "device_codes": sorted({r["Device"].strip() for r in play_matches if r["Device"].strip()})})
+            # Reverse lookup: this product is NAMED by a hardware code, so ask
+            # the catalogue what that code is called. Only a code the catalogue
+            # maps to exactly ONE marketing name counts -- "Infinix X603" lists
+            # both Zero 5 and Zero 5 Pro, and collapsing those would invent a
+            # device relationship the evidence does not support.
+            code_names = sorted(play_by_code.get(
+                (_play_brand(product["manufacturer"]), _bare_code(product["canonical_name"])), set()))
+            if code_names:
+                candidate_names.extend(code_names)
+                evidence.append({"source": "google_play_supported_devices",
+                                 "matched_on": "model_code",
+                                 "model_codes": [product["canonical_name"].strip()],
+                                 "marketing_names": code_names})
             official_tecno_scope = (product["manufacturer"] == "TECNO" and any(
                 i["source_id"] == "tecno.vendor.security_device_scope" for i in identities))
             if official_tecno_scope:
@@ -177,6 +236,14 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
             elif len(play_models) > 1:
                 conclusion, confidence, method = "ambiguous", "medium", "google_play_name_multiple_models"
                 rationale = "The captured Google Play catalog confirms the product name but lists multiple hardware models."
+            elif len(code_names) == 1:
+                conclusion, confidence, method = "auto_approved", "high", "exact_unique_google_play_model_code"
+                rationale = ("The captured Google Play supported-device catalog maps this vendor hardware "
+                             "code to exactly one commercial product name.")
+            elif len(code_names) > 1:
+                conclusion, confidence, method = "ambiguous", "medium", "google_play_model_code_multiple_names"
+                rationale = ("The captured Google Play catalog lists this hardware code under several "
+                             "commercial names; no silent merge is safe.")
             elif len(matches) == 1:
                 conclusion, confidence, method = "auto_approved", "high", "exact_unique_spec_name"
                 rationale = "Unique exact normalized commercial-name match in captured specifications."
@@ -188,12 +255,12 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
                 rationale = "No independent authoritative identifier or unique specification match is available."
             now = max((i["last_seen_at"] for i in identities), default=product["updated_at"])
             connection.execute("""INSERT OR REPLACE INTO identity_conclusions
-              VALUES(?,?,?,?,?,?,?,?,?)""", (product["id"], conclusion, confidence, method, "1", rationale,
+              VALUES(?,?,?,?,?,?,?,?,?)""", (product["id"], conclusion, confidence, method, RULE_VERSION, rationale,
               json.dumps(sorted(set(candidate_names))), json.dumps(evidence, sort_keys=True), now))
             if conclusion == "auto_approved":
                 connection.execute("UPDATE source_products SET review_state='approved',updated_at=? WHERE id=?", (now, product["id"]))
-                connection.execute("UPDATE source_identity_registry SET resolution_state='approved',resolution_method=?,rule_version='1',confidence=? WHERE product_id=?",
-                                   (method, confidence, product["id"]))
+                connection.execute("UPDATE source_identity_registry SET resolution_state='approved',resolution_method=?,rule_version=?,confidence=? WHERE product_id=?",
+                                   (method, RULE_VERSION, confidence, product["id"]))
                 connection.execute("UPDATE observation_product_links SET link_state='approved' WHERE product_id=?", (product["id"],))
             totals[conclusion] += 1
     from .product_specs import enrich_product_specs

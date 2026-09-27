@@ -1,0 +1,11 @@
+codename,name,android,version,branch,date
+HM2013022,Redmi 1 TD China,4.2,JHACNBH22.0,Stable,2015-03-26
+HM2013023,Redmi 1 W China,4.4,V7.3.1.0.KHBCNDD,Stable,2016-05-12
+rothko_id_global,Xiaomi 14T Pro India,16.0,OS3.0.301.0.WNNIDXM,Stable,2026-07-13
+songyuan,Redmi K100 Pro Max China,16.0,OS3.0.306.0.WGNCNXM,Stable,2026-08-11
+songyuan_eea_global,POCO F9 Ultra EEA,16.0,OS3.0.303.0.WGNEUXM,Stable,2026-09-01
+songyuan_global,POCO F9 Ultra Global,16.0,OS3.0.301.0.WGNMIXM,Stable,2026-09-01
+songyuan_jp_global,POCO F9 Ultra Japan,16.0,OS3.0.302.0.WGNJPXM,Stable,2026-09-01
+songyuan_ru_global,POCO F9 Ultra Russia,16.0,OS3.0.302.0.WGNRUXM,Stable,2026-09-01
+songyuan_tr_global,POCO F9 Ultra Turkey,16.0,OS3.0.301.0.WGNTRXM,Stable,2026-09-01
+songyuan_tw_global,POCO F9 Ultra Taiwan,16.0,OS3.0.301.0.WGNTWXM,Stable,2026-09-04

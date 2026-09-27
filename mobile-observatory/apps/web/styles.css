@@ -71,3 +71,10 @@
 /* Footer on the search dropdown: what the capped list is a slice OF. */
 .search-more{padding:8px 12px;border-top:1px solid var(--rule,#e2e6ea);
   font-size:12px;line-height:1.45;color:var(--muted,#6b7580)}
+
+/* Attribution chip. Used where one publisher's value is shown against another
+   publisher's row -- a Samsung build's security patch level comes from
+   samsung.doc.aspl, never from the FOTA manifest that named the build. Quiet
+   enough not to compete with the value, present enough that the value is never
+   read as coming from the row's own source. */
+.attrib{font-size:11px;color:var(--muted,#6b7580);white-space:nowrap}

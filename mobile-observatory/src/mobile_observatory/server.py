@@ -257,7 +257,7 @@ class ObservatoryService:
     def devices_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses, params = _sql_filters(query, {
             "maker": "dc.brand", "vendor": "cd.silicon_vendor", "family": "cd.silicon_family",
-            "part": "cd.part_number", "region": "ft.target_code", "model": "dc.model_code"},
+            "part": "cd.part_number", "region": "fwagg.target_codes", "model": "dc.model_code"},
             ("dc.brand", "dc.variant", "dc.model_code", "dc.codename", "cd.marketing_name", "cd.part_number"))
         support = _first(query, "support").strip()
         support_codes = {"Supported": "officially_supported", "Likely supported": "likely_supported",
@@ -268,7 +268,13 @@ class ObservatoryService:
         max_android = _first(query, "max_android").strip()
         if max_android:
             try:
-                clauses.append("(os.major IS NOT NULL AND os.major <= ? AND lf.latest_basis!='observation_order_only')")
+                # Same gate as the rendered value: a device whose latest build is
+                # only a capture-order guess has no established Android version,
+                # so it must not satisfy a version filter either. A filter that
+                # matched here would put the device in a result set defined by a
+                # number the UI refuses to show for it.
+                clauses.append("(lf.android_major IS NOT NULL AND lf.android_major <= ? "
+                               "AND lf.latest_basis!='observation_order_only')")
                 params.append(int(max_android))
             except ValueError:
                 clauses.append("0")
@@ -287,34 +293,60 @@ class ObservatoryService:
                    PARTITION BY hardware_model_id ORDER BY
                    CASE latest_basis WHEN 'source_manifest_latest' THEN 0
                      WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
-                   coalesce(declared_latest_at,vendor_released_at,first_observed_at) DESC,
-                   firmware_target_id,firmware_release_id) device_rank
-                   FROM v_latest_firmware candidate) lf
+                   effective_at DESC,target_key) device_rank
+                   FROM device_current_firmware candidate) lf
                  ON lf.hardware_model_id=dc.hardware_model_id AND lf.device_rank=1
-               LEFT JOIN os_releases os ON os.id = lf.os_release_id
-               LEFT JOIN firmware_targets ft ON ft.id = lf.firmware_target_id
+               LEFT JOIN (SELECT hardware_model_id,
+                                 sum(release_count) releases,
+                                 count(*) targets,
+                                 group_concat(DISTINCT target_key) target_codes
+                            FROM device_current_firmware GROUP BY hardware_model_id) fwagg
+                 ON fwagg.hardware_model_id=dc.hardware_model_id
                WHERE {' AND '.join(clauses) if clauses else '1=1'}"""
         limit, offset = _pagination(query)
-        sort = _first(query, "sort", "latest_desc")
-        order = {"latest_desc": "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code",
+        # Default is alphabetical, deliberately.
+        #
+        # Sorting by "latest firmware" across the whole catalogue means ordering
+        # one publisher's dates against another's, and here they do not measure
+        # the same thing: a Samsung row's effective_at is when WE OBSERVED the
+        # manifest declare a build latest (2026-09), while a Xiaomi row's is the
+        # VENDOR'S OWN STATED RELEASE DATE (2025-11). Ranking those together put
+        # all 83 Samsungs above all 89 Xiaomis and called it recency. It is the
+        # same shape of error as the search that only read page one: a plausible
+        # ordering that quietly answers a different question.
+        #
+        # So latest_desc now bands by what the date means before ordering within
+        # the band, and the grid prints the basis on every row.
+        sort = _first(query, "sort", "name_asc")
+        banded = ("CASE lf.effective_at_basis WHEN 'source_observed' THEN 0 "
+                  "WHEN 'vendor_stated_date' THEN 1 WHEN 'build_identifier_month' THEN 2 ELSE 3 END,"
+                  "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code")
+        order = {"latest_desc": banded,
                  "name_asc": "dc.brand,dc.variant,dc.model_code",
-                 "android_desc": "os.major IS NULL,os.major DESC,dc.brand,dc.variant"}.get(
-                     sort, "latest_firmware_at IS NULL,latest_firmware_at DESC,dc.brand,dc.variant,dc.model_code")
+                 "android_desc": "lf.android_major IS NULL,lf.android_major DESC,dc.brand,dc.variant"}.get(
+                     sort, "dc.brand,dc.variant,dc.model_code")
         rows = self.corpus.connection.execute(
             """SELECT count(*) OVER() _total,dc.hardware_model_id id,dc.brand maker, dc.variant name, dc.model_code model,
                       sa.status support_status,sa.evidence_id support_evidence_id,sa.asserted_at support_asserted_at,
-                      sp.marketing_name chip, sp.part_number part, os.major android, lf.latest_basis software_state_basis,
-                      lf.security_patch_level patch, group_concat(DISTINCT ft.target_code) region,
-                      (SELECT count(*) FROM firmware_releases history
-                       WHERE history.hardware_model_id=dc.hardware_model_id) firmware_count,
-                      (SELECT max(coalesce(history.vendor_released_at,history.first_observed_at))
-                       FROM firmware_releases history
-                       WHERE history.hardware_model_id=dc.hardware_model_id) latest_firmware_at """
+                      sp.marketing_name chip, sp.part_number part,
+                      lf.android_version android, lf.latest_basis software_state_basis,
+                      lf.security_patch_level patch, lf.security_patch_level_source_id patch_source,
+                      lf.build_id build, lf.effective_at_basis date_basis, lf.fact_layer fact_layer,
+                      fwagg.target_codes region, fwagg.targets target_count,
+                      coalesce(fwagg.releases,0) firmware_count,
+                      lf.effective_at latest_firmware_at """
             + base + f" GROUP BY dc.hardware_model_id ORDER BY {order} LIMIT ? OFFSET ?",
             [*params, limit, offset]).fetchall()
         total = rows[0]["_total"] if rows else self.corpus.connection.execute(
             "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
         result = [
+            # The Android version and patch level stay suppressed when the only
+            # basis is capture order. They describe the build we picked, and on
+            # that basis we do not know the picked build is the one the device
+            # is running -- so stating its version would be asserting a current
+            # software state we have not established. The build itself is still
+            # shown in the next column, under a label saying how it was chosen.
+            # Costs 3 devices of 303; 86 keep a version via vendor_release_date.
             {**dict(row), "android": (row["android"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
              "patch": (row["patch"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
              "region": row["region"] or "Catalogued; firmware not observed",
@@ -588,13 +620,17 @@ class ObservatoryService:
         silicon = [dict(row) for row in c.execute("SELECT * FROM v_chip_devices WHERE hardware_model_id=? ORDER BY role,part_number", (identifier,))]
         aliases = [dict(row) for row in c.execute("SELECT namespace,alias,review_state FROM aliases WHERE entity_type='hardware_model' AND entity_id=? ORDER BY namespace,alias", (identifier,))]
         regions = [dict(row) for row in c.execute("SELECT target_code region,channel,count(*) count FROM v_device_region_history WHERE hardware_model_id=? GROUP BY target_code,channel ORDER BY target_code,channel", (identifier,))]
-        latest = [dict(row) for row in c.execute('''SELECT lf.build_id build,ft.target_code region,lf.channel,
-            os.major android,lf.security_patch_level patch,lf.latest_basis,lf.declared_latest_at,
-            lf.vendor_released_at released,lf.first_observed_at observed
-            FROM v_latest_firmware lf LEFT JOIN firmware_targets ft ON ft.id=lf.firmware_target_id
-            LEFT JOIN os_releases os ON os.id=lf.os_release_id
-            WHERE lf.hardware_model_id=? AND lf.latest_basis!='observation_order_only'
-            ORDER BY ft.target_code,lf.channel''', (identifier,))]
+        # Reads the projection, so this panel now answers for every brand rather
+        # than only the one whose firmware lives in firmware_releases. The
+        # observation_order_only gate is kept: capture order alone is not a
+        # claim that a build is current, and saying nothing is the honest
+        # outcome there.
+        latest = [dict(row) for row in c.execute('''SELECT build_id build,target_key region,channel,
+            android_version android,security_patch_level patch,security_patch_level_source_id patch_source,
+            latest_basis,effective_at,effective_at_basis,release_count,source_id
+            FROM device_current_firmware
+            WHERE hardware_model_id=? AND latest_basis!='observation_order_only'
+            ORDER BY target_key,channel''', (identifier,))]
         from .lineage_specs import hardware_specification_evidence
         return {'latestFirmware': latest, 'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
                 'specifications': hardware_specification_evidence(c, model),

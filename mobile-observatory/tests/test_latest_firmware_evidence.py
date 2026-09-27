@@ -32,6 +32,11 @@ class LatestFirmwareEvidenceTests(unittest.TestCase):
             c.execute('INSERT INTO observations VALUES(?,?,?,?,?,?,?,?,?,?,NULL)',(rid,'samsung.fota','latest-run','latest-artifact','firmware_release',rid,now,payload,'b'*64,'valid'))
             c.execute('INSERT INTO evidence VALUES(?,?,?,?,?,?)',(rid,'latest-artifact',rid,rid,'test',now))
             c.execute("INSERT INTO firmware_release_evidence VALUES(?,?,'identity')",(rid,rid))
+        # These rows land after seed_demonstration published its projection, so
+        # the read path cannot see them until it is rebuilt -- same contract as
+        # production, where the nightly batch rebuilds after ingesting.
+        from mobile_observatory.current_firmware import build as build_current_firmware
+        build_current_firmware(self.db)
 
     def tearDown(self):
         self.service.local.close();self.db.close();self.temp.cleanup()
@@ -51,6 +56,14 @@ class LatestFirmwareEvidenceTests(unittest.TestCase):
         c.execute("UPDATE observations SET observed_at='2026-10-01T00:00:00Z' WHERE id='z-history'")
         row=c.execute('SELECT * FROM v_latest_firmware WHERE hardware_model_id=?',(self.hardware,)).fetchone()
         self.assertEqual(row['latest_basis'],'observation_order_only')
+        # The read path serves the published projection, not the view, so the
+        # new evidence reaches it only when the projection is rebuilt -- which
+        # is what run_batch does after ingesting. Without this line the
+        # assertions below pass against the PREVIOUS generation, which is the
+        # staleness this projection has to be operated around rather than the
+        # behaviour under test.
+        from mobile_observatory.current_firmware import build as build_current_firmware
+        build_current_firmware(self.db)
         device=self.service.devices_page({'model':['SM-LATEST']}).items[0]
         self.assertEqual(device['android'],'Unknown')
         self.assertEqual(device['patch'],'Unknown')

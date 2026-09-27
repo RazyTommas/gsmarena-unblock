@@ -119,6 +119,14 @@ def seed_demonstration(db: Database, fixture_path: str | Path) -> None:
             (release_id, evidence_id),
         )
 
+    # Publish the serving projection, for the same reason run_batch does: a
+    # corpus whose rows exist but whose projection was never built reports every
+    # device as having no firmware, which is the exact falsehood the projection
+    # was added to remove. Seeding is this fixture's ingest, so it ends the same
+    # way ingest does.
+    from .current_firmware import build as build_current_firmware
+    build_current_firmware(db)
+
 
 def _seed_target(con, code: str) -> None:
     con.execute(

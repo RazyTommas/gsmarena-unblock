@@ -21,6 +21,7 @@ from .collectors.promotion import SamsungFirmwarePromoter
 from .collectors.device_promotion import promote_approved_products_to_devices
 from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
+from .current_firmware import ProjectionError, build as build_current_firmware
 from .identity_bridge import rebuild_identity_registry
 from .silence import STATUS_SILENT, detect_silence
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
@@ -136,6 +137,18 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             db.connection, legacy_root / "mediatek-cve-chipsets" / "mediatek-cve-chipsets.csv")
         results["agent_review_bundle"] = write_agent_review_bundle(
             db.connection, data_dir / "agent-review")
+        # Last derivation step, because it reads what every step above wrote.
+        # A failure here leaves the previously published generation serving --
+        # stale rather than absent -- so it is reported and does not abort the
+        # run, whose observations are already committed and correct.
+        try:
+            report = build_current_firmware(db)
+            results["current_firmware"] = {
+                "generation": report.generation, "rows": report.rows,
+                "devices": report.devices, "canonical_rows": report.canonical_rows,
+                "evidence_rows": report.evidence_rows, "digest": report.digest}
+        except ProjectionError as error:
+            results["current_firmware"] = {"error": str(error), "published": False}
         # Advisory only: never gates or alters the run above. See silence.py
         # and docs/SOURCE_SILENCE_DETECTION.md. `main()` below turns a
         # "silent" finding into a nonzero process exit and a logged ALARM,
@@ -146,6 +159,10 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             "devices": db.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0],
             "observations": db.connection.execute("SELECT count(*) FROM observations").fetchone()[0],
             "firmware_releases": db.connection.execute("SELECT count(*) FROM firmware_releases").fetchone()[0],
+            "product_firmware_releases": db.connection.execute(
+                "SELECT count(*) FROM product_firmware_releases").fetchone()[0],
+            "devices_with_current_firmware": db.connection.execute(
+                "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware").fetchone()[0],
             "radar_events": db.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0],
         }
         return results

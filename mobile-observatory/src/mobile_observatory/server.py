@@ -57,8 +57,18 @@ class ObservatoryService:
         self.corpus = corpus
         self.demonstration = demonstration
         # self.local stays a single connection guarded by self.local_lock below.
-        # It is tiny, write-mostly read-state, and every one of its uses is already
-        # inside that lock, so there is nothing here to make per-thread.
+        # It is tiny, write-mostly read-state, so one locked connection is cheaper
+        # than the per-thread pool the corpus needs.
+        #
+        # That is only true while EVERY use is actually inside the lock. This
+        # comment previously asserted it was, and it was not: config(),
+        # save_config(), identity_decisions(), collection_requests() and
+        # request_collection() all touched the connection unguarded, which is the
+        # same defect bc54d25 fixed on the corpus connection. Measured at 4a51462,
+        # 16 threads x 40 ops: 14 of 16 threads died with InterfaceError,
+        # TypeError from a half-read row, and a duplicate-column DDL race.
+        # tests/test_service_threading.py now enforces the claim instead of
+        # asserting it in prose.
 
         self.sample_path = Path(sample_path) if sample_path else None
         self.data_dir = Path(local_path).parent
@@ -545,7 +555,9 @@ class ObservatoryService:
         # Local human decisions survive replacement of the derived corpus.
         # Reapply only this exact source-product workflow; no hardware identities
         # or accepted agent proposals are promoted by startup.
-        for row in self.local.execute("SELECT canonical_id,decision FROM identity_decisions WHERE source_namespace='source_product' AND canonical_type='source_product'").fetchall():
+        with self.local_lock:
+            decisions = self.local.execute("SELECT canonical_id,decision FROM identity_decisions WHERE source_namespace='source_product' AND canonical_type='source_product'").fetchall()
+        for row in decisions:
             product = self.corpus.connection.execute("SELECT review_state FROM source_products WHERE id=?", (row["canonical_id"],)).fetchone()
             if product:
                 decision = {"same":"approved", "different":"rejected", "defer":"proposed"}[row["decision"]]
@@ -948,7 +960,8 @@ class ObservatoryService:
     def config(self) -> dict:
         defaults = {"cadenceHours": 6, "preferredRegions": ["ILO", "MID", "GLOBAL"],
                     "enabledSources": ["samsung", "xiaomi", "tecno"], "supportedOnly": True}
-        row = self.local.execute("SELECT value_json FROM settings WHERE key='operator_config'").fetchone()
+        with self.local_lock:
+            row = self.local.execute("SELECT value_json FROM settings WHERE key='operator_config'").fetchone()
         return defaults if row is None else {**defaults, **json.loads(row[0])}
 
     def config_options(self) -> dict:
@@ -966,9 +979,10 @@ class ObservatoryService:
             "enabledSources": sources,
             "supportedOnly": bool(value.get("supportedOnly", True)),
         }
-        self.local.execute("INSERT OR REPLACE INTO settings VALUES('operator_config',?)",
-                           (json.dumps(clean, sort_keys=True),))
-        self.local.commit()
+        with self.local_lock:
+            self.local.execute("INSERT OR REPLACE INTO settings VALUES('operator_config',?)",
+                               (json.dumps(clean, sort_keys=True),))
+            self.local.commit()
         return clean
 
     def real_sample(self) -> dict:
@@ -1098,8 +1112,9 @@ class ObservatoryService:
             return save_watch(self.local, self.corpus.connection, value)
 
     def identity_decisions(self) -> list[dict]:
-        return [dict(row) for row in self.local.execute(
-            "SELECT * FROM identity_decisions ORDER BY decided_at DESC")]
+        with self.local_lock:
+            return [dict(row) for row in self.local.execute(
+                "SELECT * FROM identity_decisions ORDER BY decided_at DESC")]
 
     def save_identity_decision(self, value: dict) -> dict:
         with self.local_lock:
@@ -1122,9 +1137,13 @@ class ObservatoryService:
             return review_proposal(self.local, identifier, value)
 
     def collection_requests(self) -> list[dict]:
-        worker = CollectionWorker(self.local, self.corpus.connection, self.worker_paths)
-        return [worker.get(row[0]) for row in self.local.execute(
-            "SELECT id FROM collection_requests ORDER BY id DESC LIMIT 50")]
+        with self.local_lock:
+            # CollectionWorker's constructor runs CREATE TABLE/ALTER migrations on
+            # this connection, so building one per request races itself as well as
+            # the reads below.
+            worker = CollectionWorker(self.local, self.corpus.connection, self.worker_paths)
+            return [worker.get(row[0]) for row in self.local.execute(
+                "SELECT id FROM collection_requests ORDER BY id DESC LIMIT 50")]
 
     def request_collection(self, value: dict) -> dict:
         target = str(value.get("target", "")).strip()
@@ -1133,10 +1152,11 @@ class ObservatoryService:
         if not target or source not in SOURCE_OPTIONS or scope not in (
                 "latest_firmware", "firmware_history", "device_profile", "security"):
             raise ValueError("invalid collection request")
-        cursor = self.local.execute(
-            "INSERT INTO collection_requests(target,source,scope) VALUES(?,?,?)",
-            (target[:200], source, scope))
-        self.local.commit()
+        with self.local_lock:
+            cursor = self.local.execute(
+                "INSERT INTO collection_requests(target,source,scope) VALUES(?,?,?)",
+                (target[:200], source, scope))
+            self.local.commit()
         return {"id": cursor.lastrowid, "target": target[:200], "source": source,
                 "scope": scope, "status": "queued", "execution_mode": "captured_replay",
                 "live_network": False}

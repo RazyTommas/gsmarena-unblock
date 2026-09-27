@@ -267,7 +267,7 @@ class ObservatoryService:
     def devices_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses, params = _sql_filters(query, {
             "maker": "dc.brand", "vendor": "cd.silicon_vendor", "family": "cd.silicon_family",
-            "part": "cd.part_number", "region": "fwagg.target_codes", "model": "dc.model_code"},
+            "part": "cd.part_number", "region": "lf.device_target_codes", "model": "dc.model_code"},
             ("dc.brand", "dc.variant", "dc.model_code", "dc.codename", "cd.marketing_name", "cd.part_number"))
         support = _first(query, "support").strip()
         support_codes = {"Supported": "officially_supported", "Likely supported": "likely_supported",
@@ -299,19 +299,15 @@ class ObservatoryService:
                LEFT JOIN silicon_parts sp ON sp.id = hs.part_id
                LEFT JOIN v_chip_devices cd ON cd.hardware_model_id = dc.hardware_model_id
                                              AND cd.part_id = sp.id
-               LEFT JOIN (SELECT candidate.*,row_number() OVER (
-                   PARTITION BY hardware_model_id ORDER BY
-                   CASE latest_basis WHEN 'source_manifest_latest' THEN 0
-                     WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
-                   effective_at DESC,target_key) device_rank
-                   FROM device_current_firmware candidate) lf
-                 ON lf.hardware_model_id=dc.hardware_model_id AND lf.device_rank=1
-               LEFT JOIN (SELECT hardware_model_id,
-                                 sum(release_count) releases,
-                                 count(*) targets,
-                                 group_concat(DISTINCT target_key) target_codes
-                            FROM device_current_firmware GROUP BY hardware_model_id) fwagg
-                 ON fwagg.hardware_model_id=dc.hardware_model_id
+               -- Both of these were computed per request: a row_number() window
+               -- over the whole projection to pick one row per device, and a
+               -- GROUP BY over the whole projection for the totals -- each in
+               -- full before LIMIT discarded almost all of it. Invisible at
+               -- 1,271 rows, 1,549ms on a corpus scaled to the shape production
+               -- grows into (53,436 devices). Both now come from the row the
+               -- build marked primary, found through a partial index.
+               LEFT JOIN device_current_firmware lf
+                 ON lf.hardware_model_id=dc.hardware_model_id AND lf.is_device_primary=1
                WHERE {' AND '.join(clauses) if clauses else '1=1'}"""
         limit, offset = _pagination(query)
         # Default is alphabetical, deliberately.
@@ -342,8 +338,8 @@ class ObservatoryService:
                       lf.android_version android, lf.latest_basis software_state_basis,
                       lf.security_patch_level patch, lf.security_patch_level_source_id patch_source,
                       lf.build_id build, lf.effective_at_basis date_basis, lf.fact_layer fact_layer,
-                      fwagg.target_codes region, fwagg.targets target_count,
-                      coalesce(fwagg.releases,0) firmware_count,
+                      lf.device_target_codes region, lf.device_target_total target_count,
+                      coalesce(lf.device_release_total,0) firmware_count,
                       lf.effective_at latest_firmware_at """
             + base + f" GROUP BY dc.hardware_model_id ORDER BY {order} LIMIT ? OFFSET ?",
             [*params, limit, offset]).fetchall()

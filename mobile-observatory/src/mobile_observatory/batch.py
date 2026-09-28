@@ -29,6 +29,7 @@ from .integrity import check_corpus, summarise
 from .identity_bridge import rebuild_identity_registry
 from .silence import STATUS_SILENT, detect_silence
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
+                         enrich_observed_hardware_silicon,
                          enrich_gsmarena_hardware_silicon, import_mediatek_catalog, import_security_catalog,
                          promote_approved_product_observations, write_agent_review_bundle)
 
@@ -157,6 +158,9 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
         # its higher-authority rows (see enrich_gsmarena_hardware_silicon docstring).
         results["gsmarena_canonical_silicon"] = enrich_gsmarena_hardware_silicon(
             db.connection, legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv")
+        # Last of the silicon steps, so it only fills what the higher-authority
+        # captures left empty.
+        results["observed_silicon"] = enrich_observed_hardware_silicon(db.connection)
         results["security_catalog"] = import_security_catalog(
             db.connection, legacy_root / "google-asb-cves" / "android-security-bulletin-cves.csv")
         results["mediatek_security_catalog"] = import_mediatek_catalog(

@@ -471,6 +471,141 @@ def enrich_canonical_silicon(connection: sqlite3.Connection, xref_csv: Path) -> 
 GSMARENA_SPECIFICATIONS_SOURCE = "gsmarena.captured.specifications"
 
 
+def _find_or_create(connection: sqlite3.Connection, select: str, select_args: tuple,
+                    insert: str, build_row, new_id: str) -> str:
+    """Return the existing row's id, or create it with `new_id` and return that."""
+    row = connection.execute(select, select_args).fetchone()
+    if row:
+        return row[0]
+    connection.execute(insert, build_row(new_id))
+    return new_id
+
+
+def _vendor_by_part_prefix(connection: sqlite3.Connection) -> dict[str, str]:
+    """Which vendor a bare part-number prefix belongs to, ACCORDING TO THE CORPUS.
+
+    Derived, not declared. Every prefix comes from silicon_parts rows that some
+    other source already attributed, and a prefix claimed by more than one
+    vendor is dropped rather than guessed. On the live corpus that yields
+    MT->MediaTek from 167 parts, SM/SDM/MSM/APQ->Qualcomm, SC/T->Unisoc,
+    EXYNOS->Samsung and so on, with nothing ambiguous.
+
+    The alternative was a hardcoded table of vendor numbering schemes. This is
+    the same knowledge, except the corpus can be asked where it came from, and
+    it stops being right the moment the corpus disagrees.
+    """
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for part_number, vendor in connection.execute(
+            """SELECT sp.part_number, sv.canonical_name
+                 FROM silicon_parts sp
+                 JOIN silicon_families sf ON sf.id = sp.family_id
+                 JOIN silicon_vendors sv ON sv.id = sf.vendor_id"""):
+        match = re.match(r"^([A-Za-z]+)", (part_number or "").strip())
+        if match:
+            counts[match.group(1).upper()][vendor] += 1
+    return {prefix: next(iter(vendors)) for prefix, vendors in counts.items() if len(vendors) == 1}
+
+
+def enrich_observed_hardware_silicon(connection: sqlite3.Connection) -> dict[str, int]:
+    """Attach a chipset a device's own firmware evidence states.
+
+    The only silicon the corpus had came from a 586-row specification capture
+    covering Samsung, Xiaomi and TECNO -- 470, 87 and 29 rows, and no Infinix or
+    itel at all. So 787 of 865 devices showed an em dash for silicon while 4,634
+    of their own firmware observations named the chipset in
+    $.data.chipset, with $.data.chipset_basis recording where the source got it.
+    Nothing read that field. Same shape as the firmware gap: observed, and not
+    served.
+
+    The rule is the one used for identity: attach only what the evidence states
+    unambiguously. A device whose observations name exactly ONE chipset gets it;
+    a device whose observations disagree gets nothing and is counted, because
+    which chip it is is precisely what is unknown. 178 devices disagree.
+
+    Never overwrites. A model already carrying a primary_soc keeps it, exactly
+    as enrich_gsmarena_hardware_silicon does -- this fills gaps, it does not
+    adjudicate between sources.
+    """
+    prefix_vendor = _vendor_by_part_prefix(connection)
+    claims: dict[str, dict[str, str]] = defaultdict(dict)   # device -> chipset -> observation id
+    for hardware_id, observation_id, payload in connection.execute(
+            """SELECT pfr.hardware_model_id, o.id, o.payload_json
+                 FROM product_firmware_releases pfr
+                 JOIN observations o ON o.id = pfr.observation_id
+                WHERE pfr.hardware_model_id IS NOT NULL"""):
+        chipset = (json.loads(payload).get("data", {}).get("chipset") or "").strip()
+        if chipset:
+            claims[hardware_id].setdefault(chipset, observation_id)
+
+    attached = parts_created = conflicting = unrecognized = existing = 0
+    with connection:
+        for hardware_id, stated in claims.items():
+            if len(stated) != 1:
+                conflicting += 1
+                continue
+            if connection.execute(
+                    "SELECT 1 FROM hardware_silicon WHERE hardware_model_id=? AND role='primary_soc'",
+                    (hardware_id,)).fetchone():
+                existing += 1
+                continue
+            chipset, observation_id = next(iter(stated.items()))
+            vendor, part, marketing = _soc_parts(chipset)
+            if not vendor:
+                match = re.match(r"^([A-Za-z]+)", part)
+                vendor = prefix_vendor.get(match.group(1).upper()) if match else None
+            if not vendor:
+                unrecognized += 1
+                continue
+            row = connection.execute(
+                """SELECT o.artifact_id, o.observed_at, o.source_id
+                     FROM observations o WHERE o.id=?""", (observation_id,)).fetchone()
+            if row is None:
+                continue
+            artifact_id, observed_at, source_id = row
+            # Evidence points at the observation that said it, so the claim is
+            # traceable to one captured row rather than to "the corpus".
+            evidence_id = _id("observed-silicon-evidence", observation_id)
+            connection.execute(
+                "INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?,?)",
+                (evidence_id, artifact_id, observation_id, "$.data.chipset",
+                 json.dumps({"chipset": chipset, "source_id": source_id}, sort_keys=True),
+                 observed_at))
+            # Resolve the vendor and family BY NAME, creating only what is
+            # missing. Deriving the id from the name and relying on INSERT OR
+            # IGNORE assumes every writer derives it the same way: when a vendor
+            # already exists under another id -- seed.py mints its own, and so
+            # does any future importer -- the insert is ignored, the derived id
+            # names nothing, and the family insert dies on a foreign key.
+            vendor_id = _find_or_create(
+                connection, "SELECT id FROM silicon_vendors WHERE canonical_name=? COLLATE NOCASE",
+                (vendor,), "INSERT INTO silicon_vendors VALUES(?,?,?)",
+                lambda new_id: (new_id, vendor, observed_at), _id("vendor", vendor))
+            family_id = _find_or_create(
+                connection,
+                "SELECT id FROM silicon_families WHERE vendor_id=? AND canonical_name=? COLLATE NOCASE",
+                (vendor_id, vendor), "INSERT INTO silicon_families VALUES(?,?,NULL,?,?)",
+                lambda new_id: (new_id, vendor_id, vendor, observed_at), _id("family", vendor, vendor))
+            existing_part = connection.execute(
+                "SELECT id FROM silicon_parts WHERE family_id=? AND part_number=? COLLATE NOCASE",
+                (family_id, part)).fetchone()
+            if existing_part:
+                part_id = existing_part[0]
+            else:
+                part_id = _id("part", vendor, part)
+                connection.execute("INSERT INTO silicon_parts VALUES(?,?,?,?,?,?,?)",
+                                   (part_id, family_id, part, marketing, None, None, observed_at))
+                parts_created += 1
+            before = connection.total_changes
+            connection.execute(
+                "INSERT OR IGNORE INTO hardware_silicon VALUES(?,?,NULL,'primary_soc',?,?,NULL)",
+                (hardware_id, part_id, evidence_id, observed_at))
+            attached += connection.total_changes > before
+    return {"hardware_silicon_attached": attached, "silicon_parts_created": parts_created,
+            "skipped_conflicting_chipset": conflicting,
+            "skipped_unrecognized_vendor": unrecognized,
+            "skipped_existing_silicon": existing}
+
+
 def enrich_gsmarena_hardware_silicon(connection: sqlite3.Connection, specs_csv: Path) -> dict[str, int]:
     """Attach a canonical chipset from GSMArena only on an exact, unambiguous name match.
 

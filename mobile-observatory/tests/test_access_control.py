@@ -316,6 +316,34 @@ class LiveServerTest(unittest.TestCase):
         status, _ = self.call("/?token=wrong")
         self.assertEqual(401, status)
 
+    def test_the_token_redirect_cannot_be_pointed_off_site(self) -> None:
+        """An open redirect, found by probing this flow rather than reading it.
+
+        urlparse leaves a backslash alone, but browsers normalise it to "/", so
+        `/\\evil.example?token=<valid>` produced `Location: /\\evil.example`,
+        which a browser reads as `//evil.example` -- a protocol-relative URL
+        pointing off-site. It only ever fired for a caller already holding a
+        valid token, so it was not a way in; a redirector that can be aimed
+        elsewhere is still a building block worth removing.
+        """
+        opener = urllib.request.build_opener(_NoRedirect())
+        for hostile in ("/\\evil.example", "//evil.example/", "/\\\\evil.example",
+                        "///evil.example"):
+            with self.subTest(path=hostile):
+                request = urllib.request.Request(
+                    f"http://127.0.0.1:{self.port}{hostile}?token={TOKEN}")
+                try:
+                    with opener.open(request, timeout=20) as response:
+                        location = response.headers.get("Location")
+                except urllib.error.HTTPError as error:
+                    location = error.headers.get("Location")
+                self.assertIsNotNone(location, "precondition: this path redirects")
+                # Exactly one leading slash, and no backslash a browser could
+                # fold into a second one.
+                self.assertTrue(location.startswith("/"), location)
+                self.assertFalse(location.startswith("//"), f"protocol-relative: {location}")
+                self.assertNotIn("\\", location, f"a browser reads \\ as /: {location}")
+
     def test_an_unknown_api_path_is_404_not_the_html_shell(self) -> None:
         """A probe on a typo'd route used to get 200 + index.html back, so a
         health check could pass forever without checking anything."""

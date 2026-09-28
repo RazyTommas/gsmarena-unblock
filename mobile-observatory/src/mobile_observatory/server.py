@@ -1492,9 +1492,20 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             if not supplied or not policy.token_matches(supplied):
                 return False
             remaining = {k: v for k, v in query.items() if k != "token"}
-            target = parsed.path + (f"?{urlencode(remaining, doseq=True)}" if remaining else "")
+            # Collapse every leading slash AND backslash to exactly one slash
+            # before using the path as a Location. urlparse leaves "\" alone,
+            # but browsers normalise it to "/", so a request for
+            #   /\evil.example?token=<valid>
+            # produced  Location: /\evil.example , which a browser reads as
+            # //evil.example -- a protocol-relative URL, i.e. an off-site
+            # redirect. Found by probing this flow rather than by reading it.
+            # It only fires for a caller who already holds a valid token, so it
+            # was never the way in; it is fixed because a redirector that can be
+            # pointed off-site is a building block, and this is three lines.
+            safe_path = "/" + parsed.path.lstrip("/\\")
+            target = safe_path + (f"?{urlencode(remaining, doseq=True)}" if remaining else "")
             self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", target or "/")
+            self.send_header("Location", target)
             # No Secure flag: this also serves plain http on an air-gapped box,
             # and setting it there would silently drop the cookie entirely.
             self.send_header("Set-Cookie",

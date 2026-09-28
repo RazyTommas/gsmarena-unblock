@@ -60,20 +60,29 @@ def _scalar(connection, sql: str, params: tuple = ()) -> int:
     return connection.execute(sql, params).fetchone()[0]
 
 
-def check_corpus(connection) -> list[Finding]:
-    """Run every invariant. Returns findings, newest concern first."""
+def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
+    """Run the invariants. Returns findings, most serious first.
+
+    `deep` runs the two whole-database page scans. They are the right checks and
+    the wrong thing to do on every request: PRAGMA integrity_check alone is
+    1,233ms on the live corpus, and wiring the full set into /api/v1/admin/health
+    -- which the UI calls on every load -- took that endpoint from 57ms to
+    2,066ms. What they detect is disk corruption, which does not appear between
+    two page loads, so the batch and the CLI run them and the HTTP path does not.
+    """
     findings: list[Finding] = []
 
-    # -- referential integrity ------------------------------------------------
-    orphans = connection.execute("PRAGMA foreign_key_check").fetchall()
-    if orphans:
-        tables = sorted({row[0] for row in orphans})
-        findings.append(Finding("foreign_key_orphans", "error", len(orphans),
-                                f"rows referencing a missing parent in: {', '.join(tables)}"))
+    if deep:
+        # -- referential integrity --------------------------------------------
+        orphans = connection.execute("PRAGMA foreign_key_check").fetchall()
+        if orphans:
+            tables = sorted({row[0] for row in orphans})
+            findings.append(Finding("foreign_key_orphans", "error", len(orphans),
+                                    f"rows referencing a missing parent in: {', '.join(tables)}"))
 
-    corrupt = connection.execute("PRAGMA integrity_check").fetchone()[0]
-    if corrupt != "ok":
-        findings.append(Finding("database_integrity", "error", 1, corrupt[:200]))
+        corrupt = connection.execute("PRAGMA integrity_check").fetchone()[0]
+        if corrupt != "ok":
+            findings.append(Finding("database_integrity", "error", 1, corrupt[:200]))
 
     # -- a device must never be told firmware was not observed when it was ----
     # This is the defect device_current_firmware exists to remove, asserted
@@ -104,14 +113,42 @@ def check_corpus(connection) -> list[Finding]:
             f"{unlisted} hardware models are invisible in the device grid; the identity "
             "projection is stale (python3 -m mobile_observatory.current_firmware)"))
 
-    # -- the projection must not outlive the evidence it summarises ----------
-    stale = connection.execute("""
-        SELECT p.built_at, (SELECT max(observed_at) FROM observations)
-          FROM projection_state p WHERE p.name='device_current_firmware'""").fetchone()
-    if stale and stale[0] and stale[1] and stale[1] > stale[0]:
+    # -- the projection must not outlive what it was built from --------------
+    # Compares the INPUT state, not two clocks. The previous version compared
+    # max(observed_at) against built_at, which reads healthy for a replay whose
+    # observation times are older than the build, for a promotion that creates
+    # devices without adding an observation, and for a currency_rank change that
+    # alters which build every affected device is said to be running.
+    from .current_firmware import input_fingerprint
+
+    # Degrades rather than raising on a corpus that predates the column: an
+    # integrity checker that crashes reports nothing at all, which is worse than
+    # reporting one check less.
+    has_fingerprint = any(row[1] == "input_fingerprint"
+                          for row in connection.execute("PRAGMA table_info(projection_state)"))
+    recorded = connection.execute(
+        "SELECT input_fingerprint FROM projection_state WHERE name='device_current_firmware'"
+    ).fetchone() if has_fingerprint else None
+    if recorded and recorded[0] and recorded[0] != input_fingerprint(connection):
         findings.append(Finding(
-            "projection_older_than_evidence", "warning", 1,
-            f"observations run to {stale[1]} but the projection was built at {stale[0]}"))
+            "projection_older_than_its_inputs", "warning", 1,
+            "the tables the projection is built from have changed since it was published; "
+            "rebuild with python3 -m mobile_observatory.current_firmware"))
+
+    # -- exactly one headline row per device ----------------------------------
+    # devices_page dropped its GROUP BY because both projections are one row per
+    # device. _validate() proves that of the STAGING table at one build instant;
+    # nothing proved it of the table being served. The partial index is not
+    # unique, so a repair, a migration bug or a hand-edit could mark two rows
+    # primary and every affected device would silently render twice and inflate
+    # the page total.
+    bad_primary = _scalar(connection, """
+        SELECT count(*) FROM (SELECT hardware_model_id FROM device_current_firmware
+                               GROUP BY hardware_model_id HAVING sum(is_device_primary) <> 1)""")
+    if bad_primary:
+        findings.append(Finding("device_without_exactly_one_primary_row", "error", bad_primary,
+                                "the device grid would duplicate or drop these devices and "
+                                "miscount its own total"))
 
     # -- one device, one layer ------------------------------------------------
     both = _scalar(connection, """
@@ -130,6 +167,39 @@ def check_corpus(connection) -> list[Finding]:
     if bad_patch:
         findings.append(Finding("malformed_or_unattributed_patch_level", "error", bad_patch,
                                 "a patch level is shown without a publisher, or is not a date"))
+
+    # -- approved evidence must not be stranded -------------------------------
+    # An approved product carries firmware. If it never reached a device, that
+    # firmware is in the corpus and unreachable from the catalogue -- the same
+    # falsehood as "firmware not observed", one layer up. It went unnoticed for
+    # a full promotion run because the only signal was a skipped_collision
+    # counter printed once into a batch log, while 1,287 releases went dark and
+    # 46 devices showed nothing with their own builds present.
+    #
+    # A refusal RECORDED in source_data_corrections is exempt: that is a
+    # decision someone can audit, not a silent drop.
+    # Scoped to products that COULD key a device -- exactly one Google Play
+    # model code. An approved product without one cannot be promoted at all and
+    # belongs in the evidence layer by design; 352 Xiaomi products approved from
+    # the vendor codename catalogue sit there legitimately, and flagging them
+    # would be this check asserting that the two-layer model is a bug.
+    stranded = _scalar(connection, """
+        SELECT count(*) FROM source_products sp
+          JOIN identity_conclusions ic ON ic.product_id = sp.id
+         WHERE sp.review_state = 'approved'
+           AND NOT EXISTS (SELECT 1 FROM product_hardware_links l WHERE l.product_id = sp.id)
+           AND EXISTS (SELECT 1 FROM product_firmware_releases p
+                        WHERE p.product_id = sp.id AND p.hardware_model_id IS NULL)
+           AND NOT EXISTS (SELECT 1 FROM source_data_corrections c
+                            WHERE c.entity_type = 'source_product' AND c.entity_id = sp.id)
+           AND EXISTS (SELECT 1 FROM json_each(ic.evidence_json) e
+                        WHERE json_extract(e.value,'$.source') = 'google_play_supported_devices'
+                          AND json_array_length(json_extract(e.value,'$.model_codes')) = 1)""")
+    if stranded:
+        findings.append(Finding(
+            "approved_product_firmware_unreachable", "error", stranded,
+            f"{stranded} approved products hold firmware that no canonical device can reach, "
+            "and no recorded decision explains why"))
 
     # -- one vendor, one spelling --------------------------------------------
     # Sources capitalise vendors differently ("Tecno"/"TECNO", "Itel"/"itel").
@@ -255,7 +325,15 @@ def review_queue(connection) -> list[dict]:
                    AND s2.review_state <> 'approved') AS observations_awaiting_review,
                (SELECT count(DISTINCT phl.hardware_model_id) FROM product_hardware_links phl
                   JOIN source_products s3 ON s3.id = phl.product_id
-                 WHERE s3.manufacturer = sp.manufacturer) AS canonical_devices
+                 WHERE s3.manufacturer = sp.manufacturer) AS canonical_devices,
+               -- Reviewed, but with no identifier that can key a canonical
+               -- device, so they serve from the evidence layer only. Reported
+               -- because "574 products, 89 devices" otherwise reads as 485
+               -- things gone missing.
+               (SELECT count(*) FROM source_products s4
+                 WHERE s4.manufacturer = sp.manufacturer AND s4.review_state = 'approved'
+                   AND NOT EXISTS (SELECT 1 FROM product_hardware_links l WHERE l.product_id = s4.id)
+                 ) AS approved_evidence_only
           FROM source_products sp
          GROUP BY sp.manufacturer
          ORDER BY observations_awaiting_review DESC, sp.manufacturer""")]
@@ -289,11 +367,12 @@ def main() -> None:
             print(f"  [{finding.severity}] {finding.check}: {finding.count} — {finding.detail}")
         print()
         print("review queue (captured evidence not yet serving):")
-        print("  %-10s %9s %9s %9s %s" % ("vendor", "products", "approved", "devices", "obs awaiting review"))
+        print("  %-10s %9s %9s %8s %11s %s" % (
+            "vendor", "products", "approved", "devices", "evidence-only", "obs awaiting review"))
         for row in review_queue(db.connection):
-            print("  %-10s %9d %9d %9d %d" % (
-                row["vendor"], row["products"], row["approved"],
-                row["canonical_devices"], row["observations_awaiting_review"]))
+            print("  %-10s %9d %9d %8d %11d %d" % (
+                row["vendor"], row["products"], row["approved"], row["canonical_devices"],
+                row["approved_evidence_only"], row["observations_awaiting_review"]))
         if args.strict and any(f.severity == "error" for f in findings):
             raise SystemExit(1)
     finally:

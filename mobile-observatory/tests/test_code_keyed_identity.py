@@ -127,6 +127,108 @@ class CodeKeyedIdentityTest(unittest.TestCase):
         self.review()
         self.assertEqual("insufficient_evidence", self.conclusion("p1")[0])
 
+    # -- name quality ---------------------------------------------------------
+    def test_a_name_that_is_just_the_brand_does_not_become_the_device_name(self) -> None:
+        """Play's marketing name for TECNO BF7 is literally "TECNO"."""
+        self.write_play([("Tecno", "TECNO", "TECNO-BF7", "TECNO BF7")])
+        self.add_product("p1", "BF7")
+        self.review()
+        self.assertEqual("auto_approved", self.conclusion("p1")[0],
+                         "the CODE is still corroborated even when the name is useless")
+        promote_approved_products_to_devices(self.con)
+        row = self.con.execute("SELECT variant FROM v_device_catalog").fetchone()
+        self.assertEqual("BF7", row["variant"],
+                         "a device must not be called by its own brand")
+
+    def test_a_name_that_is_just_the_code_does_not_become_the_device_name(self) -> None:
+        self.write_play([("Tecno", "X5010", "TECNO-X5010", "TECNO X5010")])
+        self.add_product("p1", "X5010")
+        self.review()
+        promote_approved_products_to_devices(self.con)
+        self.assertEqual("X5010", self.con.execute(
+            "SELECT variant FROM v_device_catalog").fetchone()["variant"])
+
+    def test_a_name_covering_two_devices_is_refused(self) -> None:
+        """Infinix X6517 is published as "SMART 7  or SMART 7 PLUS"."""
+        self.write_play([("Tecno", "SMART 7  or SMART 7 PLUS", "TECNO-X6517", "TECNO X6517")])
+        self.add_product("p1", "X6517")
+        self.review()
+        self.assertEqual(("ambiguous", "google_play_model_code_names_several_devices"),
+                         self.conclusion("p1"))
+
+    def test_spelling_variants_of_one_name_are_not_an_ambiguity(self) -> None:
+        """Play writes both "Infinix NOTE 5" and "Infinix Note 5" for X604."""
+        self.write_play([("Tecno", "TECNO NOTE 5", "TECNO-X604", "TECNO X604"),
+                         ("Tecno", "TECNO Note 5", "TECNO-X604b", "TECNO X604")])
+        self.add_product("p1", "X604")
+        self.review()
+        self.assertEqual("auto_approved", self.conclusion("p1")[0],
+                         "one device spelled two ways is one device")
+
+    def test_non_breaking_and_doubled_spaces_are_normalised(self) -> None:
+        """"S5\u00a0Pro" cannot be typed; a user searching "S5 Pro" must find it."""
+        self.write_play([("Tecno", "S5\u00a0Pro", "TECNO-S5P", "TECNO S5P")])
+        self.add_product("p1", "S5P")
+        self.review()
+        promote_approved_products_to_devices(self.con)
+        self.assertEqual("S5 Pro", self.con.execute(
+            "SELECT variant FROM v_device_catalog").fetchone()["variant"])
+
+    def test_a_vendor_qualifier_after_the_brand_is_stripped_too(self) -> None:
+        """Play lists the vendor as both "Tecno" and "Tecno Mobile".
+
+        Stripping only "TECNO" from "TECNO Mobile SPARK 30 Pro" left
+        "Mobile SPARK 30 Pro", which no longer matched the device already named
+        "SPARK 30 Pro" -- so the product was refused and its 7 firmware rows
+        became unreachable.
+        """
+        self.write_play([("Tecno Mobile", "TECNO Mobile SPARK 30 Pro", "TECNO-KL7", "TECNO KL7")])
+        self.add_product("p1", "KL7")
+        self.review()
+        promote_approved_products_to_devices(self.con)
+        self.assertEqual("SPARK 30 Pro", self.con.execute(
+            "SELECT variant FROM v_device_catalog").fetchone()["variant"])
+
+    # -- distinct SKUs sharing one marketing name -----------------------------
+    def test_two_codes_sharing_a_name_become_two_findable_devices(self) -> None:
+        """Play lists eleven codes as "SPARK 7". They are not one phone.
+
+        Before this, the first code alphabetically took the name and every other
+        code was dropped along with its firmware -- so SPARK 7 answered for all
+        of them with one SKU's builds, and a user with a KF6n found nothing.
+        """
+        self.write_play([("Tecno", "SPARK 7", "TECNO-KF6", "TECNO KF6"),
+                         ("Tecno", "SPARK 7", "TECNO-KF6n", "TECNO KF6n")])
+        self.add_product("p1", "KF6")
+        self.add_product("p2", "KF6n")
+        self.review()
+        result = promote_approved_products_to_devices(self.con)
+        self.assertEqual(0, result.skipped_collision, "no product may be silently dropped")
+        rows = {r["model_code"]: r["variant"] for r in
+                self.con.execute("SELECT model_code, variant FROM v_device_catalog")}
+        self.assertEqual({"KF6", "KF6n"}, set(rows),
+                         "both codes must be findable by the code the phone reports")
+        self.assertIn("SPARK 7", rows["KF6"])
+        self.assertIn("SPARK 7", rows["KF6n"])
+        self.assertNotEqual(rows["KF6"], rows["KF6n"], "the two devices need distinct names")
+
+    def test_the_same_code_spelled_with_a_brand_prefix_links_instead_of_duplicating(self) -> None:
+        """"TECNO CM5" and "CM5" are one code. The mismatch stranded 1,287 rows."""
+        self.write_play([("Tecno", "CAMON 40", "TECNO-CM5", "TECNO CM5")])
+        self.add_product("p1", "TECNO CM5")
+        self.review()
+        promote_approved_products_to_devices(self.con)
+        self.assertEqual(1, self.con.execute("SELECT count(*) FROM hardware_models").fetchone()[0])
+        self.add_product("p2", "CM5")
+        self.review()
+        result = promote_approved_products_to_devices(self.con)
+        self.assertEqual(1, self.con.execute("SELECT count(*) FROM hardware_models").fetchone()[0],
+                         "the bare code must link to the prefixed device, not duplicate it")
+        self.assertEqual(0, result.skipped_collision)
+        self.assertEqual(2, self.con.execute(
+            "SELECT count(*) FROM product_hardware_links").fetchone()[0],
+            "both products must reach the device so both carry their firmware there")
+
     # -- the re-evaluation gate ----------------------------------------------
     def test_an_unresolved_conclusion_is_reconsidered_under_a_new_rule_version(self) -> None:
         """Otherwise the new rule would never run: every product already has one."""
@@ -150,6 +252,42 @@ class CodeKeyedIdentityTest(unittest.TestCase):
         self.review()
         self.assertEqual("auto_approved", self.conclusion("p1")[0],
                          "a resolved identity must survive the evidence going away")
+
+    # -- withdrawing an identity ----------------------------------------------
+    def test_rejecting_a_product_withdraws_its_device_claim(self) -> None:
+        """A reviewer saying "wrong" must stop the device serving that firmware.
+
+        Rejection updated review_state and the link states but left
+        product_hardware_links and the hardware_model_id promotion had
+        backfilled onto the firmware -- so the device kept answering with builds
+        attributed to an identity that had just been rejected.
+        """
+        import tempfile as _tempfile
+        from mobile_observatory.server import ObservatoryService
+
+        self.write_play([("Tecno", "CAMON 50 Ultra", "TECNO-CN7c", "TECNO CN7c")])
+        self.add_product("p1", "CN7c")
+        self.review()
+        promote_approved_products_to_devices(self.con)
+        device = self.con.execute("SELECT hardware_model_id FROM product_hardware_links").fetchone()
+        self.assertIsNotNone(device, "precondition: the product was promoted")
+
+        local = Path(self.enterContext(_tempfile.TemporaryDirectory())) / "local.sqlite"
+        service = ObservatoryService(self.db, local, demonstration=False)
+        self.addCleanup(service.local.close)
+        service.review_source_product("p1", "rejected")
+
+        self.assertIsNone(
+            self.con.execute("SELECT 1 FROM product_hardware_links WHERE product_id='p1'").fetchone(),
+            "a rejected identity must not keep claiming a device")
+        self.assertEqual(0, self.con.execute(
+            """SELECT count(*) FROM product_firmware_releases
+                WHERE product_id='p1' AND hardware_model_id IS NOT NULL""").fetchone()[0],
+            "its firmware must stop being attributed to that device")
+        recorded = self.con.execute(
+            """SELECT reason FROM source_data_corrections
+                WHERE entity_id='p1' AND reason='identity_rejected_link_withdrawn'""").fetchone()
+        self.assertIsNotNone(recorded, "the withdrawal must be auditable")
 
     # -- vendor spelling ------------------------------------------------------
     def test_a_spec_only_product_adopts_the_corpus_spelling_of_its_vendor(self) -> None:

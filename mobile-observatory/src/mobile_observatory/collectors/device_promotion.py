@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 
-from ..repository import CanonicalRepository, normalize_identifier, new_id, utc_now
+from ..repository import (CanonicalRepository, clean_device_name, normalize_identifier,
+                          new_id, usable_device_name, utc_now)
 
 
 @dataclass(frozen=True)
@@ -12,7 +14,9 @@ class DevicePromotionResult:
     """Counts for one promotion pass; every field is a disjoint outcome for one product."""
 
     promoted: int = 0                      # a NEW hardware_model was created
-    linked_existing: int = 0               # matched an already-existing device by name
+    linked_existing: int = 0               # matched an already-existing device by code or name
+    linked_by_code: int = 0                # same model code as an existing device, spelled differently
+    disambiguated_name: int = 0            # distinct code sharing a marketing name; name qualified
     already_linked: int = 0                # idempotent no-op: this product was promoted before
     skipped_not_approved: int = 0          # review_state is 'proposed' or 'rejected'
     skipped_no_model_code: int = 0         # approved, but no genuine model code is observed
@@ -21,12 +25,26 @@ class DevicePromotionResult:
     firmware_links_backfilled: int = 0     # product_firmware_releases rows now point at a device
 
 
+# A qualifier a vendor puts after its own name in some catalogues. Google Play
+# lists the same manufacturer as both "Tecno" and "Tecno Mobile", so a marketing
+# name can arrive as "TECNO Mobile SPARK 30 Pro". Stripping only the brand left
+# "Mobile SPARK 30 Pro", which then failed to match the device already called
+# "SPARK 30 Pro" and the product was refused -- 20 firmware rows unreachable
+# because of one leftover word.
+_VENDOR_QUALIFIER = re.compile(r"^(mobile|mobility)\s+", re.I)
+
+
 def _strip_brand_prefix(name: str, manufacturer: str) -> str:
     """Remove a leading, whole-token manufacturer name; mirrors identity_bridge._norm."""
     prefix = manufacturer.strip() + " "
     stripped = name
     if name.casefold().startswith(prefix.casefold()) and len(name) > len(prefix):
         stripped = name[len(prefix):]
+        # Only after the brand matched, so a device genuinely called
+        # "Mobile something" by a different vendor keeps its name.
+        without_qualifier = _VENDOR_QUALIFIER.sub("", stripped).strip()
+        if without_qualifier:
+            stripped = without_qualifier
     stripped = stripped.strip()
     return stripped or name.strip()
 
@@ -96,7 +114,56 @@ def _observed_model_code(connection: sqlite3.Connection, product_id: str) -> tup
     return None, codename
 
 
-def _corroborated_name(connection: sqlite3.Connection, product_id: str) -> str | None:
+def _code_key(model_code: str, manufacturer: str) -> str:
+    """A model code with any leading brand removed, for comparison only.
+
+    Play writes "TECNO CM5"; the product and the OTA check-in write "CM5". They
+    are one code. The stored value is never rewritten -- only the comparison is
+    prefix-insensitive -- because the code a source published is evidence.
+    """
+    value = (model_code or "").strip()
+    brand = (manufacturer or "").strip()
+    if brand:
+        for separator in (" ", "-", "_"):
+            prefix = brand + separator
+            if value.casefold().startswith(prefix.casefold()) and len(value) > len(prefix):
+                value = value[len(prefix):]
+                break
+    return normalize_identifier(value)
+
+
+def _same_device_name(left: str, right: str) -> bool:
+    """Do two device names refer to the same phone?
+
+    Folded on case and whitespace only. Anything looser would merge
+    "CAMON 40 5G" with "CAMON 40 Pro 5G", which are different phones that
+    happen to share a Google Play model code.
+    """
+    normalise = lambda value: " ".join((value or "").replace("\u00a0", " ").split()).casefold()
+    return normalise(left) == normalise(right)
+
+
+def _record_unresolved(connection: sqlite3.Connection, product_id: str, owner_id: str,
+                       model_code: str, owner_name: str, claimed_name: str, now: str) -> None:
+    """Write down a refusal, so it is auditable rather than a number in a log.
+
+    source_data_corrections is the corpus's existing place for "we decided
+    something about this row and here is the before and after". A refusal is
+    exactly that: the product asked to be this device and was told no.
+    """
+    connection.execute(
+        """INSERT OR REPLACE INTO source_data_corrections
+             (id, entity_type, entity_id, reason, before_json, after_json, evidence_id, recorded_at)
+           VALUES (?,?,?,?,?,?,NULL,?)""",
+        (new_id(), "source_product", product_id,
+         "model_code_claimed_by_a_differently_named_device",
+         json.dumps({"model_code": model_code, "claimed_name": claimed_name}, sort_keys=True),
+         json.dumps({"held_by_device": owner_id, "held_by_name": owner_name}, sort_keys=True),
+         now))
+
+
+def _corroborated_name(connection: sqlite3.Connection, product_id: str,
+                       *, code_hint: str = "", brand_hint: str = "") -> str | None:
     """The commercial name an approved conclusion matched this product's CODE to.
 
     Only set when the conclusion matched on the model code and the catalogue
@@ -110,9 +177,24 @@ def _corroborated_name(connection: sqlite3.Connection, product_id: str) -> str |
         return None
     for entry in json.loads(row["evidence_json"]):
         if entry.get("source") == "google_play_supported_devices" and entry.get("matched_on") == "model_code":
-            names = entry.get("marketing_names") or []
-            if len(names) == 1:
-                return names[0].strip() or None
+            # device_name is set only when the review found exactly ONE usable
+            # name -- not the brand, not the code back again, not a name that
+            # covers several devices.
+            name = clean_device_name(entry.get("device_name") or "")
+            if name:
+                return name
+            # Evidence written before device_name existed carries only
+            # marketing_names. Applying the same usability rule at read time
+            # lets an older corpus heal on the next batch instead of refusing
+            # its own devices: without this, a product whose conclusion was
+            # already auto_approved fell back to its bare code, stopped matching
+            # the device it belongs to, and was recorded as a refusal. Measured
+            # on a corpus carrying older evidence: 53 such refusals.
+            names = [clean_device_name(n) for n in (entry.get("marketing_names") or [])]
+            usable = [n for n in names
+                      if usable_device_name(n, code=code_hint, brand=brand_hint)]
+            if len(usable) == 1:
+                return usable[0]
     return None
 
 
@@ -199,9 +281,20 @@ def promote_approved_products_to_devices(connection: sqlite3.Connection) -> Devi
     # a normalized model code may be claimed by at most one NEW device per run,
     # first writer wins in the deterministic (manufacturer, canonical_name) order
     # below, and every subsequent claim of the same code is refused.
-    codes_in_use = {
-        r["model_code_normalized"] for r in connection.execute("SELECT model_code_normalized FROM hardware_models")
-    }
+    # Keyed prefix-insensitively. 131 hardware_models store the code WITH the
+    # brand on the front ("TECNO CM5") because Google Play's Model column
+    # carries it there, while the product and the OTA feed carry the bare "CM5".
+    # Comparing the normalized strings made those different codes, so the code
+    # path did not see the device already existed, the name path found it, and
+    # the link then failed -- taking the product's entire firmware history with
+    # it. Measured: 196 approved products produced no device and 1,287 firmware
+    # rows were left unreachable.
+    device_by_code: dict[str, str] = {}
+    for row in connection.execute(
+            """SELECT hm.id, hm.model_code, dc.brand FROM hardware_models hm
+                 JOIN v_device_catalog dc ON dc.hardware_model_id = hm.id"""):
+        device_by_code.setdefault(_code_key(row["model_code"], row["brand"]), row["id"])
+
     products = connection.execute(
         "SELECT id, manufacturer, canonical_name, review_state FROM source_products ORDER BY manufacturer, canonical_name"
     ).fetchall()
@@ -221,40 +314,73 @@ def promote_approved_products_to_devices(connection: sqlite3.Connection) -> Devi
             # ("ZERO Flip"). Without this a promoted Transsion device would be
             # called X6962 in the grid, which is the code the user is trying to
             # look UP, not a name to show them.
-            #
-            # It also resolves the duplicate that would otherwise appear: the
-            # existing-device lookup below matches on variant name, so a code-
-            # named product now links to the device a name-named product already
-            # created, instead of creating a second one beside it.
             variant_name = _strip_brand_prefix(
-                _corroborated_name(connection, product["id"]) or product["canonical_name"], manufacturer)
-            existing = _find_existing_device(connection, manufacturer=manufacturer, variant_name=variant_name)
-            now = utc_now()
-            if len(existing) > 1:
-                counts["skipped_ambiguous_existing_match"] += 1
-                continue
-            if len(existing) == 1:
-                hardware_id = existing[0]
-                try:
-                    connection.execute(
-                        """INSERT INTO product_hardware_links
-                           (product_id, hardware_model_id, model_code_source, evidence_id, created_at)
-                           VALUES (?, ?, ?, NULL, ?)""",
-                        (product["id"], hardware_id, "existing_canonical_device_name_match", now),
-                    )
-                except sqlite3.IntegrityError:
-                    counts["skipped_collision"] += 1
-                    continue
-                counts["linked_existing"] += 1
-                continue
+                _corroborated_name(connection, product["id"],
+                                   code_hint=product["canonical_name"],
+                                   brand_hint=manufacturer) or product["canonical_name"], manufacturer)
             model_code, codename = _observed_model_code(connection, product["id"])
+            now = utc_now()
+
+            def link(hardware_id: str, source: str) -> bool:
+                """Attach this product to a device. Never silently drops it."""
+                connection.execute(
+                    """INSERT INTO product_hardware_links
+                       (product_id, hardware_model_id, model_code_source, evidence_id, created_at)
+                       VALUES (?, ?, ?, NULL, ?)""",
+                    (product["id"], hardware_id, source, now))
+                return True
+
+            # 1. THE CODE FIRST. It is the stronger identity, and matching it
+            #    prefix-insensitively is what stops "CM5" standing up a duplicate
+            #    of the device already stored as "TECNO CM5" -- or, as happened
+            #    before this, being dropped entirely along with its firmware.
+            code_key = _code_key(model_code, manufacturer) if model_code else None
+            if code_key and code_key in device_by_code:
+                owner = device_by_code[code_key]
+                owner_name = connection.execute(
+                    "SELECT variant FROM v_device_catalog WHERE hardware_model_id=?", (owner,)).fetchone()
+                owner_variant = owner_name["variant"] if owner_name else ""
+                if _same_device_name(owner_variant, variant_name):
+                    # Same phone, spelled differently: "TECNO CM5" and "CM5".
+                    link(owner, "existing_canonical_device_code_match")
+                    counts["linked_by_code"] += 1
+                    counts["linked_existing"] += 1
+                    continue
+                # DIFFERENT phones reporting the same code. TECNO CAMON 40 5G
+                # and CAMON 40 Pro 5G both list Google Play model "TECNO CM7";
+                # linking the second to the first would answer for a phone with
+                # another phone's firmware. Refused -- and recorded, because the
+                # previous version of this refusal was a counter nobody read
+                # while the product's whole firmware history went unreachable.
+                counts["skipped_collision"] += 1
+                _record_unresolved(connection, product["id"], owner, model_code,
+                                   owner_variant, variant_name, now)
+                continue
+
+            # 2. No code at all: a name match can still identify the device, but
+            #    nothing here can key a NEW one.
             if not model_code:
+                existing = _find_existing_device(connection, manufacturer=manufacturer, variant_name=variant_name)
+                if len(existing) > 1:
+                    counts["skipped_ambiguous_existing_match"] += 1
+                    continue
+                if len(existing) == 1:
+                    link(existing[0], "existing_canonical_device_name_match")
+                    counts["linked_existing"] += 1
+                    continue
                 counts["skipped_no_model_code"] += 1
                 continue
-            normalized_code = normalize_identifier(model_code)
-            if normalized_code in codes_in_use:
-                counts["skipped_collision"] += 1
-                continue
+
+            # 3. A code nothing has claimed. If the NAME is already taken, this
+            #    is a different SKU that shares a marketing name -- Play lists
+            #    eleven codes as "SPARK 7" -- not the same phone. It gets its own
+            #    device, qualified by the code, so a user who knows their code
+            #    can still find exactly their phone. Collapsing them would hide
+            #    ten devices and answer for all of them with one SKU's firmware.
+            existing = _find_existing_device(connection, manufacturer=manufacturer, variant_name=variant_name)
+            if existing:
+                variant_name = f"{variant_name} ({model_code})"
+                counts["disambiguated_name"] += 1
             family = _family_from_variant(variant_name)
             hardware_id = _create_device(
                 connection, manufacturer=manufacturer, brand=manufacturer, family=family,
@@ -277,7 +403,9 @@ def promote_approved_products_to_devices(connection: sqlite3.Connection) -> Devi
                 connection.execute("DELETE FROM hardware_models WHERE id=?", (hardware_id,))
                 counts["skipped_collision"] += 1
                 continue
-            codes_in_use.add(normalized_code)
+            # Index the new device by its code so a later product carrying the
+            # same code links to it instead of creating a twin.
+            device_by_code[code_key] = hardware_id
             counts["promoted"] += 1
 
         before = connection.total_changes

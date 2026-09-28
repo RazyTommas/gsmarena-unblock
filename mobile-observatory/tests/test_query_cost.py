@@ -136,6 +136,43 @@ class QueryCountDoesNotGrowWithPageSizeTest(unittest.TestCase):
                          + "\n  ".join(offenders))
 
 
+class HealthEndpointCostTest(unittest.TestCase):
+    """The health endpoint must not run whole-database page scans."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.db = Database.migrated()
+        self.addCleanup(self.db.close)
+        seed_demonstration(self.db, ROOT / "fixtures" / "supported_catalog.sample.json")
+        self.service = ObservatoryService(
+            self.db, Path(self.temp.name) / "local.sqlite", demonstration=True)
+        self.addCleanup(self.service.local.close)
+
+    def test_health_does_not_run_the_whole_database_scans(self) -> None:
+        """PRAGMA integrity_check is 1,233ms on the live corpus.
+
+        Wiring the full invariant set into /api/v1/admin/health -- which the UI
+        calls on every load -- took that endpoint from 57ms to 2,066ms. What
+        those two pragmas detect is disk corruption, which does not appear
+        between two page loads.
+        """
+        with QueryCounter(self.db.connection) as counter:
+            self.service.integrity()
+        ran = " ".join(counter.statements).lower()
+        self.assertNotIn("integrity_check", ran)
+        self.assertNotIn("foreign_key_check", ran)
+
+    def test_the_batch_path_still_runs_them(self) -> None:
+        """Gating them on the endpoint must not quietly stop them running at all."""
+        from mobile_observatory.integrity import check_corpus
+        with QueryCounter(self.db.connection) as counter:
+            check_corpus(self.db.connection)
+        ran = " ".join(counter.statements).lower()
+        self.assertIn("integrity_check", ran)
+        self.assertIn("foreign_key_check", ran)
+
+
 class DeviceGridPlanTest(unittest.TestCase):
     """The device grid must seek the projection, never scan or window all of it.
 

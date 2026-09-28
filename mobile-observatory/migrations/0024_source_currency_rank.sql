@@ -26,9 +26,14 @@ BEGIN;
 -- changeable without a code deploy, and a new source must be given a rank
 -- deliberately rather than inheriting one from where it happens to sort.
 --
--- Lower rank wins. The default of 50 means adding a source changes nothing
--- until someone ranks it, and two sources sharing a rank are treated as
--- genuinely incomparable: the projection refuses to guess between them.
+-- Lower rank wins. The default of 50 is NOT inert: a new source arrives already
+-- ranked alongside the community archives, so it can win a partition of its own
+-- immediately, and if it shares a partition with another rank-50 publisher the
+-- build refuses to publish until someone separates them. That refusal is the
+-- intended behaviour -- an unranked publisher is one nobody has decided about,
+-- and guessing between two of them is exactly what this column exists to
+-- prevent -- but it is a refusal, not a no-op, and adding a source to a corpus
+-- that already has community data may require ranking it in the same change.
 ALTER TABLE sources ADD COLUMN currency_rank INTEGER NOT NULL DEFAULT 50;
 
 -- Vendor/platform distribution endpoints: these answer "what would you send

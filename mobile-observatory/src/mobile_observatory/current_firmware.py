@@ -255,10 +255,27 @@ def _mark_device_primary(connection) -> None:
           SELECT rowid AS rid,
                  row_number() OVER (
                    PARTITION BY hardware_model_id
-                   ORDER BY CASE latest_basis
-                              WHEN 'source_manifest_latest' THEN 0
-                              WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
-                            effective_at DESC, target_key) AS rk
+                   ORDER BY
+                     -- 1. How well "latest" is established. A guess must never
+                     --    outrank a row whose source declared it.
+                     CASE latest_basis
+                       WHEN 'source_manifest_latest' THEN 0
+                       WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
+                     -- 2. Which publisher is most current, then WHICH publisher.
+                     --    Both come before any date, so the effective_at
+                     --    comparison below is always between rows of ONE source.
+                     --    Without this the device-level pick was ordering a
+                     --    naijarom capture date against an frbox capture date --
+                     --    274 devices span several publishers and 218 of them
+                     --    were decided by exactly that comparison, which is the
+                     --    thing this corpus is not allowed to do. Fixing it per
+                     --    target in EVIDENCE_SQL and leaving it here meant the
+                     --    rule held for every row except the one the grid shows.
+                     (SELECT currency_rank FROM sources
+                       WHERE sources.id = device_current_firmware_staging.source_id),
+                     source_id,
+                     effective_at DESC,
+                     target_key, channel) AS rk
             FROM device_current_firmware_staging)
         UPDATE device_current_firmware_staging SET is_device_primary=1
          WHERE rowid IN (SELECT rid FROM ranked WHERE rk=1)""")
@@ -407,6 +424,28 @@ def build(db: Database, *, verbose: bool = False) -> BuildReport:
     connection = db.connection
     built_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
+    # ONE write transaction for the whole build, not just the swap.
+    #
+    # Staging used to be assembled in autocommit and only the swap was
+    # transactional. That leaves three holes: two builders can interleave and
+    # publish a generation assembled from different snapshots, both can compute
+    # the same generation number, and a failure after the committed DELETE on
+    # build_security_patch_levels leaves that table empty for whoever reads it
+    # next. Holding the write lock for the whole build closes all three. Under
+    # WAL it costs readers nothing -- they are never blocked by a writer -- and
+    # the build is ~600ms on the live corpus.
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        report = _build_locked(db, connection, built_at, verbose=verbose)
+    except Exception:
+        connection.rollback()
+        raise
+    connection.commit()
+    return report
+
+
+def _build_locked(db: Database, connection, built_at: str, *, verbose: bool) -> BuildReport:
+    """The build itself, with the write lock already held."""
     # Patch levels first: the canonical select joins them.
     connection.execute("DELETE FROM build_security_patch_levels")
     connection.execute(PATCH_LEVEL_SQL, (built_at,))
@@ -432,20 +471,40 @@ def build(db: Database, *, verbose: bool = False) -> BuildReport:
 
     # A digest of what was published, so a later reader can tell two generations
     # apart without diffing the table.
-    digest_input = connection.execute(
-        """SELECT group_concat(hardware_model_id || '|' || target_key || '|' || channel
-                               || '|' || build_id || '|' || latest_basis, char(10))
-             FROM (SELECT * FROM device_current_firmware_staging
-                    ORDER BY hardware_model_id,target_key,channel)"""
-    ).fetchone()[0] or ""
-    digest = hashlib.sha256(digest_input.encode("utf-8")).hexdigest()
+    # Every column a reader can SEE, not just the key and the build. The earlier
+    # digest omitted the date, the patch level, the Android version, the source
+    # and the primary choice, so a correction that changed what the grid
+    # displays republished under an identical digest -- a fingerprint that
+    # cannot tell two different pages apart is worse than none, because it is
+    # trusted. The identity projection is folded in for the same reason.
+    #
+    # Built from two ordered queries rather than one UNION: SQLite rejects an
+    # ORDER BY inside a compound branch, and an unordered digest is not a digest.
+    digester = hashlib.sha256()
+    for row in connection.execute(
+            """SELECT hardware_model_id, target_key, channel, build_id, latest_basis,
+                      ifnull(source_id,''), ifnull(effective_at,''), effective_at_basis,
+                      ifnull(android_version,''), ifnull(security_patch_level,''),
+                      ifnull(security_patch_level_source_id,''), release_count, is_device_primary
+                 FROM device_current_firmware_staging
+                ORDER BY hardware_model_id, target_key, channel"""):
+        digester.update(("|".join(str(value) for value in row) + "\n").encode("utf-8"))
+    for row in connection.execute(
+            """SELECT hardware_model_id, brand, variant, model_code,
+                      ifnull(chip_part_number,''), ifnull(silicon_vendor,'')
+                 FROM device_catalog_flat_staging
+                ORDER BY hardware_model_id"""):
+        digester.update(("identity|" + "|".join(str(value) for value in row) + "\n").encode("utf-8"))
+    digest = digester.hexdigest()
 
     previous = connection.execute(
         "SELECT generation FROM projection_state WHERE name='device_current_firmware'").fetchone()
     generation = (previous[0] if previous else 0) + 1
 
-    # The swap. One transaction, so a reader is never served a partial refresh.
-    with db.transaction() as txn:
+    # The swap, inside the transaction opened by build(). A reader under WAL
+    # sees either the whole previous generation or the whole next one.
+    if True:
+        txn = connection
         # Both projections swap together. Publishing them separately would let a
         # reader see identity from one generation beside firmware from another.
         txn.execute("DELETE FROM device_catalog_flat")
@@ -470,12 +529,14 @@ def build(db: Database, *, verbose: bool = False) -> BuildReport:
                       is_device_primary,device_release_total,device_target_total,device_target_codes
                  FROM device_current_firmware_staging""")
         txn.execute(
-            """INSERT INTO projection_state(name,generation,built_at,row_count,source_digest)
-               VALUES('device_current_firmware',?,?,?,?)
+            """INSERT INTO projection_state
+                 (name,generation,built_at,row_count,source_digest,input_fingerprint)
+               VALUES('device_current_firmware',?,?,?,?,?)
                ON CONFLICT(name) DO UPDATE SET
                  generation=excluded.generation, built_at=excluded.built_at,
-                 row_count=excluded.row_count, source_digest=excluded.source_digest""",
-            (generation, built_at, rows, digest))
+                 row_count=excluded.row_count, source_digest=excluded.source_digest,
+                 input_fingerprint=excluded.input_fingerprint""",
+            (generation, built_at, rows, digest, input_fingerprint(connection)))
 
     connection.execute("DELETE FROM device_current_firmware_staging")
     connection.execute("DELETE FROM device_catalog_flat_staging")
@@ -513,6 +574,39 @@ def main() -> None:
         raise SystemExit(f"projection NOT published: {error}")
     finally:
         db.close()
+
+
+# The tables the projection is derived from. A change in any of them can change
+# what the projection would produce, and none of them necessarily changes an
+# observation's observed_at.
+_INPUT_TABLES = ("hardware_models", "device_variants", "device_families", "brands",
+                 "manufacturers", "firmware_releases", "product_firmware_releases",
+                 "hardware_silicon", "silicon_parts", "sources", "observations",
+                 "firmware_release_evidence", "evidence")
+
+
+def input_fingerprint(connection) -> str:
+    """What the projection would be built from, as one comparable value.
+
+    Row counts plus the latest stamp each table carries. It cannot see an edit
+    that changes a value in place without touching either -- a corrected region
+    code on an existing row, say -- so it is a staleness DETECTOR, not a proof
+    of freshness. It catches every case the wall-clock comparison missed:
+    promotions, new devices, re-ingests, rank changes and row-level corrections
+    that add or remove anything.
+    """
+    digester = hashlib.sha256()
+    for table in _INPUT_TABLES:
+        count = connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+        stamp = ""
+        for column in ("updated_at", "created_at", "observed_at"):
+            has = any(row[1] == column for row in connection.execute(f"PRAGMA table_info({table})"))
+            if has:
+                stamp = connection.execute(
+                    f"SELECT ifnull(max({column}),'') FROM {table}").fetchone()[0]
+                break
+        digester.update(f"{table}:{count}:{stamp}\n".encode("utf-8"))
+    return digester.hexdigest()
 
 
 def state(connection) -> dict | None:

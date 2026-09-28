@@ -136,28 +136,75 @@ class DevicePromotionTests(unittest.TestCase):
         self.assertEqual(len(linked_products), 1)
         self.assertTrue(linked_products <= {"p-base", "p-pro"})
 
-    # -- must not collide two different products onto one EXISTING device too --
-    def test_two_products_cannot_both_link_to_the_same_existing_device(self) -> None:
+    # -- a device may have several products, but only ones that ARE that device --
+    def test_several_products_may_describe_one_device(self) -> None:
+        """product_hardware_links.hardware_model_id used to be UNIQUE.
+
+        That made the second source to name a device an error -- and
+        device_promotion caught the IntegrityError, counted it, and discarded
+        the product WITH ALL ITS FIRMWARE. Measured on the live corpus: 196
+        approved products produced no device and 1,287 firmware rows became
+        unreachable, including every build of TECNO CAMON 40.
+
+        Corroboration is what the canonical layer is for, so two products naming
+        the same device is the normal case, not a violation. The protection
+        against an UNRELATED product claiming a device moved from the schema to
+        the rule below, which is the next test.
+        """
+        # The real shape: one product named commercially, one named by the bare
+        # hardware code, both meaning the same phone. source_products enforces
+        # UNIQUE(manufacturer, normalized_name), so two products never share a
+        # name -- they arrive from different sources naming it differently.
         hardware_id = CanonicalRepository(self.db).create_device(
-            manufacturer="Samsung", brand="Samsung", family="Galaxy A",
-            variant="Galaxy A01", model_code="SM-A015F",
+            manufacturer="TECNO", brand="TECNO", family="CAMON",
+            variant="CAMON 40", model_code="TECNO CM5",
         )
-        _insert_product(self.con, product_id="p1", manufacturer="Samsung", canonical_name="Samsung Galaxy A01")
-        _insert_conclusion(self.con, product_id="p1", evidence=[], method="exact_unique_spec_name")
+        _insert_product(self.con, product_id="p-name", manufacturer="TECNO", canonical_name="CAMON 40")
+        _insert_conclusion(self.con, product_id="p-name", evidence=[], method="exact_unique_spec_name")
+        self.assertEqual(dp.promote_approved_products_to_devices(self.con).linked_existing, 1)
+
+        _insert_product(self.con, product_id="p-code", manufacturer="TECNO", canonical_name="CM5")
+        _insert_conclusion(
+            self.con, product_id="p-code",
+            evidence=[{"source": "google_play_supported_devices", "matched_on": "model_code",
+                       "model_codes": ["CM5"], "marketing_names": ["CAMON 40"],
+                       "device_name": "CAMON 40"}],
+            method="exact_unique_google_play_model_code")
         result = dp.promote_approved_products_to_devices(self.con)
-        self.assertEqual(result.linked_existing, 1)
-        self.assertEqual(self._device_count(), 1)
-        link = self.con.execute("SELECT hardware_model_id FROM product_hardware_links WHERE product_id='p1'").fetchone()
-        self.assertEqual(link["hardware_model_id"], hardware_id)
-        # A second, different product must never be allowed to claim the same device.
-        try:
-            self.con.execute(
-                "INSERT INTO product_hardware_links VALUES(?,?,?,NULL,?)",
-                ("p2", hardware_id, "manual_test_attempt", "2026-09-01T00:00:00Z"),
-            )
-            self.fail("a second product was allowed to link to an already-claimed device")
-        except Exception as error:
-            self.assertIn("UNIQUE", str(error).upper())
+        self.assertEqual(result.skipped_collision, 0, "no product may be silently dropped")
+        holders = {r["product_id"] for r in self.con.execute(
+            "SELECT product_id FROM product_hardware_links WHERE hardware_model_id=?", (hardware_id,))}
+        self.assertEqual({"p-name", "p-code"}, holders,
+                         "both products describe this device and both must reach it")
+        self.assertEqual(self._device_count(), 1, "and it must still be ONE device")
+
+    def test_a_differently_named_product_may_not_claim_a_device_by_code(self) -> None:
+        """The protection the UNIQUE constraint used to provide, as a rule.
+
+        TECNO CAMON 40 5G and CAMON 40 Pro 5G both list Google Play model
+        "TECNO CM7". They are different phones. Linking the second to the first
+        would answer for one with the other's firmware.
+        """
+        _insert_product(self.con, product_id="p-base", manufacturer="TECNO", canonical_name="TECNO CAMON 40 5G")
+        _insert_conclusion(self.con, product_id="p-base", evidence=_google_play_evidence(["TECNO CM7"]),
+                           method="tecno_vendor_device_scope")
+        self.assertEqual(dp.promote_approved_products_to_devices(self.con).promoted, 1)
+
+        _insert_product(self.con, product_id="p-pro", manufacturer="TECNO", canonical_name="TECNO CAMON 40 Pro 5G")
+        _insert_conclusion(self.con, product_id="p-pro", evidence=_google_play_evidence(["TECNO CM7"]),
+                           method="tecno_vendor_device_scope")
+        result = dp.promote_approved_products_to_devices(self.con)
+        self.assertEqual(result.skipped_collision, 1)
+        self.assertEqual(self._device_count(), 1, "no duplicate device for the same code")
+        self.assertIsNone(self.con.execute(
+            "SELECT 1 FROM product_hardware_links WHERE product_id='p-pro'").fetchone(),
+            "the differently-named product must not be attached")
+        # And the refusal is written down, not just counted into a log line.
+        recorded = self.con.execute(
+            """SELECT reason FROM source_data_corrections
+                WHERE entity_type='source_product' AND entity_id='p-pro'""").fetchone()
+        self.assertIsNotNone(recorded, "a refusal nobody can audit is a silent drop")
+        self.assertEqual("model_code_claimed_by_a_differently_named_device", recorded["reason"])
 
     # -- requirement 5: firmware stays reachable from the promoted device -------
     def test_firmware_is_reachable_from_the_promoted_device(self) -> None:

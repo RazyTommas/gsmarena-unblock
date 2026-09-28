@@ -112,6 +112,81 @@ class ProjectionCoverageTest(unittest.TestCase):
         self.assertEqual({"canonical", "evidence"}, layers)
 
 
+class DeviceHeadlineRowTest(unittest.TestCase):
+    """The row the grid shows must not be chosen by comparing publishers' dates."""
+
+    def setUp(self) -> None:
+        self.db = Database.migrated()
+        self.addCleanup(self.db.close)
+        seed_demonstration(self.db, ROOT / "fixtures" / "supported_catalog.sample.json")
+        self.con = self.db.connection
+
+    def _source(self, source_id: str, rank: int) -> None:
+        self.con.execute(
+            "INSERT OR IGNORE INTO sources(id,name,base_url,authority_scope,enabled,created_at)"
+            " VALUES(?,?,NULL,'secondary',1,?)", (source_id, source_id, NOW))
+        self.con.execute("UPDATE sources SET currency_rank=? WHERE id=?", (rank, source_id))
+        self.con.execute(
+            "INSERT OR IGNORE INTO ingestion_runs VALUES(?,?,?,?,'succeeded','p','1',0,0,0,NULL)",
+            (f"run-{source_id}", source_id, NOW, NOW))
+        self.con.execute(
+            "INSERT OR IGNORE INTO artifacts VALUES(?,?,?,?,'text/csv',NULL,?,'x',1)",
+            (f"art-{source_id}", source_id, f"run-{source_id}", source_id.ljust(64, "0")[:64], NOW))
+
+    def test_the_most_current_publisher_wins_regardless_of_date(self) -> None:
+        """An archive with a NEWER date must not outrank a live check-in.
+
+        google.ota.checkin says what the vendor's servers would hand the device
+        today; an archive row says a build once existed. Ordering their dates
+        against each other treats two different measurements as one, which is
+        the comparison this corpus forbids. Before the fix, 218 of 274
+        multi-publisher devices had their headline row decided exactly that way.
+        """
+        from mobile_observatory.repository import CanonicalRepository
+
+        hardware = CanonicalRepository(self.db).create_device(
+            manufacturer="TECNO", brand="TECNO", family="Two publishers",
+            variant="Two publishers", model_code="TP-1")
+        self.con.execute("INSERT INTO source_products VALUES('p-tp','TECNO','TP','tp','approved',NULL,?,?)",
+                         (NOW, NOW))
+        self._source("archive.community", 50)
+        self._source("google.ota.checkin", 10)
+        self.con.execute(
+            """INSERT INTO source_identity_registry VALUES
+               ('id-tp','archive.community','codename','tp','tp','p-tp','approved','t','1','high',?,?)""",
+            (NOW, NOW))
+        rows = [("archive.community", "GLOBAL", "ARCHIVE.NEWER", "2026-09-30"),
+                ("google.ota.checkin", "EU", "OTA.OLDER", "2026-01-01")]
+        for index, (source, region, build, released) in enumerate(rows):
+            observation = f"obs-tp-{index}"
+            self.con.execute(
+                "INSERT INTO observations VALUES(?,?,?,?,'firmware_release',?,?,'{}',?,'valid',NULL)",
+                (observation, source, f"run-{source}", f"art-{source}", f"k{index}", NOW,
+                 f"{index:064d}"))
+            self.con.execute(
+                """INSERT INTO product_firmware_releases
+                   (id,product_id,identity_id,observation_id,source_id,region_code,build_id,channel,
+                    android_version,android_major,vendor_released_at,delivery_method,created_at,hardware_model_id)
+                   VALUES(?,'p-tp','id-tp',?,?,?,?,'Stable','14',14,?,NULL,?,?)""",
+                (f"rel-tp-{index}", observation, source, region, build, released, NOW, hardware))
+        cf.build(self.db)
+
+        primary = self.con.execute(
+            "SELECT build_id, source_id FROM device_current_firmware "
+            "WHERE hardware_model_id=? AND is_device_primary=1", (hardware,)).fetchone()
+        self.assertEqual("OTA.OLDER", primary["build_id"],
+                         "the more current publisher must win even with an older date; "
+                         "picking ARCHIVE.NEWER means the two dates were compared")
+        self.assertEqual("google.ota.checkin", primary["source_id"])
+
+    def test_exactly_one_primary_row_per_device(self) -> None:
+        cf.build(self.db)
+        self.assertEqual(0, self.con.execute(
+            """SELECT count(*) FROM (SELECT hardware_model_id FROM device_current_firmware
+                                      GROUP BY hardware_model_id HAVING sum(is_device_primary)<>1)"""
+        ).fetchone()[0])
+
+
 class ProjectionPublicationTest(unittest.TestCase):
     """Publication is all-or-nothing, and a bad build never replaces a good one."""
 

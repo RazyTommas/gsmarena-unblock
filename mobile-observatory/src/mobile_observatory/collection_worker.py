@@ -18,6 +18,9 @@ from .collectors.promotion import SamsungFirmwarePromoter
 from .collectors.device_promotion import promote_approved_products_to_devices
 from .worker_lock import exclusive_worker
 from .identity_bridge import rebuild_identity_registry
+from contextlib import contextmanager
+
+from .current_firmware import ProjectionError, build as build_current_firmware
 from .enrichment import automate_identity_review, promote_approved_product_observations, write_agent_review_bundle
 
 
@@ -33,6 +36,30 @@ CAPTURE_TIMES = {
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+class _ProjectionHandle:
+    """Adapt a raw sqlite3 connection to what current_firmware.build() needs.
+
+    build() takes a Database because it needs transaction() for the atomic swap.
+    This worker was handed a bare connection long before projections existed, so
+    rather than rethread it, this exposes the two members build() uses with the
+    same BEGIN IMMEDIATE semantics.
+    """
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    @contextmanager
+    def transaction(self):
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            yield self.connection
+        except Exception:
+            self.connection.rollback()
+            raise
+        else:
+            self.connection.commit()
 
 
 def migrate_collection_queue(db: sqlite3.Connection) -> None:
@@ -167,8 +194,23 @@ class CollectionWorker:
                 bundle = write_agent_review_bundle(self.corpus, self.paths.ledger.parent / "agent-review")
                 promoted = {"identity": identity, "product": product, "device": device,
                             "remainingAgentCandidates": bundle["candidate_count"]}
+            # Republish the serving projections. This path imports, promotes
+            # firmware and can create devices, and it is the ONLY write path that
+            # is not run_batch -- so without this an operator who collects a
+            # source by hand sees nothing change: an existing device keeps its
+            # old build and count, and a newly promoted device is missing from
+            # the grid and from search entirely. Reported, not raised: the
+            # collection itself succeeded and its observations are committed.
+            phase = "publish"
+            try:
+                projection = build_current_firmware(_ProjectionHandle(self.corpus))
+                published = {"generation": projection.generation, "rows": projection.rows,
+                             "devices": projection.devices}
+            except ProjectionError as error:
+                published = {"error": str(error), "published": False}
             status = "succeeded" if result.run.state == "healthy" else "partial"
             summary = {
+                "projection": published,
                 "executionMode": "captured_replay", "liveNetwork": False,
                 "sourceId": adapter.source_id, "pipelineState": result.run.state,
                 "evidenceObservedAt": getattr(adapter, "observed_at", None),

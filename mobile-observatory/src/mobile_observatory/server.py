@@ -15,7 +15,8 @@ from .watches import migrate_watches, list_watches, save_watch
 from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
 from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
-from .current_firmware import state as current_firmware_state
+from .current_firmware import (ProjectionError, build as build_current_firmware,
+                               state as current_firmware_state)
 from .integrity import check_corpus, review_queue, summarise
 from .silence import STATUS_SILENT, detect_silence
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
@@ -664,6 +665,33 @@ class ObservatoryService:
                                            (decision, product_id))
             self.corpus.connection.execute("UPDATE observation_product_links SET link_state=? WHERE product_id=?",
                                            ("approved" if decision == "approved" else "proposed", product_id))
+            if decision == "rejected":
+                # A rejected identity must stop asserting a device relationship.
+                # Without this the product kept its product_hardware_links row
+                # and its firmware kept the hardware_model_id promotion had
+                # backfilled, so a device went on serving builds attributed to
+                # an identity a reviewer had just said was wrong.
+                #
+                # The DEVICE itself is left alone: several products may describe
+                # one device, and deleting it because one of them was rejected
+                # would take the others' firmware with it. What is withdrawn is
+                # this product's claim.
+                self.corpus.connection.execute(
+                    """INSERT INTO source_data_corrections
+                         (id, entity_type, entity_id, reason, before_json, after_json,
+                          evidence_id, recorded_at)
+                       SELECT ?, 'source_product', l.product_id, 'identity_rejected_link_withdrawn',
+                              json_object('hardware_model_id', l.hardware_model_id,
+                                          'model_code_source', l.model_code_source),
+                              json_object('hardware_model_id', NULL), NULL,
+                              strftime('%Y-%m-%dT%H:%M:%fZ','now')
+                         FROM product_hardware_links l WHERE l.product_id=?""",
+                    (str(__import__("uuid").uuid4()), product_id))
+                self.corpus.connection.execute(
+                    "UPDATE product_firmware_releases SET hardware_model_id=NULL WHERE product_id=?",
+                    (product_id,))
+                self.corpus.connection.execute(
+                    "DELETE FROM product_hardware_links WHERE product_id=?", (product_id,))
 
     def _reapply_product_reviews(self) -> None:
         # Local human decisions survive replacement of the derived corpus.
@@ -888,7 +916,9 @@ class ObservatoryService:
         because a finding nobody looks at is not a finding. The Admin page is
         where an operator already goes to ask whether a run worked.
         """
-        findings = check_corpus(self.corpus.connection)
+        # deep=False: the two whole-database page scans belong to the batch, not
+        # to an endpoint the UI polls on every load. See check_corpus.
+        findings = check_corpus(self.corpus.connection, deep=False)
         return {"integrity": {"summary": summarise(findings),
                               "findings": [f.as_dict() for f in findings]},
                 "projection": current_firmware_state(self.corpus.connection),
@@ -1639,6 +1669,24 @@ def main() -> None:
         seed_demonstration(corpus, root / "fixtures" / "supported_catalog.sample.json")
     elif corpus.connection.execute("SELECT count(*) FROM sources").fetchone()[0] == 0:
         parser.error("empty corpus: pass --demo for synthetic data or provide an ingested corpus")
+    # Applying the migrations above CREATES the serving projections empty. On a
+    # corpus upgraded in place that means /devices and search would answer with
+    # an empty catalogue -- confidently, and with a 200 -- until someone happened
+    # to run a batch. That is the same shape of falsehood this whole read path
+    # was rebuilt to remove, so it is built here rather than served hollow.
+    if not args.demo:
+        catalogue = corpus.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0]
+        published = corpus.connection.execute("SELECT count(*) FROM device_catalog_flat").fetchone()[0]
+        if catalogue and published != catalogue:
+            print(f"projection covers {published} of {catalogue} devices; rebuilding before serving")
+            try:
+                report = build_current_firmware(corpus)
+                print(f"  {report.summary()}")
+            except ProjectionError as error:
+                parser.error(
+                    f"the device catalogue cannot be served: {error}. "
+                    "Run `python3 -m mobile_observatory.batch` to rebuild it; refusing to "
+                    "start rather than report an empty catalogue as the answer.")
     service = ObservatoryService(corpus, data_dir / "local.sqlite", demonstration=args.demo,
                                  sample_path=root / "fixtures" / "real_source_sample.json",
                                  legacy_root=args.legacy_root)

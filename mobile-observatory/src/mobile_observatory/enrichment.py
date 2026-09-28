@@ -124,6 +124,166 @@ def _bare_code(value: str) -> str:
     return _BRAND_PREFIX.sub("", value.strip()).strip().casefold()
 
 
+from .repository import clean_device_name as _clean_name  # noqa: E402  (shared definition)
+
+
+def _name_key(value: str) -> str:
+    """Fold a marketing name for COUNTING distinct names."""
+    return _BRAND_PREFIX.sub("", _clean_name(value)).strip().casefold()
+
+
+# A marketing name that covers SEVERAL devices. Play publishes
+# "SMART 7  or SMART 7 PLUS" for Infinix X6517; promoting it would make two
+# phones one row that answers for both.
+_NAMES_SEVERAL = re.compile(r"\bor\b", re.I)
+
+
+from .repository import usable_device_name as _usable_device_name  # noqa: E402
+
+
+
+def _conclude(connection, product, *, catalog, specs, play, play_by_code, decisions, totals):
+    """Decide one product's identity and record it.
+
+    Extracted so the main pass and the convergence pass below cannot drift:
+    two copies of this decision would be two different rules the day one of
+    them is edited.
+    """
+    identities = connection.execute(
+        "SELECT * FROM source_identity_registry WHERE product_id=? ORDER BY source_value", (product["id"],)
+    ).fetchall()
+    remembered = connection.execute(
+        "SELECT conclusion, rule_version FROM identity_conclusions WHERE product_id=?",
+        (product["id"],)).fetchone()
+    blocked = product['review_state'] == 'rejected' or any(
+        i['resolution_state'] == 'rejected' or i['resolution_method'] == 'manual_product_review' for i in identities)
+    blocked = blocked or any(d.get('decision') in ('different', 'defer') and
+        (d.get('canonical_id') == product['id'] or any(d.get('source_namespace') in (i['namespace'], i['source_id'])
+            and d.get('source_value') == i['source_value'] for i in identities)) for d in (decisions or []))
+    # A remembered conclusion is normally final: re-deciding an identity
+    # every run would make the corpus depend on when it last ran. The one
+    # exception is a conclusion that resolved nothing under an OLDER rule
+    # version -- there is no decision there to preserve, and a new rule
+    # exists precisely to resolve it. An auto_approved or ambiguous
+    # conclusion is never reopened, and a human decision (`blocked`)
+    # never is either.
+    reconsider = (remembered is not None
+                  and remembered["conclusion"] == "insufficient_evidence"
+                  and remembered["rule_version"] != RULE_VERSION)
+    if (remembered and not reconsider) or blocked:
+        totals[remembered['conclusion'] if remembered else 'insufficient_evidence'] += 1
+        return
+    candidate_names: list[str] = []
+    evidence: list[dict] = []
+    exact_catalog = False
+    if product["manufacturer"] == "Xiaomi":
+        for identity in identities:
+            names = catalog.get(identity["source_value"], [])
+            candidate_names.extend(names)
+            normalized = _norm(_REGION.sub("", product["canonical_name"]))
+            exact_catalog = exact_catalog or any(_norm(_REGION.sub("", n)) == normalized for n in names)
+            if names:
+                evidence.append({"source": "xiaomi_devices_yml", "identity": identity["source_value"],
+                                 "catalog_names": names})
+    matches = specs.get(_norm(product["canonical_name"]), [])
+    if len(matches) == 1:
+        evidence.append({"source": "gsmarena_captured_specs", "slug": matches[0]["slug"],
+                         "device_name": matches[0]["device_name"]})
+    play_matches = play.get((product["manufacturer"].casefold(), _norm(product["canonical_name"])), [])
+    play_models = sorted({r["Model"].strip() for r in play_matches if r["Model"].strip()})
+    if play_models:
+        candidate_names.extend(play_models)
+        evidence.append({"source": "google_play_supported_devices", "marketing_name": product["canonical_name"],
+                         "model_codes": play_models,
+                         "device_codes": sorted({r["Device"].strip() for r in play_matches if r["Device"].strip()})})
+    # Reverse lookup: this product is NAMED by a hardware code, so ask
+    # the catalogue what that code is called. Only a code the catalogue
+    # maps to exactly ONE marketing name counts -- "Infinix X603" lists
+    # both Zero 5 and Zero 5 Pro, and collapsing those would invent a
+    # device relationship the evidence does not support.
+    raw_code_names = sorted(play_by_code.get(
+        (_play_brand(product["manufacturer"]), _bare_code(product["canonical_name"])), set()))
+    # Distinct by FOLDED name, so "NOTE 5" and "Note 5" are one device and not an
+    # ambiguity. Not folding this side while folding the code side made Play's
+    # own inconsistent spelling look like two phones: 26 of 89 refusals were
+    # spelling alone, including six spellings of "itel A58 Lite" for A631W.
+    by_key: dict[str, str] = {}
+    for candidate in raw_code_names:
+        by_key.setdefault(_name_key(candidate), _clean_name(candidate))
+    code_names = [by_key[key] for key in sorted(by_key)]
+    names_several = any(_NAMES_SEVERAL.search(name) for name in code_names)
+    usable = [name for name in code_names
+              if _usable_device_name(name, code=product["canonical_name"],
+                                     brand=product["manufacturer"])]
+    if code_names:
+        candidate_names.extend(code_names)
+        entry = {"source": "google_play_supported_devices",
+                 "matched_on": "model_code",
+                 "model_codes": [product["canonical_name"].strip()],
+                 "marketing_names": code_names}
+        # device_name is what promotion will actually call the device, and it is
+        # set only when exactly one USABLE name exists. A code whose only name is
+        # the brand ("TECNO" for BF7) or the code back again ("X5010") is still
+        # corroborated -- the catalogue confirms the code -- but it names
+        # nothing, so the device keeps its code rather than being called TECNO.
+        if len(usable) == 1 and not names_several:
+            entry["device_name"] = usable[0]
+        evidence.append(entry)
+    official_tecno_scope = (product["manufacturer"] == "TECNO" and any(
+        i["source_id"] == "tecno.vendor.security_device_scope" for i in identities))
+    if official_tecno_scope:
+        # The source is TECNO's own device-scope publication. It is
+        # authoritative for the commercial product relationship even
+        # when Google Play lists several regional hardware codes. Those
+        # hardware variants remain candidates; they are not collapsed.
+        conclusion, confidence, method = "auto_approved", "authoritative", "tecno_vendor_device_scope"
+        rationale = ("TECNO's captured security publication explicitly scopes the record to this "
+                     "commercial product. Candidate hardware codes remain separate unresolved variants.")
+    elif exact_catalog and len(matches) == 1:
+        conclusion, confidence, method = "auto_approved", "high", "vendor_catalog_plus_exact_spec_name"
+        rationale = "Exact Xiaomi codename catalog name and unique captured specification name agree."
+    elif exact_catalog:
+        conclusion, confidence, method = "auto_approved", "authoritative", "xiaomi_vendor_codename_catalog"
+        rationale = "Exact codename-to-product name relationship is present in Xiaomi's captured device catalog."
+    elif len(play_models) == 1:
+        conclusion, confidence, method = "auto_approved", "high", "exact_unique_google_play_name"
+        rationale = "Brand and commercial name uniquely match one model in the captured Google Play supported-device catalog."
+    elif len(play_models) > 1:
+        conclusion, confidence, method = "ambiguous", "medium", "google_play_name_multiple_models"
+        rationale = "The captured Google Play catalog confirms the product name but lists multiple hardware models."
+    elif names_several:
+        conclusion, confidence, method = "ambiguous", "medium", "google_play_model_code_names_several_devices"
+        rationale = ("The captured Google Play catalog gives this hardware code a name covering "
+                     "more than one device; promoting it would answer for both.")
+    elif len(code_names) == 1:
+        conclusion, confidence, method = "auto_approved", "high", "exact_unique_google_play_model_code"
+        rationale = ("The captured Google Play supported-device catalog maps this vendor hardware "
+                     "code to exactly one commercial product name.")
+    elif len(code_names) > 1:
+        conclusion, confidence, method = "ambiguous", "medium", "google_play_model_code_multiple_names"
+        rationale = ("The captured Google Play catalog lists this hardware code under several "
+                     "commercial names; no silent merge is safe.")
+    elif len(matches) == 1:
+        conclusion, confidence, method = "auto_approved", "high", "exact_unique_spec_name"
+        rationale = "Unique exact normalized commercial-name match in captured specifications."
+    elif candidate_names or len(matches) > 1:
+        conclusion, confidence, method = "ambiguous", "medium", "ranked_candidates"
+        rationale = "Evidence produces multiple or non-exact candidate names; no silent merge is safe."
+    else:
+        conclusion, confidence, method = "insufficient_evidence", "low", "no_independent_identifier"
+        rationale = "No independent authoritative identifier or unique specification match is available."
+    now = max((i["last_seen_at"] for i in identities), default=product["updated_at"])
+    connection.execute("""INSERT OR REPLACE INTO identity_conclusions
+      VALUES(?,?,?,?,?,?,?,?,?)""", (product["id"], conclusion, confidence, method, RULE_VERSION, rationale,
+      json.dumps(sorted(set(candidate_names))), json.dumps(evidence, sort_keys=True), now))
+    if conclusion == "auto_approved":
+        connection.execute("UPDATE source_products SET review_state='approved',updated_at=? WHERE id=?", (now, product["id"]))
+        connection.execute("UPDATE source_identity_registry SET resolution_state='approved',resolution_method=?,rule_version=?,confidence=? WHERE product_id=?",
+                           (method, RULE_VERSION, confidence, product["id"]))
+        connection.execute("UPDATE observation_product_links SET link_state='approved' WHERE product_id=?", (product["id"],))
+    totals[conclusion] += 1
+
+
 def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Path,
                              specs_csv: Path, google_play_csv: Path | None = None,
                              decisions: list[dict] | None = None) -> dict[str, int]:
@@ -154,117 +314,36 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
     rows = connection.execute("SELECT * FROM source_products ORDER BY manufacturer,canonical_name").fetchall()
     with connection:
         for product in rows:
-            identities = connection.execute(
-                "SELECT * FROM source_identity_registry WHERE product_id=? ORDER BY source_value", (product["id"],)
-            ).fetchall()
-            remembered = connection.execute(
-                "SELECT conclusion, rule_version FROM identity_conclusions WHERE product_id=?",
-                (product["id"],)).fetchone()
-            blocked = product['review_state'] == 'rejected' or any(
-                i['resolution_state'] == 'rejected' or i['resolution_method'] == 'manual_product_review' for i in identities)
-            blocked = blocked or any(d.get('decision') in ('different', 'defer') and
-                (d.get('canonical_id') == product['id'] or any(d.get('source_namespace') in (i['namespace'], i['source_id'])
-                    and d.get('source_value') == i['source_value'] for i in identities)) for d in (decisions or []))
-            # A remembered conclusion is normally final: re-deciding an identity
-            # every run would make the corpus depend on when it last ran. The one
-            # exception is a conclusion that resolved nothing under an OLDER rule
-            # version -- there is no decision there to preserve, and a new rule
-            # exists precisely to resolve it. An auto_approved or ambiguous
-            # conclusion is never reopened, and a human decision (`blocked`)
-            # never is either.
-            reconsider = (remembered is not None
-                          and remembered["conclusion"] == "insufficient_evidence"
-                          and remembered["rule_version"] != RULE_VERSION)
-            if (remembered and not reconsider) or blocked:
-                totals[remembered['conclusion'] if remembered else 'insufficient_evidence'] += 1
-                continue
-            candidate_names: list[str] = []
-            evidence: list[dict] = []
-            exact_catalog = False
-            if product["manufacturer"] == "Xiaomi":
-                for identity in identities:
-                    names = catalog.get(identity["source_value"], [])
-                    candidate_names.extend(names)
-                    normalized = _norm(_REGION.sub("", product["canonical_name"]))
-                    exact_catalog = exact_catalog or any(_norm(_REGION.sub("", n)) == normalized for n in names)
-                    if names:
-                        evidence.append({"source": "xiaomi_devices_yml", "identity": identity["source_value"],
-                                         "catalog_names": names})
-            matches = specs.get(_norm(product["canonical_name"]), [])
-            if len(matches) == 1:
-                evidence.append({"source": "gsmarena_captured_specs", "slug": matches[0]["slug"],
-                                 "device_name": matches[0]["device_name"]})
-            play_matches = play.get((product["manufacturer"].casefold(), _norm(product["canonical_name"])), [])
-            play_models = sorted({r["Model"].strip() for r in play_matches if r["Model"].strip()})
-            if play_models:
-                candidate_names.extend(play_models)
-                evidence.append({"source": "google_play_supported_devices", "marketing_name": product["canonical_name"],
-                                 "model_codes": play_models,
-                                 "device_codes": sorted({r["Device"].strip() for r in play_matches if r["Device"].strip()})})
-            # Reverse lookup: this product is NAMED by a hardware code, so ask
-            # the catalogue what that code is called. Only a code the catalogue
-            # maps to exactly ONE marketing name counts -- "Infinix X603" lists
-            # both Zero 5 and Zero 5 Pro, and collapsing those would invent a
-            # device relationship the evidence does not support.
-            code_names = sorted(play_by_code.get(
-                (_play_brand(product["manufacturer"]), _bare_code(product["canonical_name"])), set()))
-            if code_names:
-                candidate_names.extend(code_names)
-                evidence.append({"source": "google_play_supported_devices",
-                                 "matched_on": "model_code",
-                                 "model_codes": [product["canonical_name"].strip()],
-                                 "marketing_names": code_names})
-            official_tecno_scope = (product["manufacturer"] == "TECNO" and any(
-                i["source_id"] == "tecno.vendor.security_device_scope" for i in identities))
-            if official_tecno_scope:
-                # The source is TECNO's own device-scope publication. It is
-                # authoritative for the commercial product relationship even
-                # when Google Play lists several regional hardware codes. Those
-                # hardware variants remain candidates; they are not collapsed.
-                conclusion, confidence, method = "auto_approved", "authoritative", "tecno_vendor_device_scope"
-                rationale = ("TECNO's captured security publication explicitly scopes the record to this "
-                             "commercial product. Candidate hardware codes remain separate unresolved variants.")
-            elif exact_catalog and len(matches) == 1:
-                conclusion, confidence, method = "auto_approved", "high", "vendor_catalog_plus_exact_spec_name"
-                rationale = "Exact Xiaomi codename catalog name and unique captured specification name agree."
-            elif exact_catalog:
-                conclusion, confidence, method = "auto_approved", "authoritative", "xiaomi_vendor_codename_catalog"
-                rationale = "Exact codename-to-product name relationship is present in Xiaomi's captured device catalog."
-            elif len(play_models) == 1:
-                conclusion, confidence, method = "auto_approved", "high", "exact_unique_google_play_name"
-                rationale = "Brand and commercial name uniquely match one model in the captured Google Play supported-device catalog."
-            elif len(play_models) > 1:
-                conclusion, confidence, method = "ambiguous", "medium", "google_play_name_multiple_models"
-                rationale = "The captured Google Play catalog confirms the product name but lists multiple hardware models."
-            elif len(code_names) == 1:
-                conclusion, confidence, method = "auto_approved", "high", "exact_unique_google_play_model_code"
-                rationale = ("The captured Google Play supported-device catalog maps this vendor hardware "
-                             "code to exactly one commercial product name.")
-            elif len(code_names) > 1:
-                conclusion, confidence, method = "ambiguous", "medium", "google_play_model_code_multiple_names"
-                rationale = ("The captured Google Play catalog lists this hardware code under several "
-                             "commercial names; no silent merge is safe.")
-            elif len(matches) == 1:
-                conclusion, confidence, method = "auto_approved", "high", "exact_unique_spec_name"
-                rationale = "Unique exact normalized commercial-name match in captured specifications."
-            elif candidate_names or len(matches) > 1:
-                conclusion, confidence, method = "ambiguous", "medium", "ranked_candidates"
-                rationale = "Evidence produces multiple or non-exact candidate names; no silent merge is safe."
-            else:
-                conclusion, confidence, method = "insufficient_evidence", "low", "no_independent_identifier"
-                rationale = "No independent authoritative identifier or unique specification match is available."
-            now = max((i["last_seen_at"] for i in identities), default=product["updated_at"])
-            connection.execute("""INSERT OR REPLACE INTO identity_conclusions
-              VALUES(?,?,?,?,?,?,?,?,?)""", (product["id"], conclusion, confidence, method, RULE_VERSION, rationale,
-              json.dumps(sorted(set(candidate_names))), json.dumps(evidence, sort_keys=True), now))
-            if conclusion == "auto_approved":
-                connection.execute("UPDATE source_products SET review_state='approved',updated_at=? WHERE id=?", (now, product["id"]))
-                connection.execute("UPDATE source_identity_registry SET resolution_state='approved',resolution_method=?,rule_version=?,confidence=? WHERE product_id=?",
-                                   (method, RULE_VERSION, confidence, product["id"]))
-                connection.execute("UPDATE observation_product_links SET link_state='approved' WHERE product_id=?", (product["id"],))
-            totals[conclusion] += 1
+            _conclude(connection, product, catalog=catalog, specs=specs, play=play,
+                      play_by_code=play_by_code, decisions=decisions, totals=totals)
     from .product_specs import enrich_product_specs
     enrich_product_specs(connection, specs_csv=specs_csv, devices_yml=devices_yml, google_play_csv=google_play_csv, decisions=decisions)
+
+    # enrich_product_specs CREATES products, for captured specifications that no
+    # existing product claims. Those arrive after the loop above has run, so a
+    # single pass left them without a conclusion and they were only concluded --
+    # and only then promotable -- by the NEXT batch. Measured: run 1 produced 691
+    # devices, run 2 produced 693, runs 3 and 4 produced 693. The pipeline
+    # converged, but a nightly run should reach its own fixed point rather than
+    # leaving a pass of work for tomorrow.
+    #
+    # Bounded, not `while True`: a rule that somehow created a product per pass
+    # would otherwise spin forever on the nightly job. Two extra passes is one
+    # more than the one case that exists; if it is ever not enough, the corpus is
+    # not converging and that is a bug to see rather than to grind through.
+    for _ in range(2):
+        pending = connection.execute(
+            """SELECT * FROM source_products sp
+                WHERE NOT EXISTS (SELECT 1 FROM identity_conclusions ic WHERE ic.product_id = sp.id)
+                ORDER BY sp.manufacturer, sp.canonical_name""").fetchall()
+        if not pending:
+            break
+        totals["second_pass_products"] += len(pending)
+        with connection:
+            for product in pending:
+                _conclude(connection, product, catalog=catalog, specs=specs, play=play,
+                          play_by_code=play_by_code, decisions=decisions, totals=totals)
+
     totals["total"] = len(rows)
     totals["silicon_observations"] = connection.execute("SELECT count(*) FROM observed_product_silicon").fetchone()[0]
     return dict(totals)

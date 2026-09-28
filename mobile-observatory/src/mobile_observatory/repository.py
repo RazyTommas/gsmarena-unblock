@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -243,6 +244,42 @@ class CanonicalRepository:
                 ),
             )
         return verdict_id
+
+
+def clean_device_name(value: str) -> str:
+    """Collapse the whitespace source catalogues actually publish.
+
+    Real values from the captured Google Play catalogue: "S5\u00a0Pro" with a
+    non-breaking space, "MEGAPAD  SE" and "VistaTab  30" with a double space.
+    Stored as-is they become device names a user cannot type -- searching
+    "S5 Pro" with an ordinary space matches nothing.
+    """
+    return " ".join((value or "").replace("\u00a0", " ").split())
+
+
+def usable_device_name(name: str, *, code: str, brand: str) -> bool:
+    """Is this a name a reader would recognise as a device?
+
+    A source's marketing name is sometimes just the brand -- "TECNO" is the
+    literal marketing name Google Play gives TECNO BF7 -- and sometimes the
+    hardware code itself ("X5010"). Neither identifies a phone to a person, and
+    echoing the code back as the name answers the user's question with their own
+    question.
+
+    Lives here rather than beside its callers because the identity review and
+    the promotion both have to agree on it: two copies would be two different
+    definitions of "a usable name" the day one of them is edited.
+    """
+    cleaned = clean_device_name(name)
+    if not cleaned:
+        return False
+    if cleaned.casefold() == (brand or "").strip().casefold():
+        return False
+    bare = lambda value: re.sub(r"^(tecno mobile|tecno|infinix|itel)\s+", "",
+                                (value or "").strip(), flags=re.I).strip().casefold()
+    if bare(cleaned) == bare(code):
+        return False
+    return True
 
 
 def canonical_vendor(connection, value: str) -> str:

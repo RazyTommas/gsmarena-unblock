@@ -11,7 +11,9 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
+
+from .access import COOKIE_NAME, AccessPolicy, token_for_binding
 
 from .watches import migrate_watches, list_watches, save_watch
 from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
@@ -1443,8 +1445,64 @@ class ObservatoryService:
         return item or {"status": "idle", "message": "No queued collection request."}
 
 
-def make_handler(service: ObservatoryService, web_root: Path):
+def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPolicy | None = None):
+    # Defaulting to an open policy keeps every existing caller -- the tests, the
+    # portable runner -- working unchanged. main() always passes a real one.
+    policy = policy if policy is not None else AccessPolicy(None)
+
     class Handler(BaseHTTPRequestHandler):
+        def _gate(self, parsed) -> bool:
+            """Apply the access policy. True means the request may proceed.
+
+            Called before ANY routing, including static files: a page served to
+            an unauthenticated browser is a page that can then be scripted, and
+            the whole point of the token on a reachable interface is that the
+            box is not a public read-only mirror.
+            """
+            if policy.open:
+                return True
+            query_token = (parse_qs(parsed.query).get("token") or [None])[0]
+            decision = policy.decide(
+                method=self.command,
+                authorization=self.headers.get("Authorization"),
+                cookie=self.headers.get("Cookie"),
+                query_token=query_token,
+                origin=self.headers.get("Origin"),
+                referer=self.headers.get("Referer"),
+                host=self.headers.get("Host"),
+            )
+            if decision.allowed:
+                return True
+            self._json(HTTPStatus(decision.status), {"error": decision.reason})
+            return False
+
+        def _consume_token_param(self, parsed) -> bool:
+            """Turn ?token=<t> on a GET into a cookie, then redirect without it.
+
+            The operator has a token in a file and a browser that cannot send an
+            Authorization header by typing a URL. Redirecting rather than simply
+            serving the page is what keeps the credential out of the address bar,
+            out of the history, and out of the Referer sent to any link the page
+            later points at.
+            """
+            if policy.open or self.command != "GET":
+                return False
+            query = parse_qs(parsed.query)
+            supplied = (query.get("token") or [None])[0]
+            if not supplied or not policy.token_matches(supplied):
+                return False
+            remaining = {k: v for k, v in query.items() if k != "token"}
+            target = parsed.path + (f"?{urlencode(remaining, doseq=True)}" if remaining else "")
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", target or "/")
+            # No Secure flag: this also serves plain http on an air-gapped box,
+            # and setting it there would silently drop the cookie entirely.
+            self.send_header("Set-Cookie",
+                             f"{COOKIE_NAME}={supplied}; Path=/; HttpOnly; SameSite=Strict")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+
         def handle(self) -> None:
             """Serve this connection, then hand back its corpus connection.
 
@@ -1465,6 +1523,10 @@ def make_handler(service: ObservatoryService, web_root: Path):
 
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
+            if self._consume_token_param(parsed):
+                return
+            if not self._gate(parsed):
+                return
             query = parse_qs(parsed.query)
             routes = {
                 "/api/v1/radar/overview": service.overview,
@@ -1521,6 +1583,8 @@ def make_handler(service: ObservatoryService, web_root: Path):
 
         def do_POST(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
+            if not self._gate(parsed):
+                return
             if parsed.path == "/api/v1/updates/acknowledge-bulk":
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
@@ -1652,6 +1716,14 @@ def make_handler(service: ObservatoryService, web_root: Path):
             self.wfile.write(body)
 
         def _static(self, raw_path: str) -> None:
+            # An unrecognised /api/ path used to fall through to here and get the
+            # SPA shell back with a 200. A monitoring probe pointed at a typo'd or
+            # renamed route would then pass forever, which is worse than no probe
+            # at all: it reports health it never checked. Only the UI's own routes
+            # may fall through to index.html.
+            if raw_path.startswith("/api/"):
+                self._json(HTTPStatus.NOT_FOUND, {"error": "unknown_endpoint", "path": raw_path})
+                return
             relative = "index.html" if raw_path == "/" else raw_path.lstrip("/")
             target = (web_root / relative).resolve()
             if web_root.resolve() not in target.parents and target != web_root.resolve():
@@ -1755,10 +1827,10 @@ def main() -> None:
         catalogue = corpus.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0]
         published = corpus.connection.execute("SELECT count(*) FROM device_catalog_flat").fetchone()[0]
         if catalogue and published != catalogue:
-            print(f"projection covers {published} of {catalogue} devices; rebuilding before serving")
+            print(f"projection covers {published} of {catalogue} devices; rebuilding before serving", flush=True)
             try:
                 report = build_current_firmware(corpus)
-                print(f"  {report.summary()}")
+                print(f"  {report.summary()}", flush=True)
             except ProjectionError as error:
                 parser.error(
                     f"the device catalogue cannot be served: {error}. "
@@ -1767,8 +1839,25 @@ def main() -> None:
     service = ObservatoryService(corpus, data_dir / "local.sqlite", demonstration=args.demo,
                                  sample_path=root / "fixtures" / "real_source_sample.json",
                                  legacy_root=args.legacy_root)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(service, root / "apps" / "web"))
-    print(f"Mobile Observatory: http://{args.host}:{args.port} ({service.meta['mode']})")
+    # Resolve the access token against the interface we are ABOUT to bind, not
+    # against what is configured: binding somewhere reachable with no credential
+    # is the case that must not pass quietly, and it is decided by --host alone.
+    token, note = token_for_binding(data_dir, args.host)
+    policy = AccessPolicy(token)
+    server = ThreadingHTTPServer((args.host, args.port),
+                                 make_handler(service, root / "apps" / "web", policy))
+    print(f"Mobile Observatory: http://{args.host}:{args.port} ({service.meta['mode']})", flush=True)
+    # `note` names the token's FILE and never its value -- printing the value
+    # would put a live credential into terminal scrollback and journald.
+    #
+    # flush=True on every startup print, because stdout to a pipe is block
+    # buffered: under nohup, systemd or any service manager that does not pass
+    # -u, these lines sit in the buffer until the process exits. Measured: the
+    # whole startup banner was absent from a backgrounded run's log. For this
+    # line that is not cosmetic -- it is the only thing telling an operator
+    # WHERE the generated token is, and it would be swallowed exactly when it
+    # is needed. run-batch.sh already passes -u for the same reason.
+    print(f"  access: {note}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

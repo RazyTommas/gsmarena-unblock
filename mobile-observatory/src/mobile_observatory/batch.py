@@ -28,6 +28,7 @@ from .current_firmware import ProjectionError, build as build_current_firmware
 from .integrity import check_corpus, summarise
 from .identity_bridge import rebuild_identity_registry
 from .silence import STATUS_SILENT, detect_silence
+from .worker_lock import exclusive_worker
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
                          enrich_observed_hardware_silicon,
                          enrich_gsmarena_hardware_silicon, import_mediatek_catalog, import_security_catalog,
@@ -223,8 +224,27 @@ def main() -> None:
     logger = configure_batch_logging(log_path)
 
     logger.info("batch starting data_dir=%s legacy_root=%s", data_dir, args.legacy_root)
+    # Two batches must never run against one corpus. The timer fires on a
+    # calendar, not on the previous run finishing: today's batch takes 110s and
+    # the unit allows 30m, but the same work at the production volume this is
+    # sized for runs for hours, so a nightly timer will eventually start a run
+    # while the last one is still going. Both would then hold write
+    # transactions against the same SQLite file, and the second would fail on
+    # busy_timeout somewhere in the middle -- a half-ingested run reported as a
+    # crash, at 3am.
+    #
+    # The collection worker already had exactly this guard; the batch, which is
+    # the bigger writer, never took it. Nonblocking on purpose: a second batch
+    # should say so and exit, not queue up behind the first and start the
+    # moment it ends.
     try:
-        results = run_batch(data_dir=data_dir, legacy_root=Path(args.legacy_root), fixture_root=root / "fixtures")
+        with exclusive_worker(data_dir / "batch.lock", holder="An ingest batch"):
+            results = run_batch(data_dir=data_dir, legacy_root=Path(args.legacy_root),
+                                fixture_root=root / "fixtures")
+    except ValueError as exc:
+        # exclusive_worker raises ValueError when the lock is already held.
+        logger.error("batch refused to start: %s", exc)
+        sys.exit(3)
     except Exception:
         logger.exception("batch failed before completion")
         raise

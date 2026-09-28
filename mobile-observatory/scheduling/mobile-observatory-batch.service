@@ -9,12 +9,20 @@ Type=oneshot
 # CHANGE ME: absolute path to this checkout's mobile-observatory/ directory.
 WorkingDirectory=/CHANGE/ME/mobile-observatory
 ExecStart=/CHANGE/ME/mobile-observatory/scheduling/run-batch.sh
-TimeoutStartSec=30m
+# Measured at 2m08s against the development corpus. This is sized for the
+# production volume instead, which is roughly 200x that and runs for hours:
+# at 30m systemd would SIGTERM the batch mid-run every single night, and the
+# symptom would be a nightly failed unit rather than anything naming a clock.
+# Raise it further if your corpus is larger; it is a ceiling, not a target,
+# and a batch that finishes early is not penalised for it.
+TimeoutStartSec=12h
 
 # batch.py's exit codes: 0 = ran, nothing overdue. 2 = ran fine, but at
 # least one source is silent (advisory -- see docs/SOURCE_SILENCE_DETECTION.md).
-# Any other nonzero = the batch itself failed. systemd treats both 2 and a
-# real failure as a failed unit, which is what makes `systemctl --user
+# 3 = refused to start because another batch still holds the corpus lock;
+# harmless on its own, but a run of them means the batch no longer finishes
+# inside its period. Any other nonzero = the batch itself failed. systemd
+# treats all of these as a failed unit, which is what makes `systemctl --user
 # status`/`journalctl --user -u mobile-observatory-batch.service` show it,
 # and what a monitoring check against this unit's ActiveState would catch.
 #

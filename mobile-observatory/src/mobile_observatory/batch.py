@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 
 from .collectors.adapters.apple_ipsw import AppleIpswFirmwareAdapter
+from .collectors.adapters.frbox_transsion import FrboxTranssionCatalogAdapter
+from .collectors.adapters.naijarom_transsion import NaijaromTranssionAdapter
+from .collectors.adapters.tecno_ota_checkin import TecnoOtaCheckinAdapter
 from .collectors.adapters.mifirm_archive import MifirmArchiveAdapter
 from .collectors.adapters.samsung_aspl import SamsungAsplAdapter
 from .collectors.adapters.samsung_fota import SamsungFotaArtifactAdapter
@@ -100,6 +103,28 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             # security_patch_publication is deliberately not attempted here.
             (AppleIpswFirmwareAdapter(legacy_root / "ipsw-me" / "ipsw-me-firmware.csv"),
              "ipsw-me-captured"),
+            # The three Transsion sources below were ingested by hand and never
+            # wired in here. The adapters existed, the captured artifacts were
+            # committed, and the batch simply did not list them -- so the corpus
+            # on this machine could not be reproduced from a clone. Measured: a
+            # fresh checkout rebuilt to 228 devices and 90,143 observations
+            # against 865 and 96,319, with Infinix and itel absent entirely,
+            # because these are the sources that carry them.
+            (FrboxTranssionCatalogAdapter(
+                legacy_root / "frbox-transsion-catalog" / "transsion_frbox_catalog.csv"),
+             "frbox-transsion-captured"),
+            (NaijaromTranssionAdapter(
+                legacy_root / "naijarom-transsion" / "naijarom-merged.csv"),
+             "naijarom-merged-captured"),
+            # One source, two captures: the same endpoint and response shape
+            # answering for different brands, which is why f2de0ff gave them one
+            # source id rather than three.
+            (TecnoOtaCheckinAdapter(
+                legacy_root / "tecno-ota-checkin" / "tecno_ota_checkin.csv"),
+             "ota-checkin-tecno"),
+            (TecnoOtaCheckinAdapter(
+                legacy_root / "infinix-itel-ota-checkin" / "infinix_itel_ota_checkin.csv"),
+             "ota-checkin-infinix-itel"),
         ]
         for adapter, run_id in adapters:
             result = pipeline.run(adapter, run_id)

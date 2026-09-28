@@ -166,6 +166,26 @@ WITH dated AS (
           AND lower(substr(pfr.build_id, 1, instr(pfr.build_id,'-') - 1)) LIKE
               lower(replace(replace(replace(d.model_code, d.brand || ' ', ''),
                                     d.brand || '-', ''), ' ', '')) || '_%')
+     -- A partition whose publishers TIE on currency_rank is unresolvable: the
+     -- ranking would fall through to comparing their dates with each other,
+     -- which is the one thing this corpus must not do. It is left unanswered
+     -- rather than guessed.
+     --
+     -- Scoped to the partition, deliberately. This used to fail the whole
+     -- build, and on a corpus rebuilt from scratch -- where every source is
+     -- ingested in one pass and overlaps are commonest -- 47 tied partitions
+     -- published NOTHING: 854 devices, zero with firmware. Refusing to answer
+     -- one question is honest; refusing to answer any because one is
+     -- ambiguous is a different and worse failure.
+     AND NOT EXISTS (
+       SELECT 1 FROM product_firmware_releases tie
+         JOIN sources ts ON ts.id = tie.source_id
+         JOIN sources ms ON ms.id = pfr.source_id
+        WHERE tie.hardware_model_id = pfr.hardware_model_id
+          AND tie.region_code = pfr.region_code
+          AND tie.channel = pfr.channel
+          AND tie.source_id <> pfr.source_id
+          AND ts.currency_rank = ms.currency_rank)
 ), ranked AS (
   SELECT dated.*,
          count(*) OVER (PARTITION BY hardware_model_id,region_code,channel) AS sibling_count,
@@ -346,19 +366,10 @@ def _validate(connection) -> None:
     # crosses a publisher boundary. Two sources sharing a rank in one partition
     # is the unresolvable case: the ranking would fall through to a date
     # comparison between publishers, which is exactly what must not happen.
-    tied = connection.execute(
-        """SELECT count(*) FROM (
-             SELECT 1 FROM product_firmware_releases pfr
-               JOIN sources s ON s.id = pfr.source_id
-              WHERE pfr.hardware_model_id IS NOT NULL
-              GROUP BY pfr.hardware_model_id, pfr.region_code, pfr.channel, s.currency_rank
-             HAVING count(DISTINCT pfr.source_id) > 1)"""
-    ).fetchone()[0]
-    if tied:
-        problems.append(
-            f"{tied} (device,target,channel) partitions draw on several publishers that share a "
-            "currency_rank, so the ranking would fall through to comparing their dates against "
-            "each other; give them distinct ranks or leave the partition unresolved")
+    # Tied partitions are EXCLUDED by EVIDENCE_SQL rather than rejected here.
+    # They are a question the corpus cannot answer, not a corruption, and
+    # failing the build over them threw away every answer it could give.
+    # integrity.check_corpus reports the count so they stay visible.
 
     # Every device the projection claims must exist, and every release it points
     # at must be the row it says it is.

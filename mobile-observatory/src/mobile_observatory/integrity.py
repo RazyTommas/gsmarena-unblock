@@ -106,6 +106,17 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
            UNION
           SELECT pfr.hardware_model_id FROM product_firmware_releases pfr
            WHERE pfr.hardware_model_id IS NOT NULL
+             -- Tied publishers leave a partition unanswered by design; a device
+             -- whose only partitions are tied has firmware and correctly has no
+             -- current-firmware row. See partition_publishers_tied_on_rank.
+             AND NOT EXISTS (
+               SELECT 1 FROM product_firmware_releases tie
+                 JOIN sources ts ON ts.id = tie.source_id
+                 JOIN sources ms ON ms.id = pfr.source_id
+                WHERE tie.hardware_model_id = pfr.hardware_model_id
+                  AND tie.region_code = pfr.region_code AND tie.channel = pfr.channel
+                  AND tie.source_id <> pfr.source_id
+                  AND ts.currency_rank = ms.currency_rank)
              AND NOT EXISTS (
                SELECT 1 FROM device_catalog_flat d
                 WHERE d.hardware_model_id = pfr.hardware_model_id
@@ -254,9 +265,16 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
                         WHERE p.product_id = sp.id AND p.hardware_model_id IS NULL)
            AND NOT EXISTS (SELECT 1 FROM source_data_corrections c
                             WHERE c.entity_type = 'source_product' AND c.entity_id = sp.id)
-           AND EXISTS (SELECT 1 FROM json_each(ic.evidence_json) e
-                        WHERE json_extract(e.value,'$.source') = 'google_play_supported_devices'
-                          AND json_array_length(json_extract(e.value,'$.model_codes')) = 1)""")
+           -- One code across ALL the evidence, which is what
+           -- _observed_model_code requires. Asking whether ANY entry holds a
+           -- single code was looser than the rule it checks, and flagged 32
+           -- products that promotion correctly refuses: Xiaomi Mi 10 carries
+           -- two entries naming "Mi 10" and "Umi", so which code the device is
+           -- keyed by is exactly what is unknown.
+           AND (SELECT count(DISTINCT code.value)
+                  FROM json_each(ic.evidence_json) e,
+                       json_each(json_extract(e.value,'$.model_codes')) code
+                 WHERE json_extract(e.value,'$.source') = 'google_play_supported_devices') = 1""")
     if stranded:
         findings.append(Finding(
             "approved_product_firmware_unreachable", "error", stranded,
@@ -287,6 +305,26 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
         findings.append(Finding("firmware_build_names_a_sibling_model", "warning", mislabelled_build,
                                 "these builds identify a different model than the device they are "
                                 "attached to; the source filed a sibling model's ROM under this code"))
+
+    # -- partitions no publisher ordering can settle --------------------------
+    # Two publishers describing the same device, region and channel, with the
+    # same currency_rank. The projection leaves these unanswered rather than
+    # comparing their dates with each other, so the device simply has no current
+    # firmware for that region. Reported because "no answer" and "not collected"
+    # look identical to a reader, and only one of them can be fixed by ranking
+    # the sources.
+    tied = _scalar(connection, """
+        SELECT count(*) FROM (
+          SELECT 1 FROM product_firmware_releases pfr
+            JOIN sources s ON s.id = pfr.source_id
+           WHERE pfr.hardware_model_id IS NOT NULL
+           GROUP BY pfr.hardware_model_id, pfr.region_code, pfr.channel, s.currency_rank
+          HAVING count(DISTINCT pfr.source_id) > 1)""")
+    if tied:
+        findings.append(Finding("partition_publishers_tied_on_rank", "warning", tied,
+                                "these (device, region, channel) partitions are described by "
+                                "publishers sharing a currency_rank, so no current firmware is "
+                                "stated for them; give the sources distinct ranks to resolve"))
 
     # -- one vendor, one spelling --------------------------------------------
     # Sources capitalise vendors differently ("Tecno"/"TECNO", "Itel"/"itel").

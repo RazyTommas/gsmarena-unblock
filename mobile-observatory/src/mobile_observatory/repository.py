@@ -321,7 +321,19 @@ def canonical_vendor(connection, value: str) -> str:
             (value,)).fetchone()
         if row:
             return row[0]
-    return value
+    # Fall back to the spelling other products already use. Resolving against
+    # the canonical tables alone is ORDER-DEPENDENT: on a corpus built from
+    # scratch, spec-only products are created before promotion has minted any
+    # manufacturer, so "Tecno" found nothing to match and stuck -- and promotion
+    # later created a second Tecno vendor beside TECNO. Measured on a fresh
+    # rebuild: 587 products under "TECNO" and 20 under "Tecno", with both in the
+    # manufacturers table. The majority spelling is the one already agreed on.
+    row = connection.execute(
+        """SELECT manufacturer FROM source_products
+            WHERE manufacturer = ? COLLATE NOCASE AND manufacturer <> ?
+            GROUP BY manufacturer ORDER BY count(*) DESC LIMIT 1""",
+        (value, value)).fetchone()
+    return row[0] if row else value
 
 
 def normalize_identifier(value: str) -> str:

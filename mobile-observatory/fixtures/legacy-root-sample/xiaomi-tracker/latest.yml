@@ -1,0 +1,1500 @@
+- android: '4.2'
+  branch: Stable
+  codename: HM2013022
+  date: 2015-03-26
+  link: https://bigota.d.miui.com/JHACNBH22.0/miui_HM2_JHACNBH22.0_a4bd134f02_4.2.zip
+  md5: a4bd134f029bd7d93d1cf595a4edb60a
+  method: Recovery
+  name: Redmi 1 TD China
+  size: 315.9 MB
+  version: JHACNBH22.0
+- android: '4.2'
+  branch: Stable
+  codename: HM2013022
+  date: 2015-03-26
+  link: https://bigota.d.miui.com/JHACNBH22.0/miui_HM2_JHACNBH22.0_a4bd134f02_4.2.zip
+  md5: a4bd134f029bd7d93d1cf595a4edb60a
+  method: Recovery
+  name: Redmi 1 China
+  size: 315.9 MB
+  version: JHACNBH22.0
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013022
+  date: 2017-11-15
+  link: https://bigota.d.miui.com/7.11.16/miui_HMTD_7.11.16_79d730de3e_4.4.zip
+  md5: 79d730de3e2d6c5373d12a1b23e1120a
+  method: Recovery
+  name: Redmi 1 TD China
+  size: 460.1 MB
+  version: 7.11.16
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013022
+  date: 2017-11-15
+  link: https://bigota.d.miui.com/7.11.16/miui_HMTD_7.11.16_79d730de3e_4.4.zip
+  md5: 79d730de3e2d6c5373d12a1b23e1120a
+  method: Recovery
+  name: Redmi 1 China
+  size: 460.1 MB
+  version: 7.11.16
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023
+  date: 2016-05-12
+  link: https://bigota.d.miui.com/V7.3.1.0.KHBCNDD/miui_HMW_V7.3.1.0.KHBCNDD_49c9fc7ce6_4.4.zip
+  md5: 49c9fc7ce6be59b9a7bddd35f5a82596
+  method: Recovery
+  name: Redmi 1 W China
+  size: 507.6 MB
+  version: V7.3.1.0.KHBCNDD
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023
+  date: 2016-05-12
+  link: https://bigota.d.miui.com/V7.3.1.0.KHBCNDD/miui_HMW_V7.3.1.0.KHBCNDD_49c9fc7ce6_4.4.zip
+  md5: 49c9fc7ce6be59b9a7bddd35f5a82596
+  method: Recovery
+  name: Redmi 1 China
+  size: 507.6 MB
+  version: V7.3.1.0.KHBCNDD
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023
+  date: 2016-05-12
+  link: https://bigota.d.miui.com/V7.3.1.0.KHBCNDD/miui_HMW_V7.3.1.0.KHBCNDD_49c9fc7ce6_4.4.zip
+  md5: 49c9fc7ce6be59b9a7bddd35f5a82596
+  method: Recovery
+  name: Redmi 1 Global
+  size: 507.6 MB
+  version: V7.3.1.0.KHBCNDD
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023
+  date: 2016-05-12
+  link: https://bigota.d.miui.com/V7.3.1.0.KHBCNDD/miui_HMW_V7.3.1.0.KHBCNDD_49c9fc7ce6_4.4.zip
+  md5: 49c9fc7ce6be59b9a7bddd35f5a82596
+  method: Recovery
+  name: Redmi 1 Taiwan
+  size: 507.6 MB
+  version: V7.3.1.0.KHBCNDD
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023
+  date: 2016-05-12
+  link: https://bigota.d.miui.com/V7.3.1.0.KHBCNDD/miui_HMW_V7.3.1.0.KHBCNDD_49c9fc7ce6_4.4.zip
+  md5: 49c9fc7ce6be59b9a7bddd35f5a82596
+  method: Recovery
+  name: Redmi 1 W Global
+  size: 507.6 MB
+  version: V7.3.1.0.KHBCNDD
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2018-09-26
+  link: http://bigota.d.miui.com/7.4.27/miui_HMW_7.4.27_e7a648edd5_4.4.zip
+  md5: e7a648edd57b9bea509bdfcb9cbca020
+  method: Recovery
+  name: Redmi 1 W China
+  size: 710.2 MB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2018-09-26
+  link: http://bigota.d.miui.com/7.4.27/miui_HMW_7.4.27_e7a648edd5_4.4.zip
+  md5: e7a648edd57b9bea509bdfcb9cbca020
+  method: Recovery
+  name: Redmi 1 China
+  size: 710.2 MB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2018-09-26
+  link: http://bigota.d.miui.com/7.4.27/miui_HMW_7.4.27_e7a648edd5_4.4.zip
+  md5: e7a648edd57b9bea509bdfcb9cbca020
+  method: Recovery
+  name: Redmi 1 Global
+  size: 710.2 MB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2018-09-26
+  link: http://bigota.d.miui.com/7.4.27/miui_HMW_7.4.27_e7a648edd5_4.4.zip
+  md5: e7a648edd57b9bea509bdfcb9cbca020
+  method: Recovery
+  name: Redmi 1 Taiwan
+  size: 710.2 MB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2018-09-26
+  link: http://bigota.d.miui.com/7.4.27/miui_HMW_7.4.27_e7a648edd5_4.4.zip
+  md5: e7a648edd57b9bea509bdfcb9cbca020
+  method: Recovery
+  name: Redmi 1 W Global
+  size: 710.2 MB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2017-04-26
+  link: http://bigota.d.miui.com/7.4.27/wt98007_images_7.4.27_20170426.0000.00_4.4_cn_aabd82ba12.tgz
+  md5: aabd82ba1264b7b2c2e4962f479319c8
+  method: Fastboot
+  name: Redmi 1 W China
+  size: 1.0 GB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2017-04-26
+  link: http://bigota.d.miui.com/7.4.27/wt98007_images_7.4.27_20170426.0000.00_4.4_cn_aabd82ba12.tgz
+  md5: aabd82ba1264b7b2c2e4962f479319c8
+  method: Fastboot
+  name: Redmi 1 China
+  size: 1.0 GB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2017-04-26
+  link: http://bigota.d.miui.com/7.4.27/wt98007_images_7.4.27_20170426.0000.00_4.4_cn_aabd82ba12.tgz
+  md5: aabd82ba1264b7b2c2e4962f479319c8
+  method: Fastboot
+  name: Redmi 1 Global
+  size: 1.0 GB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2017-04-26
+  link: http://bigota.d.miui.com/7.4.27/wt98007_images_7.4.27_20170426.0000.00_4.4_cn_aabd82ba12.tgz
+  md5: aabd82ba1264b7b2c2e4962f479319c8
+  method: Fastboot
+  name: Redmi 1 Taiwan
+  size: 1.0 GB
+  version: 7.4.27
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023
+  date: 2017-04-26
+  link: http://bigota.d.miui.com/7.4.27/wt98007_images_7.4.27_20170426.0000.00_4.4_cn_aabd82ba12.tgz
+  md5: aabd82ba1264b7b2c2e4962f479319c8
+  method: Fastboot
+  name: Redmi 1 W Global
+  size: 1.0 GB
+  version: 7.4.27
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023_sg_global
+  date: 2015-08-19
+  link: http://bigota.d.miui.com/V6.6.1.0.KHBMICF/miui_HMWSGGlobal_V6.6.1.0.KHBMICF_033545b329_4.4.zip
+  md5: 033545b3296aa7a7d88152c1eb66a6e7
+  method: Recovery
+  name: Redmi 1 W Singapore
+  size: 668.5 MB
+  version: V6.6.1.0.KHBMICF
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023_sg_global
+  date: 2015-08-19
+  link: http://bigota.d.miui.com/V6.6.1.0.KHBMICF/miui_HMWSGGlobal_V6.6.1.0.KHBMICF_033545b329_4.4.zip
+  md5: 033545b3296aa7a7d88152c1eb66a6e7
+  method: Recovery
+  name: Redmi 1 W Singapore
+  size: 668.5 MB
+  version: V6.6.1.0.KHBMICF
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023_sg_global
+  date: 2015-06-26
+  link: http://bigota.d.miui.com/V6.6.1.0.KHBMICF/HM2013023_sg_global_images_V6.6.1.0.KHBMICF_20150626.0000.4_4.4_global_c7efd84649.tgz
+  md5: c7efd84649864eee8f4eb433057ba740
+  method: Fastboot
+  name: Redmi 1 W Singapore
+  size: 837.8 MB
+  version: V6.6.1.0.KHBMICF
+- android: '4.4'
+  branch: Stable
+  codename: HM2013023_sg_global
+  date: 2015-06-26
+  link: http://bigota.d.miui.com/V6.6.1.0.KHBMICF/HM2013023_sg_global_images_V6.6.1.0.KHBMICF_20150626.0000.4_4.4_global_c7efd84649.tgz
+  md5: c7efd84649864eee8f4eb433057ba740
+  method: Fastboot
+  name: Redmi 1 W Singapore
+  size: 837.8 MB
+  version: V6.6.1.0.KHBMICF
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023_sg_global
+  date: 2015-12-24
+  link: https://bigota.d.miui.com/5.12.24/miui_HMWSGGlobal_5.12.24_856ff2f662_4.4.zip
+  md5: 856ff2f662430b701f707f28c7c1668f
+  method: Recovery
+  name: Redmi 1 W Singapore
+  size: 682.5 MB
+  version: 5.12.24
+- android: '4.4'
+  branch: Weekly
+  codename: HM2013023_sg_global
+  date: 2015-12-24
+  link: https://bigota.d.miui.com/5.12.24/miui_HMWSGGlobal_5.12.24_856ff2f662_4.4.zip
+  md5: 856ff2f662430b701f707f28c7c1668f
+  method: Recovery
+  name: Redmi 1 W Singapore
+  size: 682.5 MB
+  version: 5.12.24
+- android: '4.4'
+  branch: Stable
+  codename: HM2014011
+  date: 2018-09-07
+  link: http://bigota.d.miui.com/V9.2.2.0.KHFCNEK/wt93807_images_V9.2.2.0.KHFCNEK_20180102.0000.00_4.4_cn_2f8a5d9838.tgz
+  md5: 2f8a5d9838a7d1a23d3101d2d88e58cd
+  method: Fastboot
+  name: Redmi 1S TD 3G China
+  size: 1.1 GB
+  version: V9.2.2.0.KHFCNEK
+- android: '4.4'
+  branch: Stable
+  codename: HM2014011
+  date: 2018-09-07
+  link: http://bigota.d.miui.com/V9.2.2.0.KHFCNEK/miui_HM1STD_V9.2.2.0.KHFCNEK_12f519b8e6_4.4.zip
+  md5: 12f519b8e61a872830341160c0faaba2
+  method: Recovery
+  name: Redmi 1S TD 3G China
+  size: 580.1 MB
+  version: V9.2.2.0.KHFCNEK
+- android: '4.4'
+  branch: Weekly
+  codename: HM2014011
+  date: 2017-11-15
+  link: https://bigota.d.miui.com/7.11.16/miui_HM1STD_7.11.16_5054f332c1_4.4.zip
+  md5: 5054f332c174e0c18e4ae48a823ff017
+  method: Recovery
+  name: Redmi 1S TD 3G China
+  size: 554.4 MB
+  version: 7.11.16
+- android: '4.4'
+  branch: Stable
+  codename: HM2014501
+  date: 2018-09-07
+  link: http://bigota.d.miui.com/V9.2.2.0.KHHCNEK/wt96007_images_V9.2.2.0.KHHCNEK_20180102.0000.00_4.4_cn_074353be8c.tgz
+  md5: 074353be8c2f5ac0c36e455d803c5578
+  method: Fastboot
+  name: Redmi 1S TD 4G China
+  size: 1.2 GB
+  version: V9.2.2.0.KHHCNEK
+- android: '4.4'
+  branch: Stable
+  codename: HM2014501
+  date: 2018-09-07
+  link: http://bigota.d.miui.com/V9.2.2.0.KHHCNEK/miui_HM1SLTE_V9.2.2.0.KHHCNEK_4ea15607a5_4.4.zip
+  md5: 4ea15607a5ccbd1de72710e91cf91185
+  method: Recovery
+  name: Redmi 1S TD 4G China
+  size: 588.7 MB
+  version: V9.2.2.0.KHHCNEK
+- android: '4.4'
+  branch: Weekly
+  codename: HM2014501
+  date: 2017-11-15
+  link: https://bigota.d.miui.com/7.11.16/miui_HM1SLTE_7.11.16_8729d48f83_4.4.zip
+  md5: 8729d48f838b9f56cfcce89e5a40387b
+  method: Recovery
+  name: Redmi 1S TD 4G China
+  size: 562.6 MB
+  version: 7.11.16
+- android: '4.4'
+  branch: Stable
+  codename: HM2014811
+  date: 2015-10-17
+  link: https://bigota.d.miui.com/V6.2.2.0.KHJMIBK/miui_HM2014811Global_V6.2.2.0.KHJMIBK_b8207ca764_4.4.zip
+  md5: b8207ca76488d715ee04f53454e6b9c0
+  method: Recovery
+  name: Redmi 2 LTE China
+  size: 553.5 MB
+  version: V6.2.2.0.KHJMIBK
+- android: '4.4'
+  branch: Stable
+  codename: HM2014811
+  date: 2015-10-17
+  link: https://bigota.d.miui.com/V6.2.2.0.KHJMIBK/miui_HM2014811Global_V6.2.2.0.KHJMIBK_b8207ca764_4.4.zip
+  md5: b8207ca76488d715ee04f53454e6b9c0
+  method: Recovery
+  name: Redmi 2 LTE Global
+  size: 553.5 MB
+  version: V6.2.2.0.KHJMIBK
+- android: '4.4'
+  branch: Stable
+  codename: HM2014813
+  date: 2015-03-29
+  link: https://bigota.d.miui.com/V6.2.1.0.KHJCNBK/miui_HM2014813_V6.2.1.0.KHJCNBK_9d342a4006_4.4.zip
+  md5: 9d342a4006b70e0abd0a2fb75c22fab1
+  method: Recovery
+  name: Redmi 2 LTE China
+  size: 351.5 MB
+  version: V6.2.1.0.KHJCNBK
+- android: '11.0'
+  branch: Stable Beta
+  codename: agate_eea_global
+  date: 2021-09-15
+  link: https://bigota.d.miui.com/V12.5.2.0.RKWEUXM/miui_AGATEEEAGlobal_V12.5.2.0.RKWEUXM_c1c8e246e4_11.0.zip
+  md5: c1c8e246e4396e8454b67b2499bac578
+  method: Recovery
+  name: Xiaomi 11T EEA
+  size: 2.9 GB
+  version: V12.5.2.0.RKWEUXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_eea_global
+  date: 2025-09-12
+  link: https://bigota.d.miui.com/OS1.0.19.0.UKWEUXM/miui_AGATEEEAGlobal_OS1.0.19.0.UKWEUXM_89548479a2_14.0.zip
+  md5: 89548479a2d6dd75995b2a695c06a849
+  method: Recovery
+  name: Xiaomi 11T EEA
+  size: 4.9 GB
+  version: OS1.0.19.0.UKWEUXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_eea_global
+  date: 2025-09-01
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.19.0.UKWEUXM/agate_eea_global_images_OS1.0.19.0.UKWEUXM_20250901.0000.00_14.0_eea_74ddb29735.tgz
+  md5: 74ddb297356caaf9f358d8944288e1b0
+  method: Fastboot
+  name: Xiaomi 11T EEA
+  size: 6.2 GB
+  version: OS1.0.19.0.UKWEUXM
+- android: '11.0'
+  branch: Stable Beta
+  codename: agate_global
+  date: 2021-09-15
+  link: https://bigota.d.miui.com/V12.5.1.0.RKWMIXM/miui_AGATEGlobal_V12.5.1.0.RKWMIXM_fcb5bac54c_11.0.zip
+  md5: fcb5bac54cdac6ac8a1262385792e2f4
+  method: Recovery
+  name: Xiaomi 11T Global
+  size: 2.8 GB
+  version: V12.5.1.0.RKWMIXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_global
+  date: 2025-08-07
+  link: https://bigota.d.miui.com/OS1.0.17.0.UKWMIXM/miui_AGATEGlobal_OS1.0.17.0.UKWMIXM_2deb69168e_14.0.zip
+  md5: 2deb69168e0e5ca92abc57a26c6ff8e2
+  method: Recovery
+  name: Xiaomi 11T Global
+  size: 5.0 GB
+  version: OS1.0.17.0.UKWMIXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_global
+  date: 2025-07-30
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.17.0.UKWMIXM/agate_global_images_OS1.0.17.0.UKWMIXM_20250730.0000.00_14.0_global_19866f833e.tgz
+  md5: 19866f833e440cf82c7dbc5678cf7c90
+  method: Fastboot
+  name: Xiaomi 11T Global
+  size: 6.4 GB
+  version: OS1.0.17.0.UKWMIXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_id_global
+  date: 2025-08-20
+  link: https://bigota.d.miui.com/OS1.0.14.0.UKWIDXM/miui_AGATEIDGlobal_OS1.0.14.0.UKWIDXM_66bc365e12_14.0.zip
+  md5: 66bc365e12ca051a323bace364448ff1
+  method: Recovery
+  name: Xiaomi 11T Indonesia
+  size: 4.9 GB
+  version: OS1.0.14.0.UKWIDXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_id_global
+  date: 2025-08-05
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.14.0.UKWIDXM/agate_id_global_images_OS1.0.14.0.UKWIDXM_20250805.0000.00_14.0_id_27e35916b2.tgz
+  md5: 27e35916b2c4bcc3fff82daf8ad2fb85
+  method: Fastboot
+  name: Xiaomi 11T Indonesia
+  size: 6.1 GB
+  version: OS1.0.14.0.UKWIDXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_ru_global
+  date: 2025-08-04
+  link: https://bigota.d.miui.com/OS1.0.15.0.UKWRUXM/miui_AGATERUGlobal_OS1.0.15.0.UKWRUXM_60be5c3df3_14.0.zip
+  md5: 60be5c3df3960473c96a77d44f95a56c
+  method: Recovery
+  name: Xiaomi 11T Russia
+  size: 4.9 GB
+  version: OS1.0.15.0.UKWRUXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_ru_global
+  date: 2025-07-25
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.15.0.UKWRUXM/agate_ru_global_images_OS1.0.15.0.UKWRUXM_20250725.0000.00_14.0_ru_2dd655c9ba.tgz
+  md5: 2dd655c9ba0a786d576f2b7d1889fc23
+  method: Fastboot
+  name: Xiaomi 11T Russia
+  size: 6.1 GB
+  version: OS1.0.15.0.UKWRUXM
+- android: '13.0'
+  branch: Stable Beta
+  codename: agate_tr_global
+  date: 2023-12-27
+  link: https://bigota.d.miui.com/V14.0.4.0.TKWTRXM/miui_AGATETRGlobal_V14.0.4.0.TKWTRXM_c29a47e1e6_13.0.zip
+  md5: c29a47e1e6119da340da8475360b8b59
+  method: Recovery
+  name: Xiaomi 11T Turkey
+  size: 3.8 GB
+  version: V14.0.4.0.TKWTRXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_tr_global
+  date: 2025-10-13
+  link: https://bigota.d.miui.com/OS1.0.16.0.UKWTRXM/miui_AGATETRGlobal_OS1.0.16.0.UKWTRXM_5e387ed863_14.0.zip
+  md5: 5e387ed86374f167a84168eb078f8da9
+  method: Recovery
+  name: Xiaomi 11T Turkey
+  size: 4.9 GB
+  version: OS1.0.16.0.UKWTRXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_tr_global
+  date: 2025-09-30
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.16.0.UKWTRXM/agate_tr_global_images_OS1.0.16.0.UKWTRXM_20250930.0000.00_14.0_tr_d265424f74.tgz
+  md5: d265424f7465268fd5c97e54ffe7ae53
+  method: Fastboot
+  name: Xiaomi 11T Turkey
+  size: 6.1 GB
+  version: OS1.0.16.0.UKWTRXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_tw_global
+  date: 2025-09-15
+  link: https://bigota.d.miui.com/OS1.0.15.0.UKWTWXM/miui_AGATETWGlobal_OS1.0.15.0.UKWTWXM_04ec99268e_14.0.zip
+  md5: 04ec99268e621d40eccace3b3b389182
+  method: Recovery
+  name: Xiaomi 11T Taiwan
+  size: 4.7 GB
+  version: OS1.0.15.0.UKWTWXM
+- android: '14.0'
+  branch: Stable
+  codename: agate_tw_global
+  date: 2025-09-05
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.15.0.UKWTWXM/agate_tw_global_images_OS1.0.15.0.UKWTWXM_20250905.0000.00_14.0_tw_1615b6324d.tgz
+  md5: 1615b6324dbb4a8ccc6c19531dadef2f
+  method: Fastboot
+  name: Xiaomi 11T Taiwan
+  size: 5.7 GB
+  version: OS1.0.15.0.UKWTWXM
+- android: '15.0'
+  branch: Stable
+  codename: air
+  date: 2026-08-14
+  link: https://bigota.d.miui.com/OS2.0.210.0.VGQCNXM/air-ota_full-OS2.0.210.0.VGQCNXM-user-15.0-44d4eb6359.zip
+  md5: 44d4eb63590268035031a4d7999a3dd2
+  method: Recovery
+  name: Redmi 13R 5G / 13C 5G China
+  size: 4.7 GB
+  version: OS2.0.210.0.VGQCNXM
+- android: '15.0'
+  branch: Stable
+  codename: air
+  date: 2026-08-04
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.210.0.VGQCNXM/air_images_OS2.0.210.0.VGQCNXM_20260804.0000.00_15.0_cn_1cd5903d26.tgz
+  md5: 1cd5903d264b2853588c6c0bebd421df
+  method: Fastboot
+  name: Redmi 13R 5G / 13C 5G China
+  size: 6.3 GB
+  version: OS2.0.210.0.VGQCNXM
+- android: '15.0'
+  branch: Stable
+  codename: air_eea_global
+  date: 2026-07-10
+  link: https://bigota.d.miui.com/OS2.0.212.0.VGQEUXM/air_eea_global-ota_full-OS2.0.212.0.VGQEUXM-user-15.0-8bc86f2203.zip
+  md5: 8bc86f22036d215f0f3ae763873ce04f
+  method: Recovery
+  name: Redmi 13R 5G / 13C 5G EEA
+  size: 4.9 GB
+  version: OS2.0.212.0.VGQEUXM
+- android: '15.0'
+  branch: Stable
+  codename: air_eea_global
+  date: 2026-07-03
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.212.0.VGQEUXM/air_eea_global_images_OS2.0.212.0.VGQEUXM_20260703.0000.00_15.0_eea_72d4ecd36b.tgz
+  md5: 72d4ecd36b41ba6543fa4f8151e1af50
+  method: Fastboot
+  name: Redmi 13R 5G / 13C 5G EEA
+  size: 7.1 GB
+  version: OS2.0.212.0.VGQEUXM
+- android: '15.0'
+  branch: Stable
+  codename: air_global
+  date: 2026-08-07
+  link: https://bigota.d.miui.com/OS2.0.208.0.VGQMIXM/air_global-ota_full-OS2.0.208.0.VGQMIXM-user-15.0-07ccb8ab17.zip
+  md5: 07ccb8ab17fc2c8a6000161b53baa0b9
+  method: Recovery
+  name: Redmi 13R 5G / 13C 5G Global
+  size: 4.8 GB
+  version: OS2.0.208.0.VGQMIXM
+- android: '15.0'
+  branch: Stable
+  codename: air_global
+  date: 2026-07-29
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.208.0.VGQMIXM/air_global_images_OS2.0.208.0.VGQMIXM_20260729.0000.00_15.0_global_a4ba522e3a.tgz
+  md5: a4ba522e3a04a97f93e6fae327222869
+  method: Fastboot
+  name: Redmi 13R 5G / 13C 5G Global
+  size: 7.6 GB
+  version: OS2.0.208.0.VGQMIXM
+- android: '15.0'
+  branch: Stable
+  codename: air_in_global
+  date: 2026-08-14
+  link: https://bigota.d.miui.com/OS2.0.208.0.VGQINXM/air_in_global-ota_full-OS2.0.208.0.VGQINXM-user-15.0-93391672cc.zip
+  md5: 93391672cc79790a3fb5b241ed6696ce
+  method: Recovery
+  name: Redmi 13R 5G / POCO M6 5G India
+  size: 4.5 GB
+  version: OS2.0.208.0.VGQINXM
+- android: '15.0'
+  branch: Stable
+  codename: air_in_global
+  date: 2026-08-04
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.208.0.VGQINXM/air_in_global_images_OS2.0.208.0.VGQINXM_20260804.0000.00_15.0_in_35b733efaa.tgz
+  md5: 35b733efaa26e8635ed5862c4982f126
+  method: Fastboot
+  name: Redmi 13R 5G / POCO M6 5G India
+  size: 6.1 GB
+  version: OS2.0.208.0.VGQINXM
+- android: '15.0'
+  branch: Stable
+  codename: air_tw_global
+  date: 2026-07-10
+  link: https://bigota.d.miui.com/OS2.0.205.0.VGQTWXM/air_tw_global-ota_full-OS2.0.205.0.VGQTWXM-user-15.0-1ef2be9e65.zip
+  md5: 1ef2be9e65f101171a7554acea8fb587
+  method: Recovery
+  name: Redmi 13R 5G / 13C 5G Taiwan
+  size: 4.6 GB
+  version: OS2.0.205.0.VGQTWXM
+- android: '15.0'
+  branch: Stable
+  codename: air_tw_global
+  date: 2026-07-03
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.205.0.VGQTWXM/air_tw_global_images_OS2.0.205.0.VGQTWXM_20260703.0000.00_15.0_tw_1d350786d2.tgz
+  md5: 1d350786d23300274974f344a89c8de7
+  method: Fastboot
+  name: Redmi 13R 5G / 13C 5G Taiwan
+  size: 5.8 GB
+  version: OS2.0.205.0.VGQTWXM
+- android: '13.0'
+  branch: Stable Beta
+  codename: alioth
+  date: 2023-10-18
+  link: https://bigota.d.miui.com/V14.0.8.0.TKHCNXM/miui_ALIOTH_V14.0.8.0.TKHCNXM_50141f32f2_13.0.zip
+  md5: 50141f32f247930d3690db8b55ab3688
+  method: Recovery
+  name: Redmi K40 China
+  size: 4.2 GB
+  version: V14.0.8.0.TKHCNXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth
+  date: 2025-11-02
+  link: https://bigota.d.miui.com/OS1.0.10.0.TKHCNXM/miui_ALIOTH_OS1.0.10.0.TKHCNXM_ddf5cf5ea0_13.0.zip
+  md5: ddf5cf5ea06047967b6716aad242ab7d
+  method: Recovery
+  name: Redmi K40 China
+  size: 4.1 GB
+  version: OS1.0.10.0.TKHCNXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth
+  date: 2024-06-05
+  link: https://cdnorg.d.miui.com/OS1.0.6.0.TKHCNXM/alioth_images_OS1.0.6.0.TKHCNXM_20240605.0000.00_13.0_cn_9c952f8190.tgz
+  md5: 9c952f8190ae6d841f10a2c1f74958d2
+  method: Fastboot
+  name: Redmi K40 China
+  size: 5.9 GB
+  version: OS1.0.6.0.TKHCNXM
+- android: '12.0'
+  branch: Weekly
+  codename: alioth
+  date: 2022-03-24
+  link: https://bigota.d.miui.com/22.3.23/miui_ALIOTHPRE_22.3.23_36ab9c843e_12.0.zip
+  md5: 36ab9c843e6e3fb4400071653aa90ccc
+  method: Recovery
+  name: Redmi K40 China
+  size: 4.6 GB
+  version: 22.3.23
+- android: '12.0'
+  branch: Weekly
+  codename: alioth
+  date: 2022-01-19
+  link: https://bigota.d.miui.com/22.1.19/alioth_pre_images_22.1.19_20220119.0000.00_12.0_cn_f640bad19f.tgz
+  md5: f640bad19fe1ef06ec7a4f9b93f178d7
+  method: Fastboot
+  name: Redmi K40 China
+  size: 5.9 GB
+  version: 22.1.19
+- android: '13.0'
+  branch: Public Beta
+  codename: alioth
+  date: 2023-04-21
+  link: https://bigota.d.miui.com/V14.0.23.4.17.DEV/miui_ALIOTH_V14.0.23.4.17.DEV_8d19a97090_13.0.zip
+  md5: 8d19a970905fdfe3efb331cf561135b6
+  method: Recovery
+  name: Redmi K40 China
+  size: 4.1 GB
+  version: V14.0.23.4.17.DEV
+- android: '13.0'
+  branch: Public Beta
+  codename: alioth
+  date: 2023-01-31
+  link: https://bigota.d.miui.com/V14.0.23.1.30.DEV/alioth_images_V14.0.23.1.30.DEV_20230131.0000.00_13.0_cn_3d9a22fe03.tgz
+  md5: null
+  method: Fastboot
+  name: Redmi K40 China
+  size: 6.2 GB
+  version: V14.0.23.1.30.DEV
+- android: '13.0'
+  branch: Stable
+  codename: alioth_eea_global
+  date: 2024-08-15
+  link: https://bigota.d.miui.com/OS1.0.3.0.TKHEUXM/miui_ALIOTHEEAGlobal_OS1.0.3.0.TKHEUXM_1d79dc27d3_13.0.zip
+  md5: 1d79dc27d32e8fd045286d92d6950341
+  method: Recovery
+  name: POCO F3 EEA
+  size: 4.0 GB
+  version: OS1.0.3.0.TKHEUXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_eea_global
+  date: 2024-07-31
+  link: https://cdnorg.d.miui.com/OS1.0.3.0.TKHEUXM/alioth_eea_global_images_OS1.0.3.0.TKHEUXM_20240731.0000.00_13.0_eea_7607f7b235.tgz
+  md5: 7607f7b235fc5cd103d69675ec0d2f8a
+  method: Fastboot
+  name: POCO F3 EEA
+  size: 5.5 GB
+  version: OS1.0.3.0.TKHEUXM
+- android: '11.0'
+  branch: Stable Beta
+  codename: alioth_global
+  date: 2021-09-03
+  link: https://bigota.d.miui.com/V12.5.3.0.RKHMIXM/miui_ALIOTHGlobal_V12.5.3.0.RKHMIXM_b628b9f893_11.0.zip
+  md5: b628b9f893b7c5abc6426b4795eaf6e1
+  method: Recovery
+  name: POCO F3 Global
+  size: 3.1 GB
+  version: V12.5.3.0.RKHMIXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_global
+  date: 2026-01-26
+  link: https://bigota.d.miui.com/OS1.0.5.0.TKHMIXM/miui_ALIOTHGlobal_OS1.0.5.0.TKHMIXM_6e5b395463_13.0.zip
+  md5: 6e5b395463f381fcc5cd2ac6787bbc91
+  method: Recovery
+  name: POCO F3 Global
+  size: 4.0 GB
+  version: OS1.0.5.0.TKHMIXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_global
+  date: 2026-01-12
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.5.0.TKHMIXM/alioth_global_images_OS1.0.5.0.TKHMIXM_20260112.0000.00_13.0_global_476e4b975e.tgz
+  md5: 476e4b975ebcaba6c62a5bf8b5cd7265
+  method: Fastboot
+  name: POCO F3 Global
+  size: 5.5 GB
+  version: OS1.0.5.0.TKHMIXM
+- android: '13.0'
+  branch: Stable Beta
+  codename: alioth_id_global
+  date: 2023-10-07
+  link: https://bigota.d.miui.com/V14.0.4.0.TKHIDXM/miui_ALIOTHIDGlobal_V14.0.4.0.TKHIDXM_b6fecb3025_13.0.zip
+  md5: b6fecb302502c429f3b00011427e0bee
+  method: Recovery
+  name: POCO F3 Indonesia
+  size: 4.0 GB
+  version: V14.0.4.0.TKHIDXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_id_global
+  date: 2024-06-11
+  link: https://bigota.d.miui.com/OS1.0.3.0.TKHIDXM/miui_ALIOTHIDGlobal_OS1.0.3.0.TKHIDXM_97a6ed731d_13.0.zip
+  md5: 97a6ed731d97895c7f4f9d2af5e033be
+  method: Recovery
+  name: POCO F3 Indonesia
+  size: 4.0 GB
+  version: OS1.0.3.0.TKHIDXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_id_global
+  date: 2024-05-31
+  link: https://cdnorg.d.miui.com/OS1.0.3.0.TKHIDXM/alioth_id_global_images_OS1.0.3.0.TKHIDXM_20240531.0000.00_13.0_id_b2ada59349.tgz
+  md5: b2ada59349681911162286e5d15800d8
+  method: Fastboot
+  name: POCO F3 Indonesia
+  size: 5.2 GB
+  version: OS1.0.3.0.TKHIDXM
+- android: '11.0'
+  branch: Stable Beta
+  codename: alioth_in_global
+  date: 2021-09-13
+  link: https://bigota.d.miui.com/V12.5.4.0.RKHINXM/miui_ALIOTHINGlobal_V12.5.4.0.RKHINXM_6d89fc3934_11.0.zip
+  md5: 6d89fc39340c50d1d54efc3e7d49dfe2
+  method: Recovery
+  name: Mi 11X India
+  size: 3.1 GB
+  version: V12.5.4.0.RKHINXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_in_global
+  date: 2024-07-08
+  link: https://bigota.d.miui.com/OS1.0.2.0.TKHINXM/miui_ALIOTHINGlobal_OS1.0.2.0.TKHINXM_14c0f2dff1_13.0.zip
+  md5: 14c0f2dff1061fb2dff8ee38c0bc5656
+  method: Recovery
+  name: Mi 11X India
+  size: 4.0 GB
+  version: OS1.0.2.0.TKHINXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_in_global
+  date: 2024-06-20
+  link: https://cdnorg.d.miui.com/OS1.0.2.0.TKHINXM/alioth_in_global_images_OS1.0.2.0.TKHINXM_20240620.0000.00_13.0_in_564f6ae1e4.tgz
+  md5: 564f6ae1e4c4078210fd539f10c0f337
+  method: Fastboot
+  name: Mi 11X India
+  size: 4.8 GB
+  version: OS1.0.2.0.TKHINXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_ru_global
+  date: 2024-06-25
+  link: https://bigota.d.miui.com/OS1.0.3.0.TKHRUXM/miui_ALIOTHRUGlobal_OS1.0.3.0.TKHRUXM_f3170261e5_13.0.zip
+  md5: f3170261e55058369487fa4adc56ff63
+  method: Recovery
+  name: POCO F3 Russia
+  size: 4.0 GB
+  version: OS1.0.3.0.TKHRUXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_ru_global
+  date: 2024-06-12
+  link: https://cdnorg.d.miui.com/OS1.0.3.0.TKHRUXM/alioth_ru_global_images_OS1.0.3.0.TKHRUXM_20240612.0000.00_13.0_ru_e53dc4736d.tgz
+  md5: e53dc4736de381c4f8361104fe8c2e48
+  method: Fastboot
+  name: POCO F3 Russia
+  size: 5.4 GB
+  version: OS1.0.3.0.TKHRUXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_tr_global
+  date: 2024-05-21
+  link: https://bigota.d.miui.com/OS1.0.2.0.TKHTRXM/miui_ALIOTHTRGlobal_OS1.0.2.0.TKHTRXM_400d468101_13.0.zip
+  md5: 400d46810139a26ef04c978a4afacffb
+  method: Recovery
+  name: POCO F3 Turkey
+  size: 4.0 GB
+  version: OS1.0.2.0.TKHTRXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_tr_global
+  date: 2024-04-02
+  link: https://cdnorg.d.miui.com/OS1.0.2.0.TKHTRXM/alioth_tr_global_images_OS1.0.2.0.TKHTRXM_20240402.0000.00_13.0_tr_277a51268d.tgz
+  md5: 277a51268dfab35340afc31de2afc22c
+  method: Fastboot
+  name: POCO F3 Turkey
+  size: 5.3 GB
+  version: OS1.0.2.0.TKHTRXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_tw_global
+  date: 2024-05-20
+  link: https://bigota.d.miui.com/OS1.0.1.0.TKHTWXM/miui_ALIOTHTWGlobal_OS1.0.1.0.TKHTWXM_80a5b3cee4_13.0.zip
+  md5: 80a5b3cee490a703072218d927654c47
+  method: Recovery
+  name: POCO F3 Taiwan
+  size: 3.9 GB
+  version: OS1.0.1.0.TKHTWXM
+- android: '13.0'
+  branch: Stable
+  codename: alioth_tw_global
+  date: 2024-03-18
+  link: https://cdnorg.d.miui.com/OS1.0.1.0.TKHTWXM/alioth_tw_global_images_OS1.0.1.0.TKHTWXM_20240318.0000.00_13.0_tw_e80a563dbc.tgz
+  md5: e80a563dbc337fc8e3b3ad34ffe6749b
+  method: Fastboot
+  name: POCO F3 Taiwan
+  size: 4.9 GB
+  version: OS1.0.1.0.TKHTWXM
+- android: '16.0'
+  branch: Stable Beta
+  codename: amethyst
+  date: 2026-09-08
+  link: https://bigota.d.miui.com/OS3.0.306.0.WOPCNXM/amethyst-ota_full-OS3.0.306.0.WOPCNXM-user-16.0-405cc6ce1e.zip
+  md5: 405cc6ce1e269a0aee784f0eb2a2df35
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G China
+  size: 6.7 GB
+  version: OS3.0.306.0.WOPCNXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst
+  date: 2026-07-18
+  link: https://bigota.d.miui.com/OS3.0.305.0.WOPCNXM/amethyst-ota_full-OS3.0.305.0.WOPCNXM-user-16.0-29a9469582.zip
+  md5: 29a94695822e2c169c21f71180b044d9
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G China
+  size: 6.7 GB
+  version: OS3.0.305.0.WOPCNXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst
+  date: 2026-07-09
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.305.0.WOPCNXM/amethyst_images_OS3.0.305.0.WOPCNXM_20260709.0000.00_16.0_cn_e5930dbf17.tgz
+  md5: e5930dbf1746bbc3fbb45f7c77e68b99
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G China
+  size: 9.1 GB
+  version: OS3.0.305.0.WOPCNXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_eea_global
+  date: 2026-07-01
+  link: https://bigota.d.miui.com/OS3.0.304.0.WOPEUXM/amethyst_eea_global-ota_full-OS3.0.304.0.WOPEUXM-user-16.0-375ff9a0ea.zip
+  md5: 375ff9a0ea26edbe37c5808339342700
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G EEA
+  size: 6.1 GB
+  version: OS3.0.304.0.WOPEUXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_eea_global
+  date: 2026-06-18
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.304.0.WOPEUXM/amethyst_eea_global_images_OS3.0.304.0.WOPEUXM_20260618.0000.00_16.0_eea_66652e140f.tgz
+  md5: 66652e140f4ebe417beb25caba85bd73
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G EEA
+  size: 8.4 GB
+  version: OS3.0.304.0.WOPEUXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_global
+  date: 2026-08-28
+  link: https://bigota.d.miui.com/OS3.0.306.0.WOPMIXM/amethyst_global-ota_full-OS3.0.306.0.WOPMIXM-user-16.0-6e358a1e48.zip
+  md5: 6e358a1e488857aeb66b1a9a1783139b
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G Global
+  size: 6.0 GB
+  version: OS3.0.306.0.WOPMIXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_global
+  date: 2026-08-24
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.306.0.WOPMIXM/amethyst_global_images_OS3.0.306.0.WOPMIXM_20260824.0000.00_16.0_global_3b91291e66.tgz
+  md5: 3b91291e6670550f493b6ab2ac43bdd9
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G Global
+  size: 9.4 GB
+  version: OS3.0.306.0.WOPMIXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_id_global
+  date: 2026-07-06
+  link: https://bigota.d.miui.com/OS3.0.302.0.WOPIDXM/amethyst_id_global-ota_full-OS3.0.302.0.WOPIDXM-user-16.0-ef748e38bf.zip
+  md5: ef748e38bfb88230be852592d37d13f0
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G Indonesia
+  size: 6.0 GB
+  version: OS3.0.302.0.WOPIDXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_id_global
+  date: 2026-06-24
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WOPIDXM/amethyst_id_global_images_OS3.0.302.0.WOPIDXM_20260624.0000.00_16.0_id_6c7f1c9dfd.tgz
+  md5: 6c7f1c9dfdbf6a049cef284e5f06d915
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G Indonesia
+  size: 8.5 GB
+  version: OS3.0.302.0.WOPIDXM
+- android: '16.0'
+  branch: Stable Beta
+  codename: amethyst_in_global
+  date: 2026-09-08
+  link: https://bigota.d.miui.com/OS3.0.304.0.WOPINXM/amethyst_in_global-ota_full-OS3.0.304.0.WOPINXM-user-16.0-faf1dc2f83.zip
+  md5: faf1dc2f833e661f1c4595525d5b5287
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G India
+  size: 5.8 GB
+  version: OS3.0.304.0.WOPINXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_in_global
+  date: 2026-07-06
+  link: https://bigota.d.miui.com/OS3.0.303.0.WOPINXM/amethyst_in_global-ota_full-OS3.0.303.0.WOPINXM-user-16.0-5d2e226b33.zip
+  md5: 5d2e226b331bbbffe30ad3937ad61643
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G India
+  size: 5.8 GB
+  version: OS3.0.303.0.WOPINXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_in_global
+  date: 2026-06-18
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.303.0.WOPINXM/amethyst_in_global_images_OS3.0.303.0.WOPINXM_20260618.0000.00_16.0_in_53eb5cd07b.tgz
+  md5: 53eb5cd07b1d8f16c07e1adbf2e94335
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G India
+  size: 7.6 GB
+  version: OS3.0.303.0.WOPINXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_ru_global
+  date: 2026-07-06
+  link: https://bigota.d.miui.com/OS3.0.302.0.WOPRUXM/amethyst_ru_global-ota_full-OS3.0.302.0.WOPRUXM-user-16.0-e8ceb6aafe.zip
+  md5: e8ceb6aafe352fe50a0264e2331dc0be
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G Russia
+  size: 5.9 GB
+  version: OS3.0.302.0.WOPRUXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_ru_global
+  date: 2026-06-24
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WOPRUXM/amethyst_ru_global_images_OS3.0.302.0.WOPRUXM_20260624.0000.00_16.0_ru_40062e2876.tgz
+  md5: 40062e287615176d8256b8f06894b175
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G Russia
+  size: 9.3 GB
+  version: OS3.0.302.0.WOPRUXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_tr_global
+  date: 2026-07-06
+  link: https://bigota.d.miui.com/OS3.0.302.0.WOPTRXM/amethyst_tr_global-ota_full-OS3.0.302.0.WOPTRXM-user-16.0-cb5363a85f.zip
+  md5: cb5363a85f1966c0ce523d3ddd02a0d9
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G Turkey
+  size: 6.0 GB
+  version: OS3.0.302.0.WOPTRXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_tr_global
+  date: 2026-06-24
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WOPTRXM/amethyst_tr_global_images_OS3.0.302.0.WOPTRXM_20260624.0000.00_16.0_tr_da7fa061d7.tgz
+  md5: da7fa061d7abefc3a0900bcec70f30cd
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G Turkey
+  size: 8.1 GB
+  version: OS3.0.302.0.WOPTRXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_tw_global
+  date: 2026-07-06
+  link: https://bigota.d.miui.com/OS3.0.302.0.WOPTWXM/amethyst_tw_global-ota_full-OS3.0.302.0.WOPTWXM-user-16.0-d4e0c49ff1.zip
+  md5: d4e0c49ff143f3c43c3fe498b43ef2a4
+  method: Recovery
+  name: Redmi Note 14 Pro+ 5G Taiwan
+  size: 5.9 GB
+  version: OS3.0.302.0.WOPTWXM
+- android: '16.0'
+  branch: Stable
+  codename: amethyst_tw_global
+  date: 2026-06-25
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WOPTWXM/amethyst_tw_global_images_OS3.0.302.0.WOPTWXM_20260625.0000.00_16.0_tw_8ff0669e3d.tgz
+  md5: 8ff0669e3d9b4b622fedb0e1650db4d3
+  method: Fastboot
+  name: Redmi Note 14 Pro+ 5G Taiwan
+  size: 7.0 GB
+  version: OS3.0.302.0.WOPTWXM
+- android: '9.0'
+  branch: Stable
+  codename: andromeda
+  date: 2019-11-22
+  link: https://bigota.d.miui.com/V10.3.18.0.PEMCNXM/miui_ANDROMEDA_V10.3.18.0.PEMCNXM_ce7a4aefa2_9.0.zip
+  md5: ce7a4aefa2ae1379061c78df51901562
+  method: Recovery
+  name: Mi MIX 3 5G China
+  size: 2.1 GB
+  version: V10.3.18.0.PEMCNXM
+- android: '9.0'
+  branch: Stable
+  codename: andromeda
+  date: 2019-08-01
+  link: https://bigota.d.miui.com/V10.3.17.0.PEMCNXM/andromeda_images_V10.3.17.0.PEMCNXM_20190801.0000.00_9.0_cn_15a6600b79.tgz
+  md5: 15a6600b79fb8afcacc5ba36eaebf5b1
+  method: Fastboot
+  name: Mi MIX 3 5G China
+  size: 2.4 GB
+  version: V10.3.17.0.PEMCNXM
+- android: '9.0'
+  branch: Stable Beta
+  codename: andromeda_eea_global
+  date: 2021-05-17
+  link: https://bigota.d.miui.com/V12.0.5.0.PEMEUXM/miui_ANDROMEDAEEAGlobal_V12.0.5.0.PEMEUXM_8fe5abe4bc_9.0.zip
+  md5: 8fe5abe4bca2f5639ddcfc7da70ac9ed
+  method: Recovery
+  name: Mi MIX 3 5G EEA
+  size: 2.4 GB
+  version: V12.0.5.0.PEMEUXM
+- android: '9.0'
+  branch: Stable
+  codename: andromeda_eea_global
+  date: 2021-05-31
+  link: https://bigota.d.miui.com/V12.0.7.0.PEMEUXM/miui_ANDROMEDAEEAGlobal_V12.0.7.0.PEMEUXM_ebd7b385e7_9.0.zip
+  md5: ebd7b385e75ae534a0c46d199c5f2427
+  method: Recovery
+  name: Mi MIX 3 5G EEA
+  size: 2.4 GB
+  version: V12.0.7.0.PEMEUXM
+- android: '9.0'
+  branch: Stable
+  codename: andromeda_eea_global
+  date: 2021-05-26
+  link: https://bigota.d.miui.com/V12.0.7.0.PEMEUXM/andromeda_eea_global_images_V12.0.7.0.PEMEUXM_20210526.0000.00_9.0_eea_3bae1ef62a.tgz
+  md5: 3bae1ef62a3426d59c026a2254e9fcbb
+  method: Fastboot
+  name: Mi MIX 3 5G EEA
+  size: 2.9 GB
+  version: V12.0.7.0.PEMEUXM
+- android: '9.0'
+  branch: Stable Beta
+  codename: andromeda_global
+  date: 2020-12-23
+  link: https://bigota.d.miui.com/V12.0.2.0.PEMMIXM/miui_ANDROMEDAGlobal_V12.0.2.0.PEMMIXM_bcb73d3715_9.0.zip
+  md5: bcb73d371512a26c06e9d13893c5c885
+  method: Recovery
+  name: Mi MIX 3 5G Global
+  size: 2.5 GB
+  version: V12.0.2.0.PEMMIXM
+- android: '9.0'
+  branch: Stable
+  codename: andromeda_global
+  date: 2021-03-29
+  link: https://bigota.d.miui.com/V12.0.4.0.PEMMIXM/miui_ANDROMEDAGlobal_V12.0.4.0.PEMMIXM_9ac8cec738_9.0.zip
+  md5: 9ac8cec7384c07152ae3c7544ad8d8be
+  method: Recovery
+  name: Mi MIX 3 5G Global
+  size: 2.4 GB
+  version: V12.0.4.0.PEMMIXM
+- android: '9.0'
+  branch: Stable
+  codename: andromeda_global
+  date: 2021-03-24
+  link: https://bigota.d.miui.com/V12.0.4.0.PEMMIXM/andromeda_global_images_V12.0.4.0.PEMMIXM_20210324.0000.00_9.0_global_fef9f84dc6.tgz
+  md5: fef9f84dc688ba08497526f5d3dd680f
+  method: Fastboot
+  name: Mi MIX 3 5G Global
+  size: 2.9 GB
+  version: V12.0.4.0.PEMMIXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_eea_global
+  date: 2022-08-22
+  link: https://bigota.d.miui.com/V12.0.14.0.QCREUXM/miui_ANGELICAEEAGlobal_V12.0.14.0.QCREUXM_801922339f_10.0.zip
+  md5: 801922339fd99946cadc8e2b81b16c42
+  method: Recovery
+  name: Redmi 9C EEA
+  size: 1.8 GB
+  version: V12.0.14.0.QCREUXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_eea_global
+  date: 2022-08-16
+  link: https://bigota.d.miui.com/V12.0.14.0.QCREUXM/angelica_eea_global_images_V12.0.14.0.QCREUXM_20220816.0000.00_10.0_eea_ca6cb27c19.tgz
+  md5: ca6cb27c194b82282d56adadd378f740
+  method: Fastboot
+  name: Redmi 9C EEA
+  size: 4.1 GB
+  version: V12.0.14.0.QCREUXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_global
+  date: 2023-04-13
+  link: https://bigota.d.miui.com/V12.0.23.0.QCRMIXM/miui_ANGELICAGlobal_V12.0.23.0.QCRMIXM_1bcde6b5b7_10.0.zip
+  md5: 1bcde6b5b7bbd208e22a64325212bc3f
+  method: Recovery
+  name: Redmi 9C Global
+  size: 1.8 GB
+  version: V12.0.23.0.QCRMIXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_global
+  date: 2023-03-23
+  link: https://bigota.d.miui.com/V12.0.23.0.QCRMIXM/angelica_global_images_V12.0.23.0.QCRMIXM_20230323.0000.00_10.0_global_e388f9344e.tgz
+  md5: e388f9344e780a2d0e733bbee08d5129
+  method: Fastboot
+  name: Redmi 9C Global
+  size: 4.2 GB
+  version: V12.0.23.0.QCRMIXM
+- android: '11.0'
+  branch: Stable
+  codename: angelica_id_global
+  date: 2022-08-30
+  link: https://bigota.d.miui.com/V12.5.3.0.RCRIDXM/miui_ANGELICAIDGlobal_V12.5.3.0.RCRIDXM_f393b1e84d_11.0.zip
+  md5: f393b1e84d96c354a555b06e43ef2904
+  method: Recovery
+  name: Redmi 9C Indonesia
+  size: 2.0 GB
+  version: V12.5.3.0.RCRIDXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_id_global
+  date: 2022-08-19
+  link: https://bigota.d.miui.com/V12.0.14.0.QCRIDXM/angelica_id_global_images_V12.0.14.0.QCRIDXM_20220819.0000.00_10.0_global_f3c00f4897.tgz
+  md5: f3c00f4897a098124e6513196feb45f2
+  method: Fastboot
+  name: Redmi 9C Indonesia
+  size: 3.5 GB
+  version: V12.0.14.0.QCRIDXM
+- android: '10.0'
+  branch: Stable Beta
+  codename: angelica_tr_global
+  date: 2022-09-09
+  link: https://bigota.d.miui.com/V12.0.13.0.QCRTRXM/miui_ANGELICATRGlobal_V12.0.13.0.QCRTRXM_f580c4d68a_10.0.zip
+  md5: f580c4d68af7bbd442e7cb17e07ada52
+  method: Recovery
+  name: Redmi 9C Turkey
+  size: 1.8 GB
+  version: V12.0.13.0.QCRTRXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_tr_global
+  date: 2022-09-30
+  link: https://bigota.d.miui.com/V12.0.15.0.QCRTRXM/miui_ANGELICATRGlobal_V12.0.15.0.QCRTRXM_14ddc7a102_10.0.zip
+  md5: 14ddc7a102e4449c26d69a8ca8b92e60
+  method: Recovery
+  name: Redmi 9C Turkey
+  size: 1.8 GB
+  version: V12.0.15.0.QCRTRXM
+- android: '10.0'
+  branch: Stable
+  codename: angelica_tr_global
+  date: 2022-09-27
+  link: https://bigota.d.miui.com/V12.0.15.0.QCRTRXM/angelica_tr_global_images_V12.0.15.0.QCRTRXM_20220927.0000.00_10.0_global_b89d5a18aa.tgz
+  md5: b89d5a18aa01ec365ea065dc862f8f68
+  method: Fastboot
+  name: Redmi 9C Turkey
+  size: 3.4 GB
+  version: V12.0.15.0.QCRTRXM
+- android: '10.0'
+  branch: Stable Beta
+  codename: angelicain_in_global
+  date: 2020-10-27
+  link: https://bigota.d.miui.com/V12.0.2.0.QCRINXM/miui_ANGELICAININGlobal_V12.0.2.0.QCRINXM_5f28a491aa_10.0.zip
+  md5: 5f28a491aad4918facf2c31c65bf7816
+  method: Recovery
+  name: POCO C3 India
+  size: 1.6 GB
+  version: V12.0.2.0.QCRINXM
+- android: '10.0'
+  branch: Stable
+  codename: angelicain_in_global
+  date: 2022-09-06
+  link: https://bigota.d.miui.com/V12.0.19.0.QCRINXM/miui_ANGELICAININGlobal_V12.0.19.0.QCRINXM_355be36c6c_10.0.zip
+  md5: 355be36c6cb344ec24403b70448a0a7a
+  method: Recovery
+  name: POCO C3 India
+  size: 1.7 GB
+  version: V12.0.19.0.QCRINXM
+- android: '10.0'
+  branch: Stable
+  codename: angelicain_in_global
+  date: 2022-08-26
+  link: https://bigota.d.miui.com/V12.0.19.0.QCRINXM/angelicain_in_global_images_V12.0.19.0.QCRINXM_20220826.0000.00_10.0_in_9b2476337d.tgz
+  md5: 9b2476337d2ae413875346e27d0a4679
+  method: Fastboot
+  name: POCO C3 India
+  size: 2.5 GB
+  version: V12.0.19.0.QCRINXM
+- android: '10.0'
+  branch: Stable Beta
+  codename: angelicain_in_rf_global
+  date: 2022-09-09
+  link: https://bigota.d.miui.com/V12.0.8.0.QCRINRF/miui_ANGELICAININRFGlobal_V12.0.8.0.QCRINRF_5e0a1ecf25_10.0.zip
+  md5: 5e0a1ecf2516af8d468a7e850fd0d3b5
+  method: Recovery
+  name: POCO C31 India
+  size: 1.8 GB
+  version: V12.0.8.0.QCRINRF
+- android: '10.0'
+  branch: Stable Beta
+  codename: angelicain_in_rf_global
+  date: 2021-09-12
+  link: https://bigota.d.miui.com/V12.0.1.0.QCRINRF/angelicain_in_rf_global_images_V12.0.1.0.QCRINRF_20210912.0000.00_10.0_in_00214c2414.tgz
+  md5: null
+  method: Fastboot
+  name: POCO C31 India
+  size: 2.4 GB
+  version: V12.0.1.0.QCRINRF
+- android: '11.0'
+  branch: Stable
+  codename: angelicain_in_rf_global
+  date: 2023-08-07
+  link: https://bigota.d.miui.com/V12.5.5.0.RCRINRF/miui_ANGELICAININRFGlobal_V12.5.5.0.RCRINRF_a6450b32f4_11.0.zip
+  md5: a6450b32f451622c810bd6e05aeefc8a
+  method: Recovery
+  name: POCO C31 India
+  size: 2.0 GB
+  version: V12.5.5.0.RCRINRF
+- android: '11.0'
+  branch: Stable
+  codename: angelicain_in_rf_global
+  date: 2023-08-01
+  link: https://bigota.d.miui.com/V12.5.5.0.RCRINRF/angelicain_in_rf_global_images_V12.5.5.0.RCRINRF_20230801.0000.00_11.0_in_e44487def7.tgz
+  md5: e44487def79b101ffc68fcb0acdd16ca
+  method: Fastboot
+  name: POCO C31 India
+  size: 3.3 GB
+  version: V12.5.5.0.RCRINRF
+- android: '10.0'
+  branch: Stable
+  codename: angelican_eea_global
+  date: 2022-08-25
+  link: https://bigota.d.miui.com/V12.0.14.0.QCSEUXM/miui_ANGELICANEEAGlobal_V12.0.14.0.QCSEUXM_b8dd81fed5_10.0.zip
+  md5: b8dd81fed538212d5bd372ea867f0820
+  method: Recovery
+  name: Redmi 9C NFC EEA
+  size: 1.8 GB
+  version: V12.0.14.0.QCSEUXM
+- android: '10.0'
+  branch: Stable
+  codename: angelican_eea_global
+  date: 2022-08-19
+  link: https://bigota.d.miui.com/V12.0.14.0.QCSEUXM/angelican_eea_global_images_V12.0.14.0.QCSEUXM_20220819.0000.00_10.0_eea_045e97ab3c.tgz
+  md5: 045e97ab3c8fd2aac35eab67f7eb4568
+  method: Fastboot
+  name: Redmi 9C NFC EEA
+  size: 4.0 GB
+  version: V12.0.14.0.QCSEUXM
+- android: '10.0'
+  branch: Stable
+  codename: angelican_global
+  date: 2022-10-10
+  link: https://bigota.d.miui.com/V12.0.16.0.QCSMIXM/miui_ANGELICANGlobal_V12.0.16.0.QCSMIXM_aa62ece321_10.0.zip
+  md5: aa62ece3215d75f6cc1bfca6cc3bbc63
+  method: Recovery
+  name: Redmi 9C NFC Global
+  size: 1.8 GB
+  version: V12.0.16.0.QCSMIXM
+- android: '10.0'
+  branch: Stable
+  codename: angelican_global
+  date: 2022-10-08
+  link: https://bigota.d.miui.com/V12.0.16.0.QCSMIXM/angelican_global_images_V12.0.16.0.QCSMIXM_20221008.0000.00_10.0_global_09074d4d99.tgz
+  md5: 09074d4d99dc365efae66fc150873030
+  method: Fastboot
+  name: Redmi 9C NFC Global
+  size: 4.0 GB
+  version: V12.0.16.0.QCSMIXM
+- android: '11.0'
+  branch: Stable
+  codename: angelican_ru_global
+  date: 2022-08-30
+  link: https://bigota.d.miui.com/V12.5.3.0.RCSRUXM/miui_ANGELICANRUGlobal_V12.5.3.0.RCSRUXM_57e0de1031_11.0.zip
+  md5: 57e0de1031409884409c30a630a9b18c
+  method: Recovery
+  name: Redmi 9C NFC Russia
+  size: 2.0 GB
+  version: V12.5.3.0.RCSRUXM
+- android: '11.0'
+  branch: Stable
+  codename: angelican_ru_global
+  date: 2022-08-04
+  link: https://bigota.d.miui.com/V12.5.3.0.RCSRUXM/angelican_ru_global_images_V12.5.3.0.RCSRUXM_20220804.0000.00_11.0_global_de26506499.tgz
+  md5: de265064995db1e171cf7d1791d2d66a
+  method: Fastboot
+  name: Redmi 9C NFC Russia
+  size: 3.5 GB
+  version: V12.5.3.0.RCSRUXM
+- android: '16.0'
+  branch: Stable Beta
+  codename: annibale
+  date: 2025-10-23
+  link: https://bigota.d.miui.com/OS3.0.4.0.WPKCNXM/annibale-ota_full-OS3.0.4.0.WPKCNXM-user-16.0-eff83315c8.zip
+  md5: eff83315c89531fbfb9f213fee8bbf6b
+  method: Recovery
+  name: Redmi K90 China
+  size: 8.8 GB
+  version: OS3.0.4.0.WPKCNXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale
+  date: 2026-07-30
+  link: https://bigota.d.miui.com/OS3.0.307.0.WPKCNXM/annibale-ota_full-OS3.0.307.0.WPKCNXM-user-16.0-94dcf5f934.zip
+  md5: 94dcf5f934dc654baad7a205df27da71
+  method: Recovery
+  name: Redmi K90 China
+  size: 9.0 GB
+  version: OS3.0.307.0.WPKCNXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale
+  date: 2026-07-23
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.307.0.WPKCNXM/annibale_images_OS3.0.307.0.WPKCNXM_20260723.0000.00_16.0_cn_2596a70f8d.tgz
+  md5: 2596a70f8d9d6af2fa85febe0141d9d2
+  method: Fastboot
+  name: Redmi K90 China
+  size: 11.9 GB
+  version: OS3.0.307.0.WPKCNXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_eea_global
+  date: 2026-07-25
+  link: https://bigota.d.miui.com/OS3.0.301.0.WPKEUXM/annibale_eea_global-ota_full-OS3.0.301.0.WPKEUXM-user-16.0-2fdc97d33a.zip
+  md5: 2fdc97d33a467c491449df7ec061be72
+  method: Recovery
+  name: Redmi K90 / POCO F8 Pro EEA
+  size: 7.9 GB
+  version: OS3.0.301.0.WPKEUXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_eea_global
+  date: 2026-07-16
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.301.0.WPKEUXM/annibale_eea_global_images_OS3.0.301.0.WPKEUXM_20260716.0000.00_16.0_eea_8ac0f5c905.tgz
+  md5: 8ac0f5c90547322ae9cfea0f99ed8671
+  method: Fastboot
+  name: Redmi K90 / POCO F8 Pro EEA
+  size: 10.8 GB
+  version: OS3.0.301.0.WPKEUXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_global
+  date: 2026-07-25
+  link: https://bigota.d.miui.com/OS3.0.301.0.WPKMIXM/annibale_global-ota_full-OS3.0.301.0.WPKMIXM-user-16.0-b17d43c993.zip
+  md5: b17d43c9937470fdd024fde8ab6ab439
+  method: Recovery
+  name: Redmi K90 / POCO F8 Pro Global
+  size: 7.9 GB
+  version: OS3.0.301.0.WPKMIXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_global
+  date: 2026-07-20
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.301.0.WPKMIXM/annibale_global_images_OS3.0.301.0.WPKMIXM_20260720.0000.00_16.0_global_b74f6578ba.tgz
+  md5: b74f6578bad962bae0f50adb47516348
+  method: Fastboot
+  name: Redmi K90 / POCO F8 Pro Global
+  size: 11.7 GB
+  version: OS3.0.301.0.WPKMIXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_id_global
+  date: 2026-08-14
+  link: https://bigota.d.miui.com/OS3.0.302.0.WPKIDXM/annibale_id_global-ota_full-OS3.0.302.0.WPKIDXM-user-16.0-240aad8b55.zip
+  md5: 240aad8b55f4ecdb06b0761cacf78aca
+  method: Recovery
+  name: Redmi K90 / POCO F8 Pro Indonesia
+  size: 7.9 GB
+  version: OS3.0.302.0.WPKIDXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_id_global
+  date: 2026-08-06
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WPKIDXM/annibale_id_global_images_OS3.0.302.0.WPKIDXM_20260806.0000.00_16.0_id_4400b1cf3a.tgz
+  md5: 4400b1cf3a8d05cbc41d39e0ca317e92
+  method: Fastboot
+  name: Redmi K90 / POCO F8 Pro Indonesia
+  size: 11.1 GB
+  version: OS3.0.302.0.WPKIDXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_ru_global
+  date: 2026-08-07
+  link: https://bigota.d.miui.com/OS3.0.302.0.WPKRUXM/annibale_ru_global-ota_full-OS3.0.302.0.WPKRUXM-user-16.0-d000a04055.zip
+  md5: d000a04055982cee362b23106d773125
+  method: Recovery
+  name: Redmi K90 / POCO F8 Pro Russia
+  size: 7.8 GB
+  version: OS3.0.302.0.WPKRUXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_ru_global
+  date: 2026-08-01
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WPKRUXM/annibale_ru_global_images_OS3.0.302.0.WPKRUXM_20260801.0000.00_16.0_ru_61e72d91a0.tgz
+  md5: 61e72d91a08bbea0d5123f67c8201e49
+  method: Fastboot
+  name: Redmi K90 / POCO F8 Pro Russia
+  size: 11.4 GB
+  version: OS3.0.302.0.WPKRUXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_tr_global
+  date: 2026-08-14
+  link: https://bigota.d.miui.com/OS3.0.302.0.WPKTRXM/annibale_tr_global-ota_full-OS3.0.302.0.WPKTRXM-user-16.0-87193068eb.zip
+  md5: 87193068eb2415c1d9f935c38e7abb43
+  method: Recovery
+  name: Redmi K90 / POCO F8 Pro Turkey
+  size: 7.9 GB
+  version: OS3.0.302.0.WPKTRXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_tr_global
+  date: 2026-08-06
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WPKTRXM/annibale_tr_global_images_OS3.0.302.0.WPKTRXM_20260806.0000.00_16.0_tr_fcc72723dd.tgz
+  md5: fcc72723dd12e8ed8a983526652c66a2
+  method: Fastboot
+  name: Redmi K90 / POCO F8 Pro Turkey
+  size: 10.4 GB
+  version: OS3.0.302.0.WPKTRXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_tw_global
+  date: 2026-08-21
+  link: https://bigota.d.miui.com/OS3.0.302.0.WPKTWXM/annibale_tw_global-ota_full-OS3.0.302.0.WPKTWXM-user-16.0-9070944af0.zip
+  md5: 9070944af0fa88f2cb766c984c15b428
+  method: Recovery
+  name: Redmi K90 / POCO F8 Pro Taiwan
+  size: 7.7 GB
+  version: OS3.0.302.0.WPKTWXM
+- android: '16.0'
+  branch: Stable
+  codename: annibale_tw_global
+  date: 2026-08-06
+  link: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WPKTWXM/annibale_tw_global_images_OS3.0.302.0.WPKTWXM_20260806.0000.00_16.0_tw_e7de97eed1.tgz
+  md5: e7de97eed1d6a77d18040d254f63d8be
+  method: Fastboot
+  name: Redmi K90 / POCO F8 Pro Taiwan
+  size: 9.0 GB
+  version: OS3.0.302.0.WPKTWXM
+- android: '11.0'
+  branch: Stable Beta
+  codename: apollo
+  date: 2021-08-10
+  link: https://bigota.d.miui.com/V12.5.3.0.RJDCNXM/miui_APOLLO_V12.5.3.0.RJDCNXM_d98b4e09b5_11.0.zip
+  md5: d98b4e09b524cf99e2cc29c95b20125b
+  method: Recovery
+  name: Redmi K30S Ultra China
+  size: 3.9 GB
+  version: V12.5.3.0.RJDCNXM
+- android: '12.0'
+  branch: Stable
+  codename: apollo
+  date: 2023-03-08
+  link: https://bigota.d.miui.com/V14.0.5.0.SJDCNXM/miui_APOLLO_V14.0.5.0.SJDCNXM_e727f2446b_12.0.zip
+  md5: e727f2446bf745321ecc27b6e671598f
+  method: Recovery
+  name: Redmi K30S Ultra China
+  size: 4.7 GB
+  version: V14.0.5.0.SJDCNXM
+- android: '12.0'
+  branch: Stable
+  codename: apollo
+  date: 2023-03-01
+  link: https://bigota.d.miui.com/V14.0.5.0.SJDCNXM/apollo_images_V14.0.5.0.SJDCNXM_20230301.0000.00_12.0_cn_5b87205071.tgz
+  md5: 5b87205071d327336de7a04657189200
+  method: Fastboot
+  name: Redmi K30S Ultra China
+  size: 5.3 GB
+  version: V14.0.5.0.SJDCNXM
+- android: '12.0'
+  branch: Weekly
+  codename: apollo
+  date: 2022-03-24
+  link: https://bigota.d.miui.com/22.3.23/miui_APOLLOPRE_22.3.23_ee5fe0c007_12.0.zip
+  md5: ee5fe0c007ee41c5fb8b5007dc5b7af5
+  method: Recovery
+  name: Redmi K30S Ultra China
+  size: 4.8 GB
+  version: 22.3.23

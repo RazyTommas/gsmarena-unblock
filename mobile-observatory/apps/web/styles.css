@@ -116,3 +116,21 @@
 .cov small{font-size:11px;color:var(--muted,#6b7580);cursor:help}
 .cov-none{opacity:.72;border-style:dashed}
 .cov-none .cov-n{color:var(--muted,#6b7580)}
+
+/* What the corpus says about itself, on the page an operator already opens.
+   Green when every invariant passed, amber for findings that describe pending
+   or inconsistent state, red when the corpus would make the UI state something
+   false. The border carries the state so it reads before the text does. */
+.integrity{border:1px solid var(--line,#e2e6e0);border-left-width:4px;border-radius:12px;
+  background:var(--card,#fff);padding:15px 18px;margin-bottom:14px}
+.integrity-ok{border-left-color:#26704c}
+.integrity-warn{border-left-color:#9b620e}
+.integrity-bad{border-left-color:#a33b34}
+.integrity-head{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline}
+.integrity-head b{font-size:15px}
+.integrity-list{margin:11px 0 0;padding:0;display:grid;gap:9px}
+.integrity-list li{list-style:none;font-size:13.5px}
+.chip-error,.chip-warning{font-size:10px;letter-spacing:.07em;text-transform:uppercase;
+  font-weight:700;border-radius:5px;padding:2px 7px;margin-right:7px}
+.chip-error{background:#fee6e3;color:#a33b34}
+.chip-warning{background:#fff0d9;color:#9b620e}

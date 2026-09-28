@@ -762,12 +762,53 @@ class ObservatoryService:
         from .lineage_specs import hardware_specification_evidence
         return {'latestFirmware': latest, 'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
                 'specifications': hardware_specification_evidence(c, model),
-                'firmware': _page_payload(self.releases_page({'model_exact':[model],'limit':['50']}), self.meta),
+                # ROM history. The canonical view behind releases_page is fed by
+                # one source and covers Samsung only, so an evidence-layer device
+                # -- every TECNO, itel, Infinix and Xiaomi -- got an empty
+                # history panel while the grid beside it said "6 builds · 4
+                # regions". Two views of one device disagreeing is the same
+                # falsehood as "firmware not observed", one screen along.
+                'firmware': _page_payload(self._device_history(model, identifier), self.meta),
                 'security': _page_payload(self.security_page({'model':[model],'limit':['50']}), self.meta),
                 'boundaries': {'identity': 'Reviewed hardware identity; incomplete specifications remain unknown.',
                                'history': 'All captured releases are accessible through pagination; this does not imply complete vendor coverage.',
                                'security': 'Containing a claimed affected part does not establish a firmware verdict. No linked findings is not proof of safety.'},
                 'meta': self.meta}
+
+    def _device_history(self, model: str, hardware_model_id: str) -> QueryPage:
+        """Captured releases for one device, from whichever layer holds them.
+
+        A device lives in exactly one layer -- the projection refuses to publish
+        otherwise -- so this prefers the canonical history and falls back to the
+        evidence layer rather than merging two grains. The evidence rows are
+        shaped to the canonical payload so the existing renderer needs no
+        special case: a missing value stays missing rather than being filled.
+        """
+        canonical = self.releases_page({'model_exact': [model], 'limit': ['50']})
+        if canonical.items:
+            return canonical
+        rows = self.corpus.connection.execute(
+            """SELECT pfr.id, sp.manufacturer maker, sp.canonical_name device,
+                      ? model, pfr.region_code region, pfr.build_id build,
+                      pfr.android_version android, NULL patch, NULL baseband,
+                      nullif(pfr.vendor_released_at,'null') released,
+                      pfr.created_at observed, pfr.channel,
+                      s.base_url source_url, NULL build_derived_month,
+                      CASE WHEN nullif(pfr.vendor_released_at,'null') IS NULL
+                           THEN 'not_captured' ELSE 'vendor_stated_date' END date_basis,
+                      NULL evidence_id, pfr.source_id source
+                 FROM product_firmware_releases pfr
+                 JOIN source_products sp ON sp.id = pfr.product_id
+                 LEFT JOIN sources s ON s.id = pfr.source_id
+                WHERE pfr.hardware_model_id = ?
+                ORDER BY nullif(pfr.vendor_released_at,'null') IS NULL,
+                         nullif(pfr.vendor_released_at,'null') DESC,
+                         pfr.created_at DESC, pfr.id DESC
+                LIMIT 50""", (model, hardware_model_id)).fetchall()
+        total = self.corpus.connection.execute(
+            "SELECT count(*) FROM product_firmware_releases WHERE hardware_model_id=?",
+            (hardware_model_id,)).fetchone()[0]
+        return QueryPage([dict(row) for row in rows], total, 50, 0)
 
     def releases_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",

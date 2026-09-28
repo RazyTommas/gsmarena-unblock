@@ -106,6 +106,25 @@ class ProjectionCoverageTest(unittest.TestCase):
                 liars.append(f"{row['maker']} {row['name']}: {observed} releases observed, UI says not_observed")
         self.assertEqual([], liars, "\n".join(liars))
 
+    def test_the_detail_panel_shows_the_same_history_the_grid_counts(self) -> None:
+        """Two views of one device must not disagree.
+
+        The detail panel's ROM history read a view fed by a single source, which
+        covers Samsung only. So an evidence-layer device -- every TECNO, itel,
+        Infinix and Xiaomi -- opened to "CAPTURED ROM HISTORY · 0" and "No
+        captured ROMs match this selection" while the grid row behind it said
+        "6 builds · 4 regions". Caught by watching a screen recording of the
+        real app, not by a test.
+        """
+        row = self.service.devices_page({"model": ["EVI-1"]}).items[0]
+        self.assertGreater(row["firmware_count"], 0, "precondition: the grid counts builds")
+        detail = self.service.device_detail("EVI-1")
+        self.assertEqual(row["firmware_count"], detail["firmware"]["meta"]["page"]["total"],
+                         "the detail panel must account for every build the grid counts")
+        self.assertTrue(detail["firmware"]["items"], "and it must actually list them")
+        listed = {item["build"] for item in detail["firmware"]["items"]}
+        self.assertIn("EVI.BUILD.002", listed)
+
     def test_both_layers_are_present_in_the_projection(self) -> None:
         layers = {r[0] for r in self.db.connection.execute(
             "SELECT DISTINCT fact_layer FROM device_current_firmware")}

@@ -85,7 +85,8 @@ async function load() {
     state.data = { ...EMPTY_DATA, meta: overview.meta || {}, overview,
       updates: items(updates), updatePage: updates.meta?.page || {},
       health: items(health), watches: items(watches), watchlist: items(watchlist),
-      reviewQueue: health.reviewQueue || [] };
+      reviewQueue: health.reviewQueue || [],
+      integrity: health.integrity || null, projection: health.projection || null };
     state.config = config;
     // Seeded from the rows actually on screen, which is all this set is ever
     // asked about. The whole-list endpoint shipped 5,785 ids (220KB) on every
@@ -244,7 +245,18 @@ function renderRadar() {
 
 // "samsung.doc.aspl" -> "samsung ASPL". The full source id stays in the
 // title attribute; the cell only has room for enough to tell publishers apart.
-const sourceShort = id => { if(!id) return ''; const p=String(id).split('.'); return p.length>2?`${p[0]} ${p[p.length-1].toUpperCase()}`:String(id); };
+const sourceShort = id => {
+  if(!id) return '';
+  const parts = String(id).split('.');
+  if (parts.length < 3) return String(id);
+  // Publisher plus the one word that distinguishes this feed from that
+  // publisher's others -- samsung.fota and samsung.doc.aspl are different
+  // sources and the SPL attribution depends on telling them apart. Underscored
+  // compounds keep only their first word, so a cell reads "frbox transsion"
+  // rather than "frbox TRANSSION_CATALOG". The full id is in the title.
+  const tail = parts[parts.length - 1].split('_')[0];
+  return `${parts[0]} ${tail.length <= 5 ? tail.toUpperCase() : tail}`;
+};
 // Vendor composition of the catalogue, and what is not in it yet.
 // The grid shows 303 reviewed devices and no Apple at all, which reads as "never
 // collected" when the truth is 4,450 Apple firmware observations sitting behind
@@ -450,10 +462,37 @@ function identityMatchRow(hit,query,namespace){
   return `<div class="query-match"><b>${escapeHtml(hit.label)}</b><small> ${escapeHtml(hit.detail)} · canonical device</small>${remembered?`<p><b>Remembered: ${escapeHtml(remembered.decision)}</b> · ${escapeHtml(remembered.decided_at)}<br>${escapeHtml(remembered.rationale||'No rationale supplied')}</p><details><summary>Review this remembered decision</summary>${choices}</details>`:choices}</div>`;
 }
 
+// What the corpus says about itself. The invariants have run against the real
+// corpus on every batch for a while now, and they were reachable only by
+// reading /api/v1/admin/health by hand -- which makes them a finding nobody
+// sees, the exact thing they exist to prevent. This is where an operator
+// already goes to ask whether a run worked.
+function integrityPanel() {
+  const state_ = state.data.integrity, proj = state.data.projection;
+  if (!state_) return '';
+  const findings = state_.findings || [];
+  const errors = findings.filter(f => f.severity === 'error');
+  const tone = errors.length ? 'bad' : (findings.length ? 'warn' : 'ok');
+  return `<div class="integrity integrity-${tone}">
+    <div class="integrity-head">
+      <b>${escapeHtml(state_.summary || '')}</b>
+      ${proj ? `<span class="subtle">projection generation ${proj.generation} · built ${escapeHtml(String(proj.builtAt||'').slice(0,19))} · ${proj.rowCount} rows</span>` : ''}
+    </div>
+    ${findings.length ? `<ul class="integrity-list">${findings.map(f =>
+        `<li><span class="chip-${escapeHtml(f.severity)}">${escapeHtml(f.severity)}</span>
+           <b>${escapeHtml(f.check)}</b> · ${f.count}
+           <div class="subtle">${escapeHtml(f.detail || '')}</div></li>`).join('')}</ul>`
+      : `<p class="subtle">Every invariant passed against the corpus itself — referential integrity,
+         firmware reachability, projection coverage, publisher attribution and run accounting.</p>`}
+    ${state_.checkedAt ? `<p class="subtle">Checked ${escapeHtml(String(state_.checkedAt).slice(0,19))} · ${escapeHtml(state_.scope||'')}</p>` : ''}
+  </div>`;
+}
+
 function renderAdmin() {
   const health=state.data.health.filter(matches), delayed=health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length;
   const cfg=state.config||{};
   return heading('Operations','Know when the data is trustworthy','Collection health, coverage gaps, and offline snapshot readiness.') + `
+  ${integrityPanel()}
   <div class="notice">${delayed} ${delayed===1?'source needs':'sources need'} attention. Product views preserve the last valid observation and display its age.</div>
   <div class="admin-grid"><div><div class="data-card"><table class="data-table"><thead><tr><th>Source</th><th>Scope</th><th>Status</th><th>Evidence captured / imported</th><th>Collection</th><th>Records</th></tr></thead><tbody>${health.map(x=>`<tr><td class="strong">${escapeHtml(x.source)}</td><td>${escapeHtml(x.scope)}</td><td>${badge(x.status,x.status)}${silenceNote(x)}</td><td>${val(x.captured_at,'capture time')}<div class="subtle">Imported ${escapeHtml(x.last)}</div></td><td>${escapeHtml(x.next)}<div class="subtle">${escapeHtml(x.execution_mode||'snapshot')}</div></td><td>${escapeHtml(x.records)}</td></tr>`).join('')}</tbody></table></div></div>
   <div class="data-card flow"><div class="eyebrow">Offline bundle</div><h2 class="section-title" style="margin-top:4px">Snapshot contents</h2><div class="flow-step"><i>1</i><div><b>Corpus database</b><div class="subtle">Canonical facts + provenance</div></div></div><div class="flow-step"><i>2</i><div><b>Evidence cache</b><div class="subtle">Permitted source documents</div></div></div><div class="flow-step"><i>3</i><div><b>Manifest</b><div class="subtle">Source cutoffs, hashes, row counts</div></div></div><p class="subtle">Build and verify snapshots with <code>python3 -m mobile_observatory.snapshots</code>.</p></div></div>

@@ -13,8 +13,10 @@ it is is exactly what is unknown.
 """
 from __future__ import annotations
 
+import csv
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -23,6 +25,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mobile_observatory import Database  # noqa: E402
 from mobile_observatory.enrichment import (_vendor_by_part_prefix,  # noqa: E402
+                                           enrich_canonical_silicon,
                                            enrich_observed_hardware_silicon)
 from mobile_observatory.seed import seed_demonstration  # noqa: E402
 
@@ -164,3 +167,90 @@ class ObservedSiliconTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CanonicalSiliconVendorCollisionTest(unittest.TestCase):
+    """enrich_canonical_silicon killed the whole batch on a from-scratch corpus.
+
+    It minted vendor_id = _id("vendor", vendor) -- a hash of the NAME -- and
+    then relied on INSERT OR IGNORE. silicon_vendors.canonical_name is UNIQUE,
+    so whenever that vendor already existed under a DIFFERENT id, the insert was
+    ignored, the hash id was never created, and the next statement inserted a
+    silicon_families row referencing it:
+
+        sqlite3.IntegrityError: FOREIGN KEY constraint failed
+
+    That "whenever" is not hypothetical: enrich_observed_hardware_silicon and
+    import_mediatek_catalog both create vendors by other routes in the same run.
+
+    It stayed hidden because the development corpus was already populated with
+    the rows that happened to make it work. It reproduces on the first ingest
+    into an empty corpus -- which is precisely the air-gapped box unpacking a
+    bundle and running its batch, the one path that has to work. Found by
+    running that batch end-to-end rather than by reading the code.
+
+    This is the SECOND time this shape has been fixed in this module.
+    enrich_observed_hardware_silicon had it, and _find_or_create was written
+    there to fix it; the same rule living in two places is how this one survived.
+    """
+
+    def setUp(self) -> None:
+        self.db = Database.migrated()
+        self.addCleanup(self.db.close)
+        seed_demonstration(self.db, ROOT / "fixtures" / "supported_catalog.sample.json")
+        self.con = self.db.connection
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+
+    def xref(self, model: str, soc: str) -> Path:
+        path = Path(self.temp.name) / "xref.csv"
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["brand", "device_name", "device_codename", "model", "soc",
+                             "mt_model", "mt_marketing_name", "cve_count", "cves"])
+            writer.writerow(["TECNO", model, model, model, soc, "", "", "0", ""])
+        return path
+
+    def canonical_device(self, model_code: str) -> str:
+        from mobile_observatory.repository import CanonicalRepository
+
+        return CanonicalRepository(self.db).create_device(
+            manufacturer="TECNO", brand="TECNO", family=model_code,
+            variant=model_code, model_code=model_code)
+
+    def test_a_vendor_already_present_under_another_id_does_not_kill_the_batch(self) -> None:
+        """The exact crash, reproduced."""
+        self.canonical_device("XREF1")
+        # The same vendor NAME under an id that is not _id("vendor", "MediaTek").
+        self.con.execute("INSERT INTO silicon_vendors VALUES('vendor-from-another-route','MediaTek',?)",
+                         (NOW,))
+        result = enrich_canonical_silicon(self.con, self.xref("XREF1", "MediaTek MT6768"))
+        self.assertEqual(1, result["hardware_silicon_attached"])
+
+    def test_the_part_is_attached_under_the_vendor_that_already_existed(self) -> None:
+        """Resolving by name must REUSE the existing vendor, not orphan the part
+        under a duplicate -- otherwise the crash is traded for a split catalogue."""
+        hardware = self.canonical_device("XREF2")
+        self.con.execute("INSERT INTO silicon_vendors VALUES('vendor-from-another-route','MediaTek',?)",
+                         (NOW,))
+        enrich_canonical_silicon(self.con, self.xref("XREF2", "MediaTek MT6769"))
+        row = self.con.execute(
+            """SELECT sv.id vendor_id, sp.part_number
+                 FROM hardware_silicon hs
+                 JOIN silicon_parts sp ON sp.id = hs.part_id
+                 JOIN silicon_families sf ON sf.id = sp.family_id
+                 JOIN silicon_vendors sv ON sv.id = sf.vendor_id
+                WHERE hs.hardware_model_id = ?""", (hardware,)).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual("vendor-from-another-route", row["vendor_id"])
+        self.assertEqual("MT6769", row["part_number"])
+        self.assertEqual(1, self.con.execute(
+            "SELECT COUNT(*) FROM silicon_vendors WHERE canonical_name='MediaTek' COLLATE NOCASE"
+        ).fetchone()[0], "the vendor must not have been duplicated")
+
+    def test_it_still_works_on_a_corpus_where_the_vendor_is_new(self) -> None:
+        """The path that always worked must keep working."""
+        self.canonical_device("XREF3")
+        result = enrich_canonical_silicon(self.con, self.xref("XREF3", "MediaTek MT6771"))
+        self.assertEqual(1, result["hardware_silicon_attached"])
+        self.assertEqual(1, result["silicon_parts_created"])

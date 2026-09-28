@@ -449,14 +449,46 @@ def enrich_canonical_silicon(connection: sqlite3.Connection, xref_csv: Path) -> 
             vendor, part, marketing = _soc_parts(row["soc"])
             if not vendor:
                 continue
-            vendor_id, family_id, part_id = _id("vendor", vendor), _id("family", vendor, vendor), _id("part", vendor, part)
             now = "2026-09-16T00:00:00Z"
-            connection.execute("INSERT OR IGNORE INTO silicon_vendors VALUES(?,?,?)", (vendor_id, vendor, now))
-            connection.execute("INSERT OR IGNORE INTO silicon_families VALUES(?,?,NULL,?,?)", (family_id, vendor_id, vendor, now))
-            before = connection.total_changes
-            connection.execute("INSERT OR IGNORE INTO silicon_parts VALUES(?,?,?,?,?,?,?)",
-                               (part_id, family_id, part, marketing, None, None, now))
-            parts += connection.total_changes > before
+            # Resolve by NAME, never by a hash of the name.
+            #
+            # This minted vendor_id = _id("vendor", vendor) and then relied on
+            # INSERT OR IGNORE. silicon_vendors.canonical_name is UNIQUE, so
+            # when that vendor already existed under a DIFFERENT id -- and it
+            # does, because enrich_observed_hardware_silicon and
+            # import_mediatek_catalog both create vendors by other routes --
+            # the insert was ignored, the hash id was never created, and the
+            # very next statement inserted a silicon_families row pointing at
+            # it: FOREIGN KEY constraint failed, and the whole batch died.
+            #
+            # It survived on an already-populated corpus purely because the
+            # right rows happened to exist. It reproduced immediately on a
+            # from-scratch ingest -- which is exactly the air-gapped box
+            # unpacking a bundle, the one case that has to work.
+            #
+            # This is the second time this exact shape has been fixed in this
+            # module; enrich_observed_hardware_silicon had it too, and
+            # _find_or_create was written there for it. The same rule living in
+            # two places is how the second one stayed broken.
+            vendor_id = _find_or_create(
+                connection, "SELECT id FROM silicon_vendors WHERE canonical_name=? COLLATE NOCASE",
+                (vendor,), "INSERT INTO silicon_vendors VALUES(?,?,?)",
+                lambda new_id: (new_id, vendor, now), _id("vendor", vendor))
+            family_id = _find_or_create(
+                connection,
+                "SELECT id FROM silicon_families WHERE vendor_id=? AND canonical_name=? COLLATE NOCASE",
+                (vendor_id, vendor), "INSERT INTO silicon_families VALUES(?,?,NULL,?,?)",
+                lambda new_id: (new_id, vendor_id, vendor, now), _id("family", vendor, vendor))
+            existing_part = connection.execute(
+                "SELECT id FROM silicon_parts WHERE family_id=? AND part_number=? COLLATE NOCASE",
+                (family_id, part)).fetchone()
+            if existing_part:
+                part_id = existing_part[0]
+            else:
+                part_id = _id("part", vendor, part)
+                connection.execute("INSERT INTO silicon_parts VALUES(?,?,?,?,?,?,?)",
+                                   (part_id, family_id, part, marketing, None, None, now))
+                parts += 1
             before = connection.total_changes
             # WITHOUT ROWID makes every primary-key column non-null; use the
             # captured assertion date as the start of this evidence interval.

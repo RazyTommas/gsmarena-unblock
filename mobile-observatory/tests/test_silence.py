@@ -106,6 +106,58 @@ class SilenceDetectorUnitTests(unittest.TestCase):
         self.assertIsNone(finding["last_activity_at"])
         self.assertEqual(finding["finished_run_count"], 0)
 
+    def test_runs_sharing_a_timestamp_are_insufficient_data_not_a_one_hour_cadence(self):
+        """The bug that made the alarm channel worthless.
+
+        Replay adapters mint a fixed run_id, so re-running one overwrites its
+        ingestion_runs row instead of appending: the source accumulates
+        finished runs whose started_at never moves. The median gap is then 0,
+        and `max(0 * multiplier, min_grace_hours)` invented a one-hour
+        expectation for a source that had never shown any cadence at all.
+
+        Every captured source therefore read `silent` forever and got worse
+        every day, because its frozen last_activity receded while the invented
+        one-hour expectation stayed put. The batch exited 2 on all 18 recorded
+        runs -- the only alarm that reaches a human fired every night whatever
+        the truth was.
+        """
+        _insert_source(self.db.connection, "replayed.source", "replayed.source",
+                       _iso(self.now - timedelta(days=365)))
+        frozen = _iso(self.now - timedelta(days=12))
+        for n in range(4):
+            _insert_run(self.db.connection, f"replayed-{n}", "replayed.source", frozen, frozen)
+
+        finding = next(f for f in detect_silence(self.db.connection, now=self.now)
+                       if f["source_id"] == "replayed.source")
+        self.assertEqual("insufficient_data", finding["status"],
+                         "a source with no observable interval cannot be overdue")
+        self.assertIsNone(finding["expected_interval_hours"])
+        self.assertIsNone(finding["overdue_hours"])
+        self.assertEqual(4, finding["finished_run_count"],
+                         "precondition: the runs exist -- this is not the <2-runs path")
+        self.assertIn("timestamp", finding["reason"])
+
+    def test_a_real_cadence_is_still_judged_when_only_some_runs_share_a_timestamp(self):
+        """The fix must not silence a source that does have a cadence.
+
+        Guards the lazy version of this fix -- dropping any source with a
+        duplicate timestamp -- which would stop reporting genuinely dead
+        sources that happen to have two runs in the same second.
+        """
+        _insert_source(self.db.connection, "mixed.source", "mixed.source",
+                       _iso(self.now - timedelta(days=365)))
+        base = self.now - timedelta(days=30)
+        stamps = [base, base, base + timedelta(hours=6), base + timedelta(hours=12)]
+        for n, started in enumerate(stamps):
+            _insert_run(self.db.connection, f"mixed-{n}", "mixed.source",
+                        _iso(started), _iso(started + timedelta(minutes=5)))
+
+        finding = next(f for f in detect_silence(self.db.connection, now=self.now)
+                       if f["source_id"] == "mixed.source")
+        self.assertEqual("silent", finding["status"],
+                         "a 6-hour cadence dead for 30 days is exactly what this must catch")
+        self.assertGreater(finding["expected_interval_hours"], 0)
+
     def test_running_unfinished_run_counts_as_recent_activity_not_silence(self):
         # A run that started but has not finished yet is still evidence the
         # source is alive; it must not itself be scored against the cadence.

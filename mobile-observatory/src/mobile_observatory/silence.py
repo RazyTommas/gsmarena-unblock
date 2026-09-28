@@ -52,9 +52,13 @@ def detect_silence(
         and is overdue for its next run by more than `multiplier` times its
         own historical median gap (floored at `min_grace_hours`).
       - "healthy": the source has an established cadence and is within it.
-      - "insufficient_data": fewer than two finished runs exist, so no
-        cadence can be claimed yet. This is NOT evidence of health; it is an
-        honest "cannot judge yet".
+      - "insufficient_data": no cadence can be claimed yet -- either fewer
+        than two finished runs exist, or the finished runs share a timestamp
+        (a replayed source reuses a fixed run_id, so re-running it overwrites
+        its row instead of appending one, and its started_at never moves).
+        This is NOT evidence of health; it is an honest "cannot judge yet",
+        and it carries a `reason` when the runs exist but the interval does
+        not.
 
     `now` is injectable for testing; defaults to the real current time.
     """
@@ -89,6 +93,32 @@ def detect_silence(
         starts = sorted(_parse(r["started_at"]) for r in finished)
         gaps_hours = [(b - a).total_seconds() / 3600.0 for a, b in zip(starts, starts[1:])]
         expected_interval = statistics.median(gaps_hours)
+        if expected_interval <= 0:
+            # Two runs are not two observations of a cadence if they carry the
+            # same timestamp. A replay adapter reuses a fixed run_id, so
+            # re-running it overwrites the row rather than appending one: the
+            # source accumulates finished runs whose started_at never moves.
+            # The median gap is then 0, and `max(0 * multiplier, min_grace)`
+            # silently invents an expectation of min_grace_hours -- one hour --
+            # for a source that has never demonstrated any cadence at all.
+            #
+            # Every captured source then reads `silent` forever, and worsens
+            # monotonically, because its frozen last_activity recedes while the
+            # invented one-hour expectation stays put. That is what made the
+            # batch exit 2 on all 18 recorded runs: the only alarm channel that
+            # reaches a human fired every night regardless of health, which
+            # trains the operator to ignore the night it means something.
+            #
+            # No cadence is observable here, so the honest answer is that we
+            # cannot judge -- the same answer given for a single finished run.
+            findings.append({
+                "source_id": source_id, "source_name": name, "status": STATUS_INSUFFICIENT_DATA,
+                "last_activity_at": last_activity.isoformat(), "expected_interval_hours": None,
+                "overdue_hours": None, "finished_run_count": len(finished),
+                "reason": "runs share a timestamp, so no interval is observable",
+                "checked_at": now.isoformat(),
+            })
+            continue
         threshold = max(expected_interval * multiplier, min_grace_hours)
         overdue_hours = (now - last_activity).total_seconds() / 3600.0
         status = STATUS_SILENT if overdue_hours > threshold else STATUS_HEALTHY

@@ -12,12 +12,21 @@ It reached a user as a crashed global search against a real corpus.
 
 The bug needed concurrency to appear, so the whole existing suite passed while it
 shipped. These tests supply the concurrency.
+
+They were written as bare module-level functions taking pytest's `tmp_path`
+fixture, which `python -m unittest discover` -- the runner README.md documents,
+and the only one present on an air-gapped box -- does not collect. Seven tests
+guarding a race that already reached a user ran under pytest and nowhere else.
+They are a TestCase with its own temporary directory now, so both runners see
+them.
 """
 from __future__ import annotations
 
 import sqlite3
 import sys
+import tempfile
 import threading
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,130 +76,138 @@ def _hammer(db: Database, threads: int = 12, rounds: int = 25) -> list[BaseExcep
     return errors
 
 
-def test_concurrent_reads_on_a_file_corpus_do_not_raise(tmp_path):
-    """The regression: this is what the crashed search endpoint was doing."""
-    db = Database.migrated(tmp_path / "corpus.sqlite", check_same_thread=False)
-    _schema(db)
-    errors = _hammer(db)
-    assert not errors, f"concurrent reads failed: {errors[:3]}"
+class DatabaseThreadingTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.tmp_path = Path(self._temp.name)
+
+    def test_concurrent_reads_on_a_file_corpus_do_not_raise(self) -> None:
+        """The regression: this is what the crashed search endpoint was doing."""
+        db = Database.migrated(self.tmp_path / "corpus.sqlite", check_same_thread=False)
+        self.addCleanup(db.close)
+        _schema(db)
+        errors = _hammer(db)
+        self.assertEqual([], errors, f"concurrent reads failed: {errors[:3]}")
+
+    def test_each_thread_gets_its_own_connection(self) -> None:
+        """The mechanism behind the fix, asserted directly.
+
+        Without this, the test above could pass by luck on a quiet machine.
+        """
+        db = Database.migrated(self.tmp_path / "corpus.sqlite", check_same_thread=False)
+        self.addCleanup(db.close)
+        seen: dict[str, int] = {}
+        guard = threading.Lock()
+
+        def record(name: str) -> None:
+            with guard:
+                seen[name] = id(db.connection)
+
+        threads = [threading.Thread(target=record, args=(f"t{i}",)) for i in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(4, len(set(seen.values())), f"threads shared a connection: {seen}")
+
+    def test_one_thread_keeps_the_same_connection(self) -> None:
+        """Per-thread must not mean per-access.
+
+        transaction() runs BEGIN, yields, then COMMIT through separate reads of the
+        property; a fresh connection per access would commit a transaction that was
+        never begun on it, and leave the real one open.
+        """
+        db = Database.migrated(self.tmp_path / "corpus.sqlite", check_same_thread=False)
+        self.addCleanup(db.close)
+        self.assertIs(db.connection, db.connection)
+
+        _schema(db)
+        with db.transaction() as connection:
+            connection.execute("INSERT INTO t (id, v) VALUES (9001, 'in-transaction')")
+        self.assertEqual(
+            "in-transaction",
+            db.connection.execute("SELECT v FROM t WHERE id=9001").fetchone()["v"])
+
+    def test_memory_database_shares_one_connection(self) -> None:
+        """An in-memory database must NOT go per-thread, even when asked to thread.
+
+        Each connection to ":memory:" is a separate empty database, not another handle
+        on the same one, so this is the one case that keeps sharing. Going thread-local
+        here would fail far worse than the race it replaced: every query would succeed
+        against an empty schema and quietly measure nothing.
+
+        check_same_thread=False is the point of the test -- it is the request that
+        would trigger the per-thread path for a file, and must not for :memory:. The
+        default (guard on) is deliberately not tested cross-thread, because there the
+        right answer IS to refuse.
+        """
+        db = Database.migrated(":memory:", check_same_thread=False)
+        self.addCleanup(db.close)
+        _schema(db)
+        found: list[int] = []
+        guard = threading.Lock()
+
+        def count() -> None:
+            with guard:
+                found.append(db.connection.execute("SELECT count(*) FROM t").fetchone()[0])
+
+        threads = [threading.Thread(target=count) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual([400] * 4, found, f"in-memory rows not visible across threads: {found}")
+
+    def test_release_thread_frees_the_handle_and_the_next_use_still_works(self) -> None:
+        """Per-request release is what keeps open handles bounded.
+
+        Relying on the thread's locals being collected was measured at 145 open corpus
+        handles behind ONE live thread after 144 requests -- the crash traded for a
+        slower one. Releasing must also leave the database usable: the same thread
+        serves the next request.
+        """
+        db = Database.migrated(self.tmp_path / "corpus.sqlite", check_same_thread=False)
+        self.addCleanup(db.close)
+        _schema(db)
+        first = db.connection
+        self.assertEqual(400, first.execute("SELECT count(*) FROM t").fetchone()[0])
+
+        db.release_thread()
+        with self.assertRaises(sqlite3.ProgrammingError,
+                               msg="release_thread() did not close the connection"):
+            first.execute("SELECT 1")
+
+        self.assertIsNot(db.connection, first)
+        self.assertEqual(400, db.connection.execute("SELECT count(*) FROM t").fetchone()[0])
+
+    def test_release_thread_is_a_noop_for_a_shared_connection(self) -> None:
+        """A shared connection is not the calling thread's to close.
+
+        If release_thread() closed it, the first request to an in-memory or
+        single-threaded corpus would tear down the database for everyone after it.
+        """
+        db = Database.migrated(":memory:")
+        self.addCleanup(db.close)
+        _schema(db)
+        db.release_thread()
+        self.assertEqual(400, db.connection.execute("SELECT count(*) FROM t").fetchone()[0])
+
+    def test_use_after_close_raises_instead_of_reopening(self) -> None:
+        """Closing must not silently hand back a new, empty database.
+
+        The property has an open-a-new-one path; close() has to be visible to it, or
+        a closed corpus reopens on next access and reads as an empty one.
+        """
+        db = Database.migrated(self.tmp_path / "corpus.sqlite", check_same_thread=False)
+        _schema(db)
+        db.close()
+        with self.assertRaises(sqlite3.ProgrammingError,
+                               msg="closed Database reopened instead of raising"):
+            db.connection.execute("SELECT count(*) FROM t")
 
 
-def test_each_thread_gets_its_own_connection(tmp_path):
-    """The mechanism behind the fix, asserted directly.
-
-    Without this, the test above could pass by luck on a quiet machine.
-    """
-    db = Database.migrated(tmp_path / "corpus.sqlite", check_same_thread=False)
-    seen: dict[str, int] = {}
-    guard = threading.Lock()
-
-    def record(name: str) -> None:
-        with guard:
-            seen[name] = id(db.connection)
-
-    threads = [threading.Thread(target=record, args=(f"t{i}",)) for i in range(4)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    assert len(set(seen.values())) == 4, f"threads shared a connection: {seen}"
-
-
-def test_one_thread_keeps_the_same_connection(tmp_path):
-    """Per-thread must not mean per-access.
-
-    transaction() runs BEGIN, yields, then COMMIT through separate reads of the
-    property; a fresh connection per access would commit a transaction that was
-    never begun on it, and leave the real one open.
-    """
-    db = Database.migrated(tmp_path / "corpus.sqlite", check_same_thread=False)
-    assert db.connection is db.connection
-
-    _schema(db)
-    with db.transaction() as connection:
-        connection.execute("INSERT INTO t (id, v) VALUES (9001, 'in-transaction')")
-    assert db.connection.execute("SELECT v FROM t WHERE id=9001").fetchone()["v"] == "in-transaction"
-
-
-def test_memory_database_shares_one_connection():
-    """An in-memory database must NOT go per-thread, even when asked to thread.
-
-    Each connection to ":memory:" is a separate empty database, not another handle
-    on the same one, so this is the one case that keeps sharing. Going thread-local
-    here would fail far worse than the race it replaced: every query would succeed
-    against an empty schema and quietly measure nothing.
-
-    check_same_thread=False is the point of the test -- it is the request that
-    would trigger the per-thread path for a file, and must not for :memory:. The
-    default (guard on) is deliberately not tested cross-thread, because there the
-    right answer IS to refuse.
-    """
-    db = Database.migrated(":memory:", check_same_thread=False)
-    _schema(db)
-    found: list[int] = []
-    guard = threading.Lock()
-
-    def count() -> None:
-        with guard:
-            found.append(db.connection.execute("SELECT count(*) FROM t").fetchone()[0])
-
-    threads = [threading.Thread(target=count) for _ in range(4)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    assert found == [400] * 4, f"in-memory rows not visible across threads: {found}"
-
-
-def test_release_thread_frees_the_handle_and_the_next_use_still_works(tmp_path):
-    """Per-request release is what keeps open handles bounded.
-
-    Relying on the thread's locals being collected was measured at 145 open corpus
-    handles behind ONE live thread after 144 requests -- the crash traded for a
-    slower one. Releasing must also leave the database usable: the same thread
-    serves the next request.
-    """
-    db = Database.migrated(tmp_path / "corpus.sqlite", check_same_thread=False)
-    _schema(db)
-    first = db.connection
-    assert first.execute("SELECT count(*) FROM t").fetchone()[0] == 400
-
-    db.release_thread()
-    try:
-        first.execute("SELECT 1")
-        raise AssertionError("release_thread() did not close the connection")
-    except sqlite3.ProgrammingError:
-        pass
-
-    assert db.connection is not first
-    assert db.connection.execute("SELECT count(*) FROM t").fetchone()[0] == 400
-
-
-def test_release_thread_is_a_noop_for_a_shared_connection():
-    """A shared connection is not the calling thread's to close.
-
-    If release_thread() closed it, the first request to an in-memory or
-    single-threaded corpus would tear down the database for everyone after it.
-    """
-    db = Database.migrated(":memory:")
-    _schema(db)
-    db.release_thread()
-    assert db.connection.execute("SELECT count(*) FROM t").fetchone()[0] == 400
-
-
-def test_use_after_close_raises_instead_of_reopening(tmp_path):
-    """Closing must not silently hand back a new, empty database.
-
-    The property has an open-a-new-one path; close() has to be visible to it, or
-    a closed corpus reopens on next access and reads as an empty one.
-    """
-    db = Database.migrated(tmp_path / "corpus.sqlite", check_same_thread=False)
-    _schema(db)
-    db.close()
-    try:
-        db.connection.execute("SELECT count(*) FROM t")
-        raise AssertionError("closed Database reopened instead of raising")
-    except sqlite3.ProgrammingError:
-        pass
+if __name__ == "__main__":
+    unittest.main()

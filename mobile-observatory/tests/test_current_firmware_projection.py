@@ -179,6 +179,51 @@ class DeviceHeadlineRowTest(unittest.TestCase):
                          "picking ARCHIVE.NEWER means the two dates were compared")
         self.assertEqual("google.ota.checkin", primary["source_id"])
 
+    def test_the_region_count_matches_the_region_list_beside_it(self) -> None:
+        """The grid prints both. They came from different expressions.
+
+        device_target_total counted (target, channel) partitions while
+        device_target_codes listed DISTINCT codes, so a device with the same
+        region on two channels read "11 regions" above a list of 6. A number and
+        the list it summarises disagreeing in the same cell is a number nobody
+        can trust.
+        """
+        from mobile_observatory.repository import CanonicalRepository
+
+        hardware = CanonicalRepository(self.db).create_device(
+            manufacturer="TECNO", brand="TECNO", family="Channels",
+            variant="Channels", model_code="CH-1")
+        self.con.execute("INSERT INTO source_products VALUES('p-ch','TECNO','CH','ch','approved',NULL,?,?)",
+                         (NOW, NOW))
+        self._source("archive.community", 50)
+        self.con.execute(
+            """INSERT INTO source_identity_registry VALUES
+               ('id-ch','archive.community','codename','ch','ch','p-ch','approved','t','1','high',?,?)""",
+            (NOW, NOW))
+        # One region, two channels -> one REGION, two partitions.
+        for index, channel in enumerate(("Stable", "Beta")):
+            observation = f"obs-ch-{index}"
+            self.con.execute(
+                "INSERT INTO observations VALUES(?,'archive.community','run-archive.community',"
+                "'art-archive.community','firmware_release',?,?,'{}',?,'valid',NULL)",
+                (observation, f"ck{index}", NOW, f"{index:064d}"))
+            self.con.execute(
+                """INSERT INTO product_firmware_releases
+                   (id,product_id,identity_id,observation_id,source_id,region_code,build_id,channel,
+                    android_version,android_major,vendor_released_at,delivery_method,created_at,hardware_model_id)
+                   VALUES(?,'p-ch','id-ch',?,'archive.community','GLOBAL',?,?,'14',14,'2026-01-01',NULL,?,?)""",
+                (f"rel-ch-{index}", observation, f"B{index}", channel, NOW, hardware))
+        cf.build(self.db)
+
+        row = self.con.execute(
+            "SELECT device_target_total, device_target_codes FROM device_current_firmware "
+            "WHERE hardware_model_id=? AND is_device_primary=1", (hardware,)).fetchone()
+        listed = len([code for code in (row["device_target_codes"] or "").split(",") if code])
+        self.assertEqual(listed, row["device_target_total"],
+                         f"the count says {row['device_target_total']} but the list holds "
+                         f"{listed}: {row['device_target_codes']}")
+        self.assertEqual(1, row["device_target_total"], "one region on two channels is one region")
+
     def test_exactly_one_primary_row_per_device(self) -> None:
         cf.build(self.db)
         self.assertEqual(0, self.con.execute(

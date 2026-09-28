@@ -88,11 +88,26 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # This is the defect device_current_firmware exists to remove, asserted
     # against the corpus rather than against a fixture. 156 of 303 devices were
     # in this state before the projection.
-    invisible = _scalar(connection, """
-        SELECT count(*) FROM hardware_models hm
-         WHERE (EXISTS (SELECT 1 FROM firmware_releases f WHERE f.hardware_model_id=hm.id)
-             OR EXISTS (SELECT 1 FROM product_firmware_releases p WHERE p.hardware_model_id=hm.id))
-           AND NOT EXISTS (SELECT 1 FROM device_current_firmware d WHERE d.hardware_model_id=hm.id)""")
+    # Counted first, scanned only if the counts disagree. Every projection row
+    # names a device that has firmware, and at most one row per
+    # (device,target,channel), so "as many distinct devices in the projection as
+    # have firmware" is equivalent to "the same devices" -- and it is two
+    # aggregates instead of a per-device existence test over the whole
+    # catalogue. At 153,896 devices the scan form cost 1,071ms on an endpoint
+    # the UI polls; this is the same answer without paying for it every time.
+    with_firmware = _scalar(connection, """
+        SELECT count(*) FROM (
+          SELECT hardware_model_id FROM firmware_releases
+           UNION SELECT hardware_model_id FROM product_firmware_releases
+            WHERE hardware_model_id IS NOT NULL)""")
+    served = _scalar(connection, "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware")
+    invisible = 0
+    if with_firmware != served:
+        invisible = _scalar(connection, """
+            SELECT count(*) FROM hardware_models hm
+             WHERE (EXISTS (SELECT 1 FROM firmware_releases f WHERE f.hardware_model_id=hm.id)
+                 OR EXISTS (SELECT 1 FROM product_firmware_releases p WHERE p.hardware_model_id=hm.id))
+               AND NOT EXISTS (SELECT 1 FROM device_current_firmware d WHERE d.hardware_model_id=hm.id)""")
     if invisible:
         findings.append(Finding(
             "firmware_observed_but_not_served", "error", invisible,
@@ -103,10 +118,17 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # Sharper than the firmware case: a device missing from the identity
     # projection is absent from the catalogue entirely, not merely missing its
     # firmware, and nothing else in the UI would reveal it.
-    unlisted = _scalar(connection, """
-        SELECT count(*) FROM hardware_models hm
-         WHERE NOT EXISTS (SELECT 1 FROM device_catalog_flat d
-                            WHERE d.hardware_model_id = hm.id)""")
+    # Same shape. device_catalog_flat's primary key is hardware_model_id and it
+    # references hardware_models, so every row names a distinct real device:
+    # equal counts and a bijection are the same statement here.
+    catalogued = _scalar(connection, "SELECT count(*) FROM hardware_models")
+    flattened = _scalar(connection, "SELECT count(*) FROM device_catalog_flat")
+    unlisted = 0
+    if catalogued != flattened:
+        unlisted = _scalar(connection, """
+            SELECT count(*) FROM hardware_models hm
+             WHERE NOT EXISTS (SELECT 1 FROM device_catalog_flat d
+                                WHERE d.hardware_model_id = hm.id)""") or abs(catalogued - flattened)
     if unlisted:
         findings.append(Finding(
             "device_missing_from_catalogue_projection", "error", unlisted,
@@ -142,18 +164,37 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # unique, so a repair, a migration bug or a hand-edit could mark two rows
     # primary and every affected device would silently render twice and inflate
     # the page total.
-    bad_primary = _scalar(connection, """
-        SELECT count(*) FROM (SELECT hardware_model_id FROM device_current_firmware
-                               GROUP BY hardware_model_id HAVING sum(is_device_primary) <> 1)""")
+    # Two index reads instead of grouping the whole projection. Both conditions
+    # are needed and together they are exact: if one device had no primary and
+    # another had two, the TOTAL would still match, but the count of distinct
+    # devices holding one would not.
+    devices_total = _scalar(connection, "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware")
+    primaries = _scalar(connection, "SELECT count(*) FROM device_current_firmware WHERE is_device_primary=1")
+    devices_with_primary = _scalar(connection,
+        "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware WHERE is_device_primary=1")
+    bad_primary = 0
+    if primaries != devices_total or devices_with_primary != devices_total:
+        bad_primary = _scalar(connection, """
+            SELECT count(*) FROM (SELECT hardware_model_id FROM device_current_firmware
+                                   GROUP BY hardware_model_id HAVING sum(is_device_primary) <> 1)""")
     if bad_primary:
         findings.append(Finding("device_without_exactly_one_primary_row", "error", bad_primary,
                                 "the device grid would duplicate or drop these devices and "
                                 "miscount its own total"))
 
     # -- one device, one layer ------------------------------------------------
-    both = _scalar(connection, """
-        SELECT count(*) FROM (SELECT hardware_model_id FROM device_current_firmware
-                               GROUP BY hardware_model_id HAVING count(DISTINCT fact_layer)>1)""")
+    # Counted per layer and summed. A device in both layers is counted twice, so
+    # the sum exceeding the distinct total is exactly the condition -- without
+    # grouping 485,323 rows to find out.
+    canonical_devices = _scalar(connection,
+        "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware WHERE fact_layer='canonical'")
+    evidence_devices = _scalar(connection,
+        "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware WHERE fact_layer='evidence'")
+    both = 0
+    if canonical_devices + evidence_devices != devices_total:
+        both = _scalar(connection, """
+            SELECT count(*) FROM (SELECT hardware_model_id FROM device_current_firmware
+                                   GROUP BY hardware_model_id HAVING count(DISTINCT fact_layer)>1)""")
     if both:
         findings.append(Finding("device_served_from_both_layers", "error", both,
                                 "precedence between the canonical and evidence layers is undefined"))
@@ -200,6 +241,31 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
             "approved_product_firmware_unreachable", "error", stranded,
             f"{stranded} approved products hold firmware that no canonical device can reach, "
             "and no recorded decision explains why"))
+
+    # -- a build that names a sibling model ----------------------------------
+    # Transsion build identifiers start with the model they were built for, so a
+    # row whose build begins with the device's code PLUS MORE ("L9Plus-..." on
+    # the device "L9") is a sibling model's ROM filed under this one by the
+    # source. It is the source's mistake, not a join error -- the product really
+    # is "L9" -- and it cannot be corrected from here without inventing the
+    # sibling device. What it must not be is invisible: a reader looking at
+    # TECNO L9 sees two builds that are not for their phone.
+    #
+    # Deliberately narrow. It fires only when the prefix STARTS WITH the
+    # device's own code and is longer, so build formats that do not encode a
+    # model never reach it.
+    mislabelled_build = _scalar(connection, """
+        SELECT count(*) FROM product_firmware_releases pfr
+          JOIN device_catalog_flat d ON d.hardware_model_id = pfr.hardware_model_id
+         WHERE instr(pfr.build_id,'-') > 1
+           AND lower(substr(pfr.build_id, 1, instr(pfr.build_id,'-') - 1)) <>
+               lower(replace(replace(replace(d.model_code, d.brand || ' ', ''), d.brand || '-', ''), ' ', ''))
+           AND lower(substr(pfr.build_id, 1, instr(pfr.build_id,'-') - 1)) LIKE
+               lower(replace(replace(replace(d.model_code, d.brand || ' ', ''), d.brand || '-', ''), ' ', '')) || '_%'""")
+    if mislabelled_build:
+        findings.append(Finding("firmware_build_names_a_sibling_model", "warning", mislabelled_build,
+                                "these builds identify a different model than the device they are "
+                                "attached to; the source filed a sibling model's ROM under this code"))
 
     # -- one vendor, one spelling --------------------------------------------
     # Sources capitalise vendors differently ("Tecno"/"TECNO", "Itel"/"itel").

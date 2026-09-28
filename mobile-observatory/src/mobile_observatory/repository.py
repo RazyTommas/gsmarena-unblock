@@ -246,15 +246,30 @@ class CanonicalRepository:
         return verdict_id
 
 
-def clean_device_name(value: str) -> str:
-    """Collapse the whitespace source catalogues actually publish.
+# Punctuation that source catalogues publish in fullwidth forms. A name is the
+# thing a person types into the search box, and no keyboard produces U+FF08.
+# Real values in the corpus: "itel S16 Pro（Vision 2）" and
+# "itel P37 Pro（Vision2 Plus）" -- indistinguishable on screen from the ASCII
+# form, and unfindable by anyone typing "(".
+_FULLWIDTH = {
+    "\uff08": "(", "\uff09": ")", "\uff0c": ",", "\uff1a": ":", "\uff0f": "/",
+    "\uff0b": "+", "\uff0d": "-", "\u3000": " ", "\u00a0": " ",
+}
 
-    Real values from the captured Google Play catalogue: "S5\u00a0Pro" with a
-    non-breaking space, "MEGAPAD  SE" and "VistaTab  30" with a double space.
-    Stored as-is they become device names a user cannot type -- searching
-    "S5 Pro" with an ordinary space matches nothing.
+
+def clean_device_name(value: str) -> str:
+    """Normalise a device name to what a person could type.
+
+    Collapses the whitespace source catalogues actually publish -- "S5\u00a0Pro"
+    with a non-breaking space, "MEGAPAD  SE" with a double space -- and folds
+    fullwidth punctuation to ASCII. Deliberately conservative: it does not
+    change letters, case or word order, because the name is the vendor's and
+    only its typeability is being repaired.
     """
-    return " ".join((value or "").replace("\u00a0", " ").split())
+    text = value or ""
+    for wide, plain in _FULLWIDTH.items():
+        text = text.replace(wide, plain)
+    return " ".join(text.split())
 
 
 def usable_device_name(name: str, *, code: str, brand: str) -> bool:

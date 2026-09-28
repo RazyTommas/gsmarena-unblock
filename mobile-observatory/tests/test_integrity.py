@@ -177,6 +177,61 @@ class InvariantsCanFailTest(unittest.TestCase):
             "'approved',NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", (brand[0],))
         self.assertNotIn("approved_product_unplaceable_vendor", self._checks())
 
+    def test_detects_a_build_that_names_a_sibling_model(self) -> None:
+        """"L9Plus-..." attached to the device "L9" is another phone's ROM.
+
+        The source filed it under the wrong code. It cannot be corrected from
+        here without inventing the sibling device, but a reader looking at
+        TECNO L9 must not silently see builds that are not for their phone.
+        """
+        self.assertNotIn("firmware_build_names_a_sibling_model", self._checks())
+        from mobile_observatory import current_firmware as cf
+        from test_current_firmware_projection import _evidence_layer_device
+        hardware = _evidence_layer_device(self.db, product="p-sib", model="L9")
+        cf.build(self.db)   # publish, or device_catalog_flat has no row to match against
+        self.con.execute("UPDATE device_catalog_flat SET model_code='L9' WHERE hardware_model_id=?",
+                         (hardware,))
+        self.con.execute(
+            "UPDATE product_firmware_releases SET build_id='L9Plus-H8011B-N-EG-180320V255' "
+            "WHERE hardware_model_id=? AND rowid=(SELECT min(rowid) FROM product_firmware_releases "
+            "WHERE hardware_model_id=?)", (hardware, hardware))
+        found = self._checks()
+        self.assertIn("firmware_build_names_a_sibling_model", found)
+        self.assertEqual(1, found["firmware_build_names_a_sibling_model"])
+
+    def test_a_build_matching_its_own_device_code_is_not_flagged(self) -> None:
+        """The check must not fire on every Transsion build ever."""
+        from mobile_observatory import current_firmware as cf
+        from test_current_firmware_projection import _evidence_layer_device
+        hardware = _evidence_layer_device(self.db, product="p-ok", model="L9")
+        cf.build(self.db)
+        self.con.execute("UPDATE device_catalog_flat SET model_code='L9' WHERE hardware_model_id=?",
+                         (hardware,))
+        self.con.execute(
+            "UPDATE product_firmware_releases SET build_id='L9-H8011B-N-EG-180320V255' "
+            "WHERE hardware_model_id=?", (hardware,))
+        self.assertNotIn("firmware_build_names_a_sibling_model", self._checks())
+
+    def test_detects_a_projection_built_before_its_inputs_changed(self) -> None:
+        """Including a change that adds no row and moves no timestamp.
+
+        Withdrawing a rejected identity sets product_firmware_releases
+        .hardware_model_id back to NULL in place. Counting rows and taking
+        max(timestamp) could not see that, so a reviewer could reject an
+        identity, watch the grid keep serving its builds, and be told the
+        projection was fresh.
+        """
+        from mobile_observatory import current_firmware as cf
+        from test_current_firmware_projection import _evidence_layer_device
+        _evidence_layer_device(self.db, product="p-det", model="DET-1")
+        cf.build(self.db)
+        self.assertNotIn("projection_older_than_its_inputs", self._checks())
+        detached = self.con.execute(
+            "UPDATE product_firmware_releases SET hardware_model_id=NULL "
+            "WHERE hardware_model_id IS NOT NULL").rowcount
+        self.assertGreater(detached, 0, "precondition: something was attached to detach")
+        self.assertIn("projection_older_than_its_inputs", self._checks())
+
     def test_detects_foreign_key_orphans(self) -> None:
         self.assertNotIn("foreign_key_orphans", self._checks())
         # FKs are enforced on this connection, so an orphan has to be made the

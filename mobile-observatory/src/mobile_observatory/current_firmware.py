@@ -282,7 +282,11 @@ def _mark_device_primary(connection) -> None:
     connection.execute("""
         WITH totals AS (
           SELECT hardware_model_id AS hm, sum(release_count) AS releases,
-                 count(*) AS targets, group_concat(DISTINCT target_key) AS codes
+                 -- DISTINCT, matching the codes beside it. count(*) counted
+                 -- (target, channel) partitions while the list counted codes,
+                 -- so 79 devices printed "11 regions" above a list of 6.
+                 count(DISTINCT target_key) AS targets,
+                 group_concat(DISTINCT target_key) AS codes
             FROM device_current_firmware_staging GROUP BY hardware_model_id)
         UPDATE device_current_firmware_staging AS s SET
           device_release_total=(SELECT releases FROM totals WHERE hm=s.hardware_model_id),
@@ -582,7 +586,8 @@ def main() -> None:
 _INPUT_TABLES = ("hardware_models", "device_variants", "device_families", "brands",
                  "manufacturers", "firmware_releases", "product_firmware_releases",
                  "hardware_silicon", "silicon_parts", "sources", "observations",
-                 "firmware_release_evidence", "evidence")
+                 "firmware_release_evidence", "evidence", "product_hardware_links",
+                 "source_products")
 
 
 def input_fingerprint(connection) -> str:
@@ -596,6 +601,15 @@ def input_fingerprint(connection) -> str:
     that add or remove anything.
     """
     digester = hashlib.sha256()
+    # How many firmware rows are ATTACHED to a device, not just how many exist.
+    # Withdrawing a rejected identity sets hardware_model_id back to NULL in
+    # place: no row is added or removed and no timestamp moves, so counts and
+    # max() alone could not see it. Reproduced before fixing -- a reviewer
+    # rejected an identity, the grid kept serving its 332 builds, and the
+    # fingerprint was byte-identical before and after.
+    digester.update(("attached:%d\n" % connection.execute(
+        "SELECT count(*) FROM product_firmware_releases WHERE hardware_model_id IS NOT NULL"
+    ).fetchone()[0]).encode("utf-8"))
     for table in _INPUT_TABLES:
         count = connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
         stamp = ""

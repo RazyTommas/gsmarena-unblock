@@ -4,6 +4,8 @@ import argparse
 import json
 import mimetypes
 import sqlite3
+import time
+from datetime import datetime, timezone
 import threading
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -53,6 +55,10 @@ class QueryPage:
 
 
 class ObservatoryService:
+    # How long a set of invariant findings may be reused. Short enough that an
+    # operator watching a batch sees it clear within one refresh.
+    INTEGRITY_CACHE_SECONDS = 20
+
     def __init__(self, corpus: Database, local_path: str | Path, *, demonstration: bool,
                  sample_path: str | Path | None = None,
                  legacy_root: str | Path | None = None,
@@ -81,6 +87,7 @@ class ObservatoryService:
             Path(legacy_root) if legacy_root else project_root.parent / "crawler" / "relay" / "results",
             Path(fixture_root) if fixture_root else project_root / "fixtures",
         )
+        self._integrity_cache: tuple[float, dict] | None = None
         self.local = sqlite3.connect(str(local_path), check_same_thread=False)
         self.local_lock = threading.RLock()
         self.local.row_factory = sqlite3.Row
@@ -717,6 +724,16 @@ class ObservatoryService:
                 "decision":{"approved":"same", "rejected":"different", "proposed":"defer"}[decision],
                 "rationale":"Explicit manual source-product review; no hardware identity promotion"})
             self._apply_product_review(product_id, decision)
+        # Republish: a review changes which devices serve which firmware, and
+        # the read path serves the projection. Without this a rejected identity
+        # kept its builds on the grid until the next nightly batch -- the
+        # reviewer's decision was recorded and not acted on.
+        try:
+            build_current_firmware(self.corpus)
+        except ProjectionError:
+            # The decision is committed and correct; the projection is stale and
+            # check_corpus will say so rather than this failing the review.
+            pass
         return {"ok": True, "productId": product_id, "decision": decision}
 
     def device_detail(self, model: str) -> dict:
@@ -918,9 +935,27 @@ class ObservatoryService:
         """
         # deep=False: the two whole-database page scans belong to the batch, not
         # to an endpoint the UI polls on every load. See check_corpus.
-        findings = check_corpus(self.corpus.connection, deep=False)
-        return {"integrity": {"summary": summarise(findings),
-                              "findings": [f.as_dict() for f in findings]},
+        #
+        # Cached for a few seconds on top of that. Even the cheap set aggregates
+        # the whole projection -- 855ms at 153,896 devices -- and the corpus it
+        # examines changes when a batch runs, not between two page loads. A
+        # short TTL rather than caching on the projection generation, because
+        # one of these checks exists precisely to notice a change that did NOT
+        # republish, and keying the cache on the generation would blind it.
+        now = time.monotonic()
+        with self.local_lock:
+            cached = self._integrity_cache
+        if cached is None or now - cached[0] > self.INTEGRITY_CACHE_SECONDS:
+            findings = check_corpus(self.corpus.connection, deep=False)
+            payload = {"summary": summarise(findings),
+                       "findings": [f.as_dict() for f in findings],
+                       "checkedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                       "scope": "fast checks only; the whole-database scans run in the batch"}
+            with self.local_lock:
+                self._integrity_cache = (now, payload)
+        else:
+            payload = cached[1]
+        return {"integrity": payload,
                 "projection": current_firmware_state(self.corpus.connection),
                 # Pending work, reported separately from faults. Without this a
                 # vendor whose evidence is all awaiting review shows as a silent

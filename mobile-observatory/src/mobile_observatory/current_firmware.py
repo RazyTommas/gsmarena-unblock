@@ -130,6 +130,28 @@ SELECT lf.hardware_model_id,
   LEFT JOIN firmware_targets ft ON ft.id=lf.firmware_target_id
   LEFT JOIN os_releases os ON os.id=fr.os_release_id
   LEFT JOIN build_security_patch_levels bspl ON bspl.build_id=fr.build_id
+ -- firmware_targets is UNIQUE(vendor_namespace,target_code), so ONE code can
+ -- legitimately exist under several namespaces. v_latest_firmware partitions by
+ -- firmware_target_id; this projection is keyed on the target CODE, because the
+ -- code is what gets shown to a reader as the region. Two namespaces claiming
+ -- the same code for one device therefore produced two rows with one key, and
+ -- the staging table's primary key turned that into
+ --   UNIQUE constraint failed: ..hardware_model_id, ..target_key, ..channel
+ -- which killed the whole batch -- every device's projection lost to one
+ -- device's ambiguity. That is the same failure already fixed once for tied
+ -- partitions, and it gets the same answer: refuse the PARTITION, not the run.
+ --
+ -- Refusing rather than picking is the honest option. Which namespace's build
+ -- is "the" build for a region label is exactly what is unknown, and choosing
+ -- one silently is the class of falsehood this projection exists to remove.
+ -- The excluded group is reported by integrity.check_corpus.
+ WHERE NOT EXISTS (
+   SELECT 1 FROM v_latest_firmware peer
+     LEFT JOIN firmware_targets pft ON pft.id = peer.firmware_target_id
+    WHERE peer.hardware_model_id = lf.hardware_model_id
+      AND peer.channel = lf.channel
+      AND coalesce(pft.target_code,'') = coalesce(ft.target_code,'')
+      AND ifnull(peer.firmware_target_id,'') <> ifnull(lf.firmware_target_id,''))
 """
 
 EVIDENCE_SQL = f"""

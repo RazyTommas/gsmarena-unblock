@@ -470,15 +470,8 @@ def enrich_canonical_silicon(connection: sqlite3.Connection, xref_csv: Path) -> 
             # module; enrich_observed_hardware_silicon had it too, and
             # _find_or_create was written there for it. The same rule living in
             # two places is how the second one stayed broken.
-            vendor_id = _find_or_create(
-                connection, "SELECT id FROM silicon_vendors WHERE canonical_name=? COLLATE NOCASE",
-                (vendor,), "INSERT INTO silicon_vendors VALUES(?,?,?)",
-                lambda new_id: (new_id, vendor, now), _id("vendor", vendor))
-            family_id = _find_or_create(
-                connection,
-                "SELECT id FROM silicon_families WHERE vendor_id=? AND canonical_name=? COLLATE NOCASE",
-                (vendor_id, vendor), "INSERT INTO silicon_families VALUES(?,?,NULL,?,?)",
-                lambda new_id: (new_id, vendor_id, vendor, now), _id("family", vendor, vendor))
+            vendor_id = resolve_silicon_vendor(connection, vendor, now)
+            family_id = resolve_silicon_family(connection, vendor_id, vendor, now)
             existing_part = connection.execute(
                 "SELECT id FROM silicon_parts WHERE family_id=? AND part_number=? COLLATE NOCASE",
                 (family_id, part)).fetchone()
@@ -511,6 +504,52 @@ def _find_or_create(connection: sqlite3.Connection, select: str, select_args: tu
         return row[0]
     connection.execute(insert, build_row(new_id))
     return new_id
+
+
+def resolve_silicon_vendor(connection: sqlite3.Connection, vendor: str, now: str) -> str:
+    """The id of `vendor`, creating the row only if that NAME is absent.
+
+    THE BUG THIS REPLACES, which four call sites each had their own copy of:
+
+        vendor_id = _id("vendor", vendor)          # a hash of the NAME
+        INSERT OR IGNORE INTO silicon_vendors VALUES(vendor_id, vendor, now)
+        INSERT OR IGNORE INTO silicon_families VALUES(..., vendor_id, ...)
+
+    silicon_vendors.canonical_name is UNIQUE. If that vendor already existed
+    under a different id -- which it does, because these four functions create
+    vendors by four different routes in a single batch -- the first insert was
+    IGNORED, the hash id was never created, and the second inserted a row
+    referencing it:
+
+        sqlite3.IntegrityError: FOREIGN KEY constraint failed
+
+    Invisible on a populated corpus, fatal on the first ingest into an empty
+    one, which is exactly an air-gapped box unpacking a bundle.
+
+    It was fixed three separate times -- once per site, each time at the place
+    the crash surfaced -- and the batch simply died a few lines further on. So
+    the fix is not another patched call site: it is this function, which is the
+    only way any of them resolve a vendor now. The same rule in four places is
+    what let the same bug be found three times.
+    """
+    return _find_or_create(
+        connection, "SELECT id FROM silicon_vendors WHERE canonical_name=? COLLATE NOCASE",
+        (vendor,), "INSERT INTO silicon_vendors VALUES(?,?,?)",
+        lambda new_id: (new_id, vendor, now), _id("vendor", vendor))
+
+
+def resolve_silicon_family(connection: sqlite3.Connection, vendor_id: str, family: str,
+                           now: str) -> str:
+    """The id of `family` under `vendor_id`, creating it only if absent.
+
+    silicon_families is UNIQUE(vendor_id, canonical_name), so it carries the
+    same hazard as the vendor above, one level down.
+    """
+    return _find_or_create(
+        connection,
+        "SELECT id FROM silicon_families WHERE vendor_id=? AND canonical_name=? COLLATE NOCASE",
+        (vendor_id, family), "INSERT INTO silicon_families VALUES(?,?,NULL,?,?)",
+        lambda new_id: (new_id, vendor_id, family, now), _id("family", family, family))
 
 
 def _vendor_by_part_prefix(connection: sqlite3.Connection) -> dict[str, str]:
@@ -608,15 +647,8 @@ def enrich_observed_hardware_silicon(connection: sqlite3.Connection) -> dict[str
             # already exists under another id -- seed.py mints its own, and so
             # does any future importer -- the insert is ignored, the derived id
             # names nothing, and the family insert dies on a foreign key.
-            vendor_id = _find_or_create(
-                connection, "SELECT id FROM silicon_vendors WHERE canonical_name=? COLLATE NOCASE",
-                (vendor,), "INSERT INTO silicon_vendors VALUES(?,?,?)",
-                lambda new_id: (new_id, vendor, observed_at), _id("vendor", vendor))
-            family_id = _find_or_create(
-                connection,
-                "SELECT id FROM silicon_families WHERE vendor_id=? AND canonical_name=? COLLATE NOCASE",
-                (vendor_id, vendor), "INSERT INTO silicon_families VALUES(?,?,NULL,?,?)",
-                lambda new_id: (new_id, vendor_id, vendor, observed_at), _id("family", vendor, vendor))
+            vendor_id = resolve_silicon_vendor(connection, vendor, observed_at)
+            family_id = resolve_silicon_family(connection, vendor_id, vendor, observed_at)
             existing_part = connection.execute(
                 "SELECT id FROM silicon_parts WHERE family_id=? AND part_number=? COLLATE NOCASE",
                 (family_id, part)).fetchone()
@@ -711,12 +743,9 @@ def enrich_gsmarena_hardware_silicon(connection: sqlite3.Connection, specs_csv: 
                 locator="csv:line=" + spec["_line"],
                 excerpt=json.dumps({k: v for k, v in spec.items() if not k.startswith("_")}, sort_keys=True),
                 now=now)
-            vendor_id = _id("vendor", vendor)
-            family_id = _id("family", vendor, vendor)
+            vendor_id = resolve_silicon_vendor(connection, vendor, now)
+            family_id = resolve_silicon_family(connection, vendor_id, vendor, now)
             part_id = _id("part", vendor, part)
-            connection.execute("INSERT OR IGNORE INTO silicon_vendors VALUES(?,?,?)", (vendor_id, vendor, now))
-            connection.execute("INSERT OR IGNORE INTO silicon_families VALUES(?,?,NULL,?,?)",
-                               (family_id, vendor_id, vendor, now))
             before = connection.total_changes
             connection.execute("INSERT OR IGNORE INTO silicon_parts VALUES(?,?,?,?,?,?,?)",
                                (part_id, family_id, part, marketing, None, None, now))
@@ -762,9 +791,7 @@ def import_security_catalog(connection: sqlite3.Connection, asb_csv: Path) -> di
                 component = (row.get("component") or "").strip()
                 if component:
                     vendor_name = "Qualcomm" if "qualcomm" in row.get("section", "").casefold() else None
-                    vendor_id = _id("vendor", vendor_name) if vendor_name else None
-                    if vendor_name:
-                        connection.execute("INSERT OR IGNORE INTO silicon_vendors VALUES(?,?,?)", (vendor_id, vendor_name, now))
+                    vendor_id = resolve_silicon_vendor(connection, vendor_name, now) if vendor_name else None
                     component_id = _id("component", vendor_name or "generic", component)
                     connection.execute("INSERT OR IGNORE INTO components VALUES(?,?,?,?,?,?)",
                         (component_id, _component_type(component), vendor_id, component, None, now))
@@ -782,9 +809,8 @@ def import_mediatek_catalog(connection: sqlite3.Connection, mediatek_csv: Path) 
     now = "2026-09-16T00:00:00Z"; source_id = "mediatek.security.bulletins.captured"
     advisories: set[str] = set(); cves: set[str] = set(); parts: set[str] = set(); claims: set[str] = set()
     with connection:
-        vendor_id, family_id = _id("vendor", "MediaTek"), _id("family", "MediaTek", "MediaTek")
-        connection.execute("INSERT OR IGNORE INTO silicon_vendors VALUES(?,?,?)", (vendor_id, "MediaTek", now))
-        connection.execute("INSERT OR IGNORE INTO silicon_families VALUES(?,?,NULL,?,?)", (family_id, vendor_id, "MediaTek", now))
+        vendor_id = resolve_silicon_vendor(connection, "MediaTek", now)
+        family_id = resolve_silicon_family(connection, vendor_id, "MediaTek", now)
         with mediatek_csv.open(encoding="utf-8-sig") as handle:
             for line, row in enumerate(csv.DictReader(handle), 2):
                 cve, month = row["cve"].strip().upper(), row["bulletin_month"].strip()

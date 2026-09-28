@@ -254,3 +254,46 @@ class CanonicalSiliconVendorCollisionTest(unittest.TestCase):
         result = enrich_canonical_silicon(self.con, self.xref("XREF3", "MediaTek MT6771"))
         self.assertEqual(1, result["hardware_silicon_attached"])
         self.assertEqual(1, result["silicon_parts_created"])
+
+
+class NoCallSiteMintsAVendorIdFromAHashTest(unittest.TestCase):
+    """The structural guard. Three separate fixes were not enough.
+
+    The bug -- a vendor id hashed from the NAME plus INSERT OR IGNORE against a
+    UNIQUE name column, producing a foreign key that references nothing -- lived
+    in FIVE call sites in enrichment.py. It was found and fixed three times, once
+    per crash, each time at whichever site the batch happened to reach first,
+    and each time the next run died a few functions further on.
+
+    Fixing instances does not remove a pattern. resolve_silicon_vendor and
+    resolve_silicon_family are now the only way to get either id, and this test
+    is what keeps that true: it fails if any function reintroduces the raw
+    insert. A new call site written from the old template fails here rather than
+    at 3am on a box with no corpus.
+    """
+
+    def test_no_function_inserts_a_silicon_vendor_or_family_directly(self) -> None:
+        source = (ROOT / "src" / "mobile_observatory" / "enrichment.py").read_text()
+        offenders = []
+        for number, line in enumerate(source.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith(("INSERT OR IGNORE INTO silicon_vendors VALUES(vendor_id",
+                                                                "INSERT OR IGNORE INTO silicon_families VALUES(...")):
+                continue  # the docstring showing the bug is not the bug
+            if ("INSERT OR IGNORE INTO silicon_vendors" in line
+                    or "INSERT OR IGNORE INTO silicon_families" in line):
+                offenders.append(f"enrichment.py:{number}: {stripped[:90]}")
+        self.assertEqual(
+            [], offenders,
+            "these lines insert a silicon vendor/family directly instead of going through "
+            "resolve_silicon_vendor/resolve_silicon_family. The name columns are UNIQUE, so "
+            "an id hashed from the name is silently discarded when that name already exists, "
+            "and the next foreign key references nothing:\n  " + "\n  ".join(offenders))
+
+    def test_the_resolvers_are_what_every_site_actually_calls(self) -> None:
+        """A guard that passes because nothing calls the resolvers either would
+        be vacuous. Assert they are in real use."""
+        source = (ROOT / "src" / "mobile_observatory" / "enrichment.py").read_text()
+        body = source[source.index("def resolve_silicon_family"):]
+        uses = body.count("resolve_silicon_vendor(") + body.count("resolve_silicon_family(")
+        self.assertGreaterEqual(uses, 8, "expected every silicon call site to use the resolvers")

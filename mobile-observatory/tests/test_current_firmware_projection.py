@@ -400,3 +400,90 @@ class ProjectionPublicationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SharedRegionCodeAcrossNamespacesTest(unittest.TestCase):
+    """One region code claimed by two vendor namespaces killed the whole batch.
+
+    firmware_targets is UNIQUE(vendor_namespace, target_code), so a code like
+    'ILO' may exist under 'samsung' AND under another namespace. v_latest_firmware
+    partitions by firmware_target_id, but this projection is keyed on the target
+    CODE -- because the code is what a reader is shown as the region. Two
+    namespaces claiming one code for one device therefore produced two rows with
+    one key:
+
+        sqlite3.IntegrityError: UNIQUE constraint failed:
+          device_current_firmware_staging.hardware_model_id, ..target_key, ..channel
+
+    and the batch died. Not the partition -- the BATCH. One device's ambiguity
+    cost all 855 others their projection, which is the same failure already
+    fixed once for publishers tied on currency_rank.
+
+    Found by running a from-scratch ingest, where a corpus containing both demo
+    and captured targets hits it. The live single-namespace corpus never did,
+    which is why it survived: the development corpus was a narrower world than
+    the one the code has to run in.
+
+    The answer is refusal scoped to the partition, not a silent choice. Which
+    namespace's build is current for a region label is exactly what is unknown.
+    """
+
+    def setUp(self) -> None:
+        self.db = Database.migrated()
+        self.addCleanup(self.db.close)
+        seed_demonstration(self.db, ROOT / "fixtures" / "supported_catalog.sample.json")
+        self.con = self.db.connection
+
+    def colliding_device(self) -> str | None:
+        """Give one seeded device a second target with an existing code under a
+        different namespace, and a release against it."""
+        row = self.con.execute("""
+            SELECT fr.hardware_model_id, fr.firmware_target_id, ft.target_code, fr.id, fr.channel
+              FROM firmware_releases fr JOIN firmware_targets ft ON ft.id=fr.firmware_target_id
+             LIMIT 1""").fetchone()
+        if not row:
+            return None
+        self.con.execute(
+            """INSERT INTO firmware_targets
+               VALUES('ft-other-ns','other.namespace',?,'region','Other ns',?,?)""",
+            (row["target_code"], NOW, NOW))
+        original = self.con.execute("SELECT * FROM firmware_releases WHERE id=?",
+                                    (row["id"],)).fetchone()
+        columns = [k for k in original.keys()]
+        values = [("fr-other-ns" if c == "id" else
+                   "ft-other-ns" if c == "firmware_target_id" else
+                   ("OTHERNS-BUILD" if c == "build_id" else original[c])) for c in columns]
+        self.con.execute(
+            f"INSERT INTO firmware_releases ({','.join(columns)}) "
+            f"VALUES ({','.join('?' * len(columns))})", values)
+        self.con.commit()
+        return row["hardware_model_id"], row["target_code"], row["channel"]
+
+    def test_the_batch_survives_and_only_that_partition_is_withheld(self) -> None:
+        found = self.colliding_device()
+        if found is None:
+            self.skipTest("fixture has no firmware release with a target")
+        device, code, channel = found
+        report = cf.build(self.db)       # must not raise
+        self.assertGreater(report.rows, 0,
+                           "one ambiguous partition must not zero the whole projection")
+        # The AMBIGUOUS partition specifically -- not the whole device, which may
+        # hold other targets whose answer is perfectly well defined.
+        served = self.con.execute(
+            """SELECT count(*) FROM device_current_firmware
+                WHERE hardware_model_id=? AND target_key=? AND channel=?""",
+            (device, code, channel)).fetchone()[0]
+        self.assertEqual(0, served,
+                         "the ambiguous (device, region, channel) partition must be "
+                         "withheld, not resolved by picking a namespace")
+
+    def test_the_withheld_partition_is_reported_not_silent(self) -> None:
+        """Absence has to be stated. A device that silently vanishes from the
+        projection is the falsehood this whole read path was rebuilt to remove."""
+        from mobile_observatory.integrity import check_corpus
+
+        if self.colliding_device() is None:
+            self.skipTest("fixture has no firmware release with a target")
+        cf.build(self.db)
+        names = {f.check for f in check_corpus(self.con, deep=False)}
+        self.assertIn("device_targets_share_a_region_code", names)

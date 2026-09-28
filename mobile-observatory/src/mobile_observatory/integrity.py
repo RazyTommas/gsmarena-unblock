@@ -326,6 +326,29 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
                                 "publishers sharing a currency_rank, so no current firmware is "
                                 "stated for them; give the sources distinct ranks to resolve"))
 
+    # -- one region label, two vendor namespaces ------------------------------
+    # firmware_targets is UNIQUE(vendor_namespace, target_code), so one code may
+    # exist under several namespaces. The served projection is keyed on the CODE,
+    # because the code is what a reader sees as the region. Two namespaces
+    # claiming one code for one device is therefore an ambiguity the projection
+    # cannot express, and it used to be worse than unexpressed: it violated the
+    # staging primary key and killed the entire batch, so one device's ambiguity
+    # cost every other device its projection. Those partitions are now excluded
+    # and counted here instead.
+    shared_code = _scalar(connection, """
+        SELECT count(*) FROM (
+          SELECT lf.hardware_model_id, coalesce(ft.target_code,'') AS code, lf.channel
+            FROM v_latest_firmware lf
+            LEFT JOIN firmware_targets ft ON ft.id = lf.firmware_target_id
+           GROUP BY 1, 2, 3
+          HAVING count(DISTINCT ifnull(lf.firmware_target_id,'')) > 1)""")
+    if shared_code:
+        findings.append(Finding("device_targets_share_a_region_code", "warning", shared_code,
+                                "these (device, region code, channel) partitions are claimed by "
+                                "more than one vendor namespace, so which namespace's build is "
+                                "current for that region is unknown; no firmware is stated for "
+                                "them rather than one namespace being picked silently"))
+
     # -- one vendor, one spelling --------------------------------------------
     # Sources capitalise vendors differently ("Tecno"/"TECNO", "Itel"/"itel").
     # CanonicalRepository matches manufacturers EXACTLY, so two spellings become

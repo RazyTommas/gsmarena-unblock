@@ -95,18 +95,39 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # aggregates instead of a per-device existence test over the whole
     # catalogue. At 153,896 devices the scan form cost 1,071ms on an endpoint
     # the UI polls; this is the same answer without paying for it every time.
+    # "Firmware observed FOR THIS DEVICE" excludes a build whose identifier names
+    # a sibling model -- the same rule the projection selects by. Without the
+    # matching exclusion this check contradicted the selection and reported TECNO
+    # i3 as broken: its only build is "i3Pro-...", correctly not chosen, and
+    # correctly reported as no current firmware.
     with_firmware = _scalar(connection, """
         SELECT count(*) FROM (
           SELECT hardware_model_id FROM firmware_releases
-           UNION SELECT hardware_model_id FROM product_firmware_releases
-            WHERE hardware_model_id IS NOT NULL)""")
+           UNION
+          SELECT pfr.hardware_model_id FROM product_firmware_releases pfr
+           WHERE pfr.hardware_model_id IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM device_catalog_flat d
+                WHERE d.hardware_model_id = pfr.hardware_model_id
+                  AND instr(pfr.build_id,'-') > 1
+                  AND lower(substr(pfr.build_id, 1, instr(pfr.build_id,'-') - 1)) LIKE
+                      lower(replace(replace(replace(d.model_code, d.brand || ' ', ''),
+                                            d.brand || '-', ''), ' ', '')) || '_%'))""")
     served = _scalar(connection, "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware")
     invisible = 0
     if with_firmware != served:
         invisible = _scalar(connection, """
             SELECT count(*) FROM hardware_models hm
              WHERE (EXISTS (SELECT 1 FROM firmware_releases f WHERE f.hardware_model_id=hm.id)
-                 OR EXISTS (SELECT 1 FROM product_firmware_releases p WHERE p.hardware_model_id=hm.id))
+                 OR EXISTS (SELECT 1 FROM product_firmware_releases p
+                             WHERE p.hardware_model_id=hm.id
+                               AND NOT EXISTS (
+                                 SELECT 1 FROM device_catalog_flat d
+                                  WHERE d.hardware_model_id = p.hardware_model_id
+                                    AND instr(p.build_id,'-') > 1
+                                    AND lower(substr(p.build_id, 1, instr(p.build_id,'-') - 1)) LIKE
+                                        lower(replace(replace(replace(d.model_code, d.brand || ' ', ''),
+                                                              d.brand || '-', ''), ' ', '')) || '_%')))
                AND NOT EXISTS (SELECT 1 FROM device_current_firmware d WHERE d.hardware_model_id=hm.id)""")
     if invisible:
         findings.append(Finding(

@@ -398,6 +398,7 @@ class ObservatoryService:
                       lf.security_patch_level patch, lf.security_patch_level_source_id patch_source,
                       lf.build_id build, lf.effective_at_basis date_basis, lf.fact_layer fact_layer,
                       lf.device_target_codes region, lf.device_target_total target_count,
+                      lf.source_id build_source, lf.device_source_count source_count,
                       coalesce(lf.device_release_total,0) firmware_count,
                       lf.effective_at latest_firmware_at """
             # No GROUP BY. It was needed when this query joined hardware_silicon

@@ -146,6 +146,26 @@ WITH dated AS (
               THEN nullif(pfr.vendor_released_at,'null') END AS stated_at
     FROM product_firmware_releases pfr
    WHERE pfr.hardware_model_id IS NOT NULL
+     -- A build whose identifier names a LONGER model than the device it is
+     -- attached to belongs to a sibling: "i3Pro-..." on the device "i3". The
+     -- source filed it under this code and the join is faithful to that, but it
+     -- is not evidence about THIS phone, so it must never be the answer to
+     -- "what is it running". Measured before this: 5 devices had exactly such a
+     -- build as their headline row, including TECNO i3, W3, i5, W5 and itel
+     -- S11 -- each told a user its current firmware was another model's ROM.
+     --
+     -- Excluded from the SELECTION only. The row stays in
+     -- product_firmware_releases and in the device's ROM history, attributed to
+     -- the source that filed it, because deleting a source's statement is not
+     -- this projection's job. Four of the five devices have a genuine build to
+     -- fall back on; the fifth then reports no firmware, which is true.
+     AND NOT EXISTS (
+       SELECT 1 FROM device_catalog_flat_staging d
+        WHERE d.hardware_model_id = pfr.hardware_model_id
+          AND instr(pfr.build_id,'-') > 1
+          AND lower(substr(pfr.build_id, 1, instr(pfr.build_id,'-') - 1)) LIKE
+              lower(replace(replace(replace(d.model_code, d.brand || ' ', ''),
+                                    d.brand || '-', ''), ' ', '')) || '_%')
 ), ranked AS (
   SELECT dated.*,
          count(*) OVER (PARTITION BY hardware_model_id,region_code,channel) AS sibling_count,
@@ -286,12 +306,14 @@ def _mark_device_primary(connection) -> None:
                  -- (target, channel) partitions while the list counted codes,
                  -- so 79 devices printed "11 regions" above a list of 6.
                  count(DISTINCT target_key) AS targets,
-                 group_concat(DISTINCT target_key) AS codes
+                 group_concat(DISTINCT target_key) AS codes,
+                 count(DISTINCT source_id) AS publishers
             FROM device_current_firmware_staging GROUP BY hardware_model_id)
         UPDATE device_current_firmware_staging AS s SET
-          device_release_total=(SELECT releases FROM totals WHERE hm=s.hardware_model_id),
-          device_target_total =(SELECT targets  FROM totals WHERE hm=s.hardware_model_id),
-          device_target_codes =(SELECT codes    FROM totals WHERE hm=s.hardware_model_id)
+          device_release_total=(SELECT releases   FROM totals WHERE hm=s.hardware_model_id),
+          device_target_total =(SELECT targets    FROM totals WHERE hm=s.hardware_model_id),
+          device_target_codes =(SELECT codes      FROM totals WHERE hm=s.hardware_model_id),
+          device_source_count =(SELECT publishers FROM totals WHERE hm=s.hardware_model_id)
          WHERE s.is_device_primary=1""")
 
 
@@ -525,12 +547,14 @@ def _build_locked(db: Database, connection, built_at: str, *, verbose: bool) -> 
                   product_firmware_release_id,source_id,build_id,android_version,android_major,
                   security_patch_level,security_patch_level_source_id,
                   effective_at,effective_at_basis,latest_basis,release_count,
-                  is_device_primary,device_release_total,device_target_total,device_target_codes)
+                  is_device_primary,device_release_total,device_target_total,device_target_codes,
+                  device_source_count)
                SELECT hardware_model_id,target_key,channel,fact_layer,firmware_release_id,
                       product_firmware_release_id,source_id,build_id,android_version,android_major,
                       security_patch_level,security_patch_level_source_id,
                       effective_at,effective_at_basis,latest_basis,release_count,
-                      is_device_primary,device_release_total,device_target_total,device_target_codes
+                      is_device_primary,device_release_total,device_target_total,device_target_codes,
+                      device_source_count
                  FROM device_current_firmware_staging""")
         txn.execute(
             """INSERT INTO projection_state

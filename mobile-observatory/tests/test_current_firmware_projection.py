@@ -224,6 +224,95 @@ class DeviceHeadlineRowTest(unittest.TestCase):
                          f"{listed}: {row['device_target_codes']}")
         self.assertEqual(1, row["device_target_total"], "one region on two channels is one region")
 
+    def test_a_sibling_models_build_never_becomes_the_headline(self) -> None:
+        """"i3Pro-..." on the device "i3" is another phone's ROM.
+
+        Five devices had exactly such a build as their current firmware --
+        TECNO i3, W3, i5, W5 and itel S11 each told a user their phone was
+        running a different model's release. The row stays in the corpus and in
+        the ROM history, attributed to the source that filed it; it is only
+        barred from being the answer.
+        """
+        from mobile_observatory.repository import CanonicalRepository
+
+        hardware = CanonicalRepository(self.db).create_device(
+            manufacturer="TECNO", brand="TECNO", family="Sibling",
+            variant="Sibling", model_code="TECNO i3")
+        self.con.execute("INSERT INTO source_products VALUES('p-sb','TECNO','SB','sb','approved',NULL,?,?)",
+                         (NOW, NOW))
+        self._source("archive.community", 50)
+        self.con.execute(
+            """INSERT INTO source_identity_registry VALUES
+               ('id-sb','archive.community','codename','sb','sb','p-sb','approved','t','1','high',?,?)""",
+            (NOW, NOW))
+        # The sibling build is NEWER, so only the exclusion can keep it out.
+        rows = [("i3Pro-H375D1-N-IN-190416V304", "2026-09-01"),
+                ("i3-H375A1-N-IN-180101V100", "2020-01-01")]
+        for index, (build, released) in enumerate(rows):
+            observation = f"obs-sb-{index}"
+            self.con.execute(
+                "INSERT INTO observations VALUES(?,'archive.community','run-archive.community',"
+                "'art-archive.community','firmware_release',?,?,'{}',?,'valid',NULL)",
+                (observation, f"sk{index}", NOW, f"{index:064d}"))
+            self.con.execute(
+                """INSERT INTO product_firmware_releases
+                   (id,product_id,identity_id,observation_id,source_id,region_code,build_id,channel,
+                    android_version,android_major,vendor_released_at,delivery_method,created_at,hardware_model_id)
+                   VALUES(?,'p-sb','id-sb',?,'archive.community','GLOBAL',?,'Stable','14',14,?,NULL,?,?)""",
+                (f"rel-sb-{index}", observation, build, released, NOW, hardware))
+        cf.build(self.db)
+
+        headline = self.con.execute(
+            "SELECT build_id FROM device_current_firmware "
+            "WHERE hardware_model_id=? AND is_device_primary=1", (hardware,)).fetchone()
+        self.assertIsNotNone(headline, "the genuine build must still be served")
+        self.assertEqual("i3-H375A1-N-IN-180101V100", headline["build_id"],
+                         "a sibling model's ROM must never be this device's current firmware")
+        self.assertEqual(2, self.con.execute(
+            "SELECT count(*) FROM product_firmware_releases WHERE hardware_model_id=?",
+            (hardware,)).fetchone()[0],
+            "the row is excluded from SELECTION, not deleted from the corpus")
+
+    def test_the_headline_row_says_how_many_publishers_describe_the_device(self) -> None:
+        """One publisher's account must not read as the only account.
+
+        Four community archives share a currency rank, so when several describe
+        one device the choice falls to a deterministic string sort. That is a
+        display choice among rows that do not contradict each other -- but a
+        reader shown one build has no way to tell it from an uncontested one
+        unless the count travels with it.
+        """
+        from mobile_observatory.repository import CanonicalRepository
+
+        hardware = CanonicalRepository(self.db).create_device(
+            manufacturer="TECNO", brand="TECNO", family="Many",
+            variant="Many", model_code="MANY-1")
+        self.con.execute("INSERT INTO source_products VALUES('p-mp','TECNO','MP','mp','approved',NULL,?,?)",
+                         (NOW, NOW))
+        for source in ("archive.one", "archive.two"):
+            self._source(source, 50)
+        self.con.execute(
+            """INSERT INTO source_identity_registry VALUES
+               ('id-mp','archive.one','codename','mp','mp','p-mp','approved','t','1','high',?,?)""",
+            (NOW, NOW))
+        for index, source in enumerate(("archive.one", "archive.two")):
+            observation = f"obs-mp-{index}"
+            self.con.execute(
+                "INSERT INTO observations VALUES(?,?,?,?,'firmware_release',?,?,'{}',?,'valid',NULL)",
+                (observation, source, f"run-{source}", f"art-{source}", f"mk{index}", NOW,
+                 f"{index:064d}"))
+            self.con.execute(
+                """INSERT INTO product_firmware_releases
+                   (id,product_id,identity_id,observation_id,source_id,region_code,build_id,channel,
+                    android_version,android_major,vendor_released_at,delivery_method,created_at,hardware_model_id)
+                   VALUES(?,'p-mp','id-mp',?,?,?,?,'Stable','14',14,'2026-01-01',NULL,?,?)""",
+                (f"rel-mp-{index}", observation, source, f"R{index}", f"B{index}", NOW, hardware))
+        cf.build(self.db)
+        row = self.con.execute(
+            "SELECT device_source_count FROM device_current_firmware "
+            "WHERE hardware_model_id=? AND is_device_primary=1", (hardware,)).fetchone()
+        self.assertEqual(2, row["device_source_count"])
+
     def test_exactly_one_primary_row_per_device(self) -> None:
         cf.build(self.db)
         self.assertEqual(0, self.con.execute(

@@ -37,11 +37,31 @@ def build(data, baseline, ledger, output):
         root=Path(tmp)
         for name in ('corpus.sqlite','local.sqlite'):
             backup(data/name,root/name)
-            backup(baseline/name,root/'history/review-20260916'/name)
-        backup(ROOT.parent/'crawler/data/devices.db',root/'legacy/devices.db')
+            # The baseline is a point of comparison, not a requirement. A corpus
+            # that has never been through a review round has none, and refusing
+            # to package it would be refusing to ship a new deployment.
+            if (baseline/name).is_file():
+                backup(baseline/name,root/'history/review-20260916'/name)
+        # The legacy crawler database. Looked for beside the corpus first --
+        # that is where it actually lives -- with the historical path as a
+        # fallback, and SKIPPED rather than fatal when neither exists.
+        #
+        # This line used to be an unconditional read of
+        # <repo>/crawler/data/devices.db, a path that does not exist in the
+        # repository. Packaging therefore failed on the first run every time,
+        # which is why there was no working way to ship this at all: the ad hoc
+        # script someone wrote on another machine was not a convenience, it was
+        # the only path, and it was never committed.
+        legacy = next((candidate for candidate in
+                       (data/'legacy/devices.db', ROOT.parent/'crawler/data/devices.db')
+                       if candidate.is_file()), None)
+        if legacy is not None:
+            backup(legacy, root/'legacy/devices.db')
         shutil.copytree(ledger,root/'ledger')
-        shutil.copytree(data/'evidence',root/'evidence',dirs_exist_ok=True)
-        shutil.copy2(data/'product-batch-validation.json',root/'product-batch-validation.json')
+        if (data/'evidence').is_dir():
+            shutil.copytree(data/'evidence',root/'evidence',dirs_exist_ok=True)
+        if (data/'product-batch-validation.json').is_file():
+            shutil.copy2(data/'product-batch-validation.json',root/'product-batch-validation.json')
         db=sqlite3.connect(root/'corpus.sqlite');db.row_factory=sqlite3.Row
         paths=[]
         for artifact in db.execute('SELECT id,sha256,storage_uri FROM artifacts').fetchall():
@@ -64,8 +84,11 @@ def build(data, baseline, ledger, output):
                for p in sorted(root.rglob('*')) if p.is_file()}
         manifest={'format':'mobile-observatory-portable-v1','packaged_at':datetime.now(timezone.utc).isoformat(),
                   'data_as_of':data_as_of,'corpus_row_counts':counts,'files':files,
-                  'databases':['corpus.sqlite','local.sqlite','history/review-20260916/corpus.sqlite',
-                               'history/review-20260916/local.sqlite','legacy/devices.db'],
+                  'databases':[name for name in
+                               ('corpus.sqlite','local.sqlite',
+                                'history/review-20260916/corpus.sqlite',
+                                'history/review-20260916/local.sqlite','legacy/devices.db')
+                               if (root/name).is_file()],
                   'notes':'Reviewed captured data, not live. Original absolute paths retained in provenance-paths.json; active artifact paths are portable.'}
         (root/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
         with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:

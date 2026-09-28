@@ -6,3 +6,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 /.observatory-data/
+# scheduling/run-backup.sh writes here by default. These archives carry
+# captured evidence bytes and local.sqlite (acknowledgements, watches), so
+# they must never be committed -- a backup in git is a backup on every clone.
+/.observatory-backups/

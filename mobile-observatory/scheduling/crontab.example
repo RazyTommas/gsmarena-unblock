@@ -16,3 +16,9 @@ MAILTO=you@example.com
 # $DATA_DIR/batch.log (the durable, line-buffered record); this redirect is
 # only a convenience/backup so `cron`'s own MAILTO has something to attach.
 0 3 * * * /CHANGE/ME/mobile-observatory/scheduling/run-batch.sh >> /CHANGE/ME/mobile-observatory/.observatory-data/cron.stdout.log 2>&1
+
+# Daily at 02:30, half an hour before the batch: back up what a rebuild cannot
+# reproduce (evidence bytes + local.sqlite; ~2 MB compressed, NOT the 243 MB
+# corpus). Exits 2 if the archive is valid but incomplete, which MAILTO above
+# will surface. See ../docs/BACKUP.md.
+30 2 * * * /CHANGE/ME/mobile-observatory/scheduling/run-backup.sh >> /CHANGE/ME/mobile-observatory/.observatory-data/backup.log 2>&1

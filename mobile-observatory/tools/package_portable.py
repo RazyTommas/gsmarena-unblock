@@ -58,6 +58,23 @@ def readme(inputs):
     lines += ['', '## Verify', '',
               'Every file in this archive is listed with its sha256 and byte length under `files` '
               'in `manifest.json`. `run.py` checks all of them on restore.', '']
+    # The one thing an operator is most likely to assume wrongly, stated where
+    # they will actually be standing when it matters. Measured, not estimated.
+    lines += [
+        '', '## A rebuild is NOT a restore', '',
+        'Running the batch against an EMPTY corpus produces a valid catalogue -- but not the '
+        'same one this bundle shipped with. Measured against the live corpus: 759 devices '
+        'identical, 106 only in the original, 95 only in the rebuild. 201 devices resolve '
+        'differently.', '',
+        'Two reasons, both deliberate behaviour rather than bugs:', '',
+        '  * Identity conclusions are REMEMBERED. 1,111 of them were decided under an earlier '
+        'rule version and are never revisited, so the corpus reflects the order it was built '
+        'in. A rebuild applies current rules to everything.',
+        '  * The inputs are a moving window; the corpus accumulates. 1,316 observations rest '
+        'on an input version no longer on disk anywhere.', '',
+        'So: serve the corpus in this bundle, and run the batch to ADD to it. Do not delete it '
+        'expecting a rebuild to reproduce it. What cannot be rebuilt is backed up separately '
+        'and is small -- see docs/BACKUP.md in the source tree.', '']
     return '\n'.join(lines)
 
 

@@ -1,7 +1,7 @@
 """Who is allowed to change the corpus, and from where.
 
 The server had no authentication, no authorisation, and no origin checking of
-any kind. Fourteen POST routes change state, and one of them --
+any kind. Thirteen POST routes change state, and one of them --
 /api/v1/identity/products/<id>/review -- runs UPDATE ... SET
 hardware_model_id=NULL and DELETE FROM product_hardware_links against the
 corpus, then replays that decision at every subsequent startup. The only thing
@@ -44,6 +44,7 @@ import hmac
 import ipaddress
 import os
 import secrets
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,11 +91,26 @@ def read_token(data_dir: Path, environ: dict | None = None) -> str | None:
     if from_env:
         return from_env
     path = Path(data_dir) / TOKEN_FILENAME
-    if path.is_file():
-        value = path.read_text(encoding="utf-8").strip()
-        if value:
-            return value
-    return None
+    if not path.is_file():
+        return None
+    # Refuse a credential anyone else on the box can read, and refuse a symlink
+    # pointing somewhere we did not write. A token file provisioned 0644 by a
+    # deploy script stays 0644 forever otherwise, and every local user is then
+    # an operator. Failing closed here is loud and fixable; reading it anyway
+    # is silent and permanent.
+    info = path.lstat()
+    if stat.S_ISLNK(info.st_mode):
+        raise PermissionError(
+            f"{path} is a symbolic link; refusing to read an access token through one.")
+    if info.st_mode & 0o077:
+        raise PermissionError(
+            f"{path} is readable by other users (mode {info.st_mode & 0o777:04o}). "
+            f"An access token with those permissions has already been disclosed to anyone "
+            f"with an account on this machine. Run: chmod 600 {path}  -- and rotate the "
+            f"token by deleting the file and restarting, since the old value must be "
+            f"assumed known.")
+    value = path.read_text(encoding="utf-8").strip()
+    return value or None
 
 
 def write_token(data_dir: Path) -> str:
@@ -108,10 +124,20 @@ def write_token(data_dir: Path) -> str:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / TOKEN_FILENAME
     token = secrets.token_urlsafe(32)
-    handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # The mode argument to os.open applies only when the file is CREATED. An
+    # existing 0644 file would keep its mode while we wrote a fresh secret into
+    # it, and the chmod afterwards would close the door after the token was
+    # already on disk world-readable. Unlink first so the create is always a
+    # create, and use O_EXCL|O_NOFOLLOW so we never write through a symlink
+    # someone else planted.
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    handle = os.open(path, flags, 0o600)
     with os.fdopen(handle, "w", encoding="utf-8") as stream:
         stream.write(token + "\n")
-    os.chmod(path, 0o600)
     return token
 
 

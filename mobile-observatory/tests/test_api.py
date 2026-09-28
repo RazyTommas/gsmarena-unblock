@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mobile_observatory import Database  # noqa: E402
 from mobile_observatory.seed import seed_demonstration  # noqa: E402
+from mobile_observatory.access import AccessPolicy  # noqa: E402
 from mobile_observatory.server import ObservatoryService, make_handler  # noqa: E402
 from mobile_observatory.repository import CanonicalRepository, Event  # noqa: E402
 
@@ -29,7 +30,7 @@ class ApiTests(unittest.TestCase):
             sample_path=ROOT / "fixtures" / "real_source_sample.json"
         )
         self.server = ThreadingHTTPServer(
-            ("127.0.0.1", 0), make_handler(self.service, ROOT / "apps" / "web")
+            ("127.0.0.1", 0), make_handler(self.service, ROOT / "apps" / "web", AccessPolicy(None))
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()

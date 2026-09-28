@@ -1445,10 +1445,13 @@ class ObservatoryService:
         return item or {"status": "idle", "message": "No queued collection request."}
 
 
-def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPolicy | None = None):
-    # Defaulting to an open policy keeps every existing caller -- the tests, the
-    # portable runner -- working unchanged. main() always passes a real one.
-    policy = policy if policy is not None else AccessPolicy(None)
+def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPolicy):
+    # Required, with no default. It defaulted to an open policy so existing
+    # callers kept working, which meant any caller that embedded this server and
+    # forgot the argument served the whole corpus unauthenticated -- and did so
+    # silently, which is the property that makes a security default dangerous
+    # rather than merely wrong. A caller that genuinely wants no credential says
+    # AccessPolicy(None) and is readable as having chosen it.
 
     class Handler(BaseHTTPRequestHandler):
         def _gate(self, parsed) -> bool:
@@ -1461,19 +1464,36 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             """
             if policy.open:
                 return True
-            query_token = (parse_qs(parsed.query).get("token") or [None])[0]
+            # Deliberately NOT passing query_token. ?token= is a one-shot
+            # bootstrap for a browser that cannot send a header by typing a
+            # URL, and _consume_token_param has already handled that case for
+            # GET. Accepting it here too authenticated writes from a URL, which
+            # puts a permanent credential into proxy logs, monitoring, shared
+            # links and browser history -- for no capability a header does not
+            # already give.
             decision = policy.decide(
                 method=self.command,
                 authorization=self.headers.get("Authorization"),
                 cookie=self.headers.get("Cookie"),
-                query_token=query_token,
                 origin=self.headers.get("Origin"),
                 referer=self.headers.get("Referer"),
                 host=self.headers.get("Host"),
+                # Behind a TLS-terminating proxy the browser's Origin says
+                # https while this process only ever speaks http; comparing
+                # them without this rejects every legitimate write.
+                secure=(self.headers.get("X-Forwarded-Proto", "").lower() == "https"),
             )
             if decision.allowed:
                 return True
-            self._json(HTTPStatus(decision.status), {"error": decision.reason})
+            # Not via _json(): that attaches X-Observatory-Data-Mode, which
+            # tells an unauthenticated caller whether this is a real snapshot
+            # or a demonstration. A refusal should describe the refusal.
+            body = json.dumps({"error": decision.reason}, separators=(",", ":")).encode()
+            self.send_response(HTTPStatus(decision.status))
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return False
 
         def _consume_token_param(self, parsed) -> bool:

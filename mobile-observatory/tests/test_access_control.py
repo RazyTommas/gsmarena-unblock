@@ -1,7 +1,7 @@
 """Nothing may change the corpus without proving who and where it is.
 
 The server shipped with no authentication, no authorisation and no origin
-checking. Fourteen POST routes change state; one of them NULLs
+checking. Thirteen POST routes change state; one of them NULLs
 hardware_model_id across product_firmware_releases, deletes rows from
 product_hardware_links, and replays that decision at every future startup.
 
@@ -190,6 +190,41 @@ class BindingTest(unittest.TestCase):
         self.assertNotIn(token, note,
                          "the note is printed at startup; it must never carry the value")
 
+
+    def test_a_world_readable_token_file_is_refused(self) -> None:
+        """A token anyone on the box can read has already been disclosed.
+
+        A deploy script that writes 0644 leaves it 0644 forever, and every local
+        user is then an operator. Failing closed is loud and fixable; reading it
+        anyway is silent and permanent.
+        """
+        import os
+        write_token(self.data)
+        path = self.data / "auth-token"
+        os.chmod(path, 0o644)
+        with self.assertRaises(PermissionError) as caught:
+            read_token(self.data, {})
+        self.assertIn("chmod 600", str(caught.exception))
+
+    def test_a_token_symlink_is_refused(self) -> None:
+        import os
+        real = self.data / "elsewhere"
+        real.write_text("a-token\n")
+        os.chmod(real, 0o600)
+        os.symlink(real, self.data / "auth-token")
+        with self.assertRaises(PermissionError):
+            read_token(self.data, {})
+
+    def test_regenerating_over_an_existing_loose_file_does_not_leak(self) -> None:
+        """os.open's mode applies only on CREATE: an existing 0644 file kept its
+        mode while a fresh secret was written into it."""
+        import os
+        path = self.data / "auth-token"
+        path.write_text("old\n")
+        os.chmod(path, 0o644)
+        write_token(self.data)
+        self.assertEqual(0o600, path.stat().st_mode & 0o777)
+
     def test_the_environment_wins_over_the_file(self) -> None:
         write_token(self.data)
         self.assertEqual("from-env", read_token(self.data, {"MOBILE_OBSERVATORY_TOKEN": "from-env"}))
@@ -280,12 +315,21 @@ class LiveServerTest(unittest.TestCase):
     def test_every_mutating_route_is_gated(self) -> None:
         """Enumerated rather than sampled: the gate is one call in do_POST, and
         a route added outside it would be silently open."""
+        # All THIRTEEN branches in do_POST, not a sample. An earlier version of
+        # this test listed nine and was described as exhaustive; the four it
+        # omitted were the prefix-matched ones, which is exactly where a new
+        # route is most likely to be added outside the gate.
         routes = ["/api/v1/updates/acknowledge-bulk", "/api/v1/admin/config",
                   "/api/v1/identity/agent-proposals", "/api/v1/watches",
                   "/api/v1/identity/decisions", "/api/v1/admin/collection-requests",
                   "/api/v1/admin/collection-requests/process-next",
                   "/api/v1/admin/collection-requests/recover",
+                  "/api/v1/identity/agent-proposals/some-id/review",
+                  "/api/v1/admin/collection-requests/1/retry",
+                  "/api/v1/admin/collection-requests/1/process",
+                  "/api/v1/updates/some-id/acknowledge",
                   f"/api/v1/identity/products/{self.device}/review"]
+        self.assertEqual(13, len(routes), "do_POST has thirteen branches; cover all of them")
         open_routes = []
         for path in routes:
             status, _ = self.call(path, method="POST",
@@ -343,6 +387,45 @@ class LiveServerTest(unittest.TestCase):
                 self.assertTrue(location.startswith("/"), location)
                 self.assertFalse(location.startswith("//"), f"protocol-relative: {location}")
                 self.assertNotIn("\\", location, f"a browser reads \\ as /: {location}")
+
+
+    def test_a_query_token_never_authenticates_a_write(self) -> None:
+        """?token= is a one-shot browser bootstrap, not a credential channel.
+
+        Accepting it on POST authenticated writes from a URL, which puts a
+        permanent credential into proxy logs, monitoring, shared links and
+        browser history -- for no capability a header does not already give.
+        """
+        before = self.watch_count()
+        status, _ = self.call(f"/api/v1/watches?token={TOKEN}", method="POST",
+                              headers={"Content-Type": "text/plain"},
+                              body=self.watch_body())
+        self.assertEqual(401, status)
+        self.assertEqual(before, self.watch_count())
+
+    def test_a_refusal_does_not_disclose_the_deployment_mode(self) -> None:
+        """X-Observatory-Data-Mode told an unauthenticated caller whether this
+        was a real snapshot or a demonstration."""
+        request = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/v1/devices")
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                headers = response.headers
+        except urllib.error.HTTPError as error:
+            headers = error.headers
+        self.assertIsNone(headers.get("X-Observatory-Data-Mode"))
+
+    def test_a_tls_terminating_proxy_does_not_break_every_write(self) -> None:
+        """Behind TLS termination the browser's Origin says https while this
+        process only speaks http. Comparing them naively rejects every
+        legitimate write -- a control that breaks the product gets turned off.
+        """
+        status, _ = self.call("/api/v1/watches", method="POST",
+                              headers={"Content-Type": "application/json",
+                                       "Origin": f"https://127.0.0.1:{self.port}",
+                                       "X-Forwarded-Proto": "https",
+                                       "Authorization": f"Bearer {TOKEN}"},
+                              body=self.watch_body())
+        self.assertEqual(200, status)
 
     def test_an_unknown_api_path_is_404_not_the_html_shell(self) -> None:
         """A probe on a typo'd route used to get 200 + index.html back, so a

@@ -28,6 +28,11 @@ export const api = {
   acknowledge: id => request(`/updates/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }),
   acknowledgeMany: ids => request('/updates/acknowledge-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
   acknowledgements: () => request('/updates/acknowledgements'),
+  // Same query string, two methods: the count the confirm step shows comes from
+  // the query the POST then runs, so it cannot describe a different set of rows.
+  unwatchedPending: filters => request(`/updates/unwatched-pending${params(filters)}`),
+  dismissUnwatched: filters => request(`/updates/dismiss-unwatched${params(filters)}`, { method: 'POST', body: '{}' }),
+  undoBulkDismissal: () => request('/updates/dismiss-unwatched/undo', { method: 'POST', body: '{}' }),
   deviceDetail: model => request(`/devices/${encodeURIComponent(model)}`),
   devices: filters => request(`/devices${params(filters)}`),
   productDetail: id => request(`/products/${encodeURIComponent(id)}`),

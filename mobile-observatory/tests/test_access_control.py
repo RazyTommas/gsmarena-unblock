@@ -1,7 +1,7 @@
 """Nothing may change the corpus without proving who and where it is.
 
 The server shipped with no authentication, no authorisation and no origin
-checking. Thirteen POST routes change state; one of them NULLs
+checking. Fifteen POST routes change state; one of them NULLs
 hardware_model_id across product_firmware_releases, deletes rows from
 product_hardware_links, and replays that decision at every future startup.
 
@@ -315,11 +315,13 @@ class LiveServerTest(unittest.TestCase):
     def test_every_mutating_route_is_gated(self) -> None:
         """Enumerated rather than sampled: the gate is one call in do_POST, and
         a route added outside it would be silently open."""
-        # All THIRTEEN branches in do_POST, not a sample. An earlier version of
+        # All FIFTEEN branches in do_POST, not a sample. An earlier version of
         # this test listed nine and was described as exhaustive; the four it
         # omitted were the prefix-matched ones, which is exactly where a new
         # route is most likely to be added outside the gate.
         routes = ["/api/v1/updates/acknowledge-bulk", "/api/v1/admin/config",
+                  "/api/v1/updates/dismiss-unwatched",
+                  "/api/v1/updates/dismiss-unwatched/undo",
                   "/api/v1/identity/agent-proposals", "/api/v1/watches",
                   "/api/v1/identity/decisions", "/api/v1/admin/collection-requests",
                   "/api/v1/admin/collection-requests/process-next",
@@ -329,7 +331,7 @@ class LiveServerTest(unittest.TestCase):
                   "/api/v1/admin/collection-requests/1/process",
                   "/api/v1/updates/some-id/acknowledge",
                   f"/api/v1/identity/products/{self.device}/review"]
-        self.assertEqual(13, len(routes), "do_POST has thirteen branches; cover all of them")
+        self.assertEqual(15, len(routes), "do_POST has fifteen branches; cover all of them")
         open_routes = []
         for path in routes:
             status, _ = self.call(path, method="POST",

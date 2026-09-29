@@ -90,6 +90,10 @@ class ObservatoryService:
             Path(fixture_root) if fixture_root else project_root / "fixtures",
         )
         self._integrity_cache: tuple[float, dict] | None = None
+        # Ids inserted by the most recent dismiss_unwatched(), so undo_bulk_dismissal()
+        # can delete exactly that batch. Guarded by local_lock like every other
+        # piece of local state.
+        self._undo_batch: list[str] = []
         self.local = sqlite3.connect(str(local_path), check_same_thread=False)
         self.local_lock = threading.RLock()
         self.local.row_factory = sqlite3.Row
@@ -151,46 +155,101 @@ class ObservatoryService:
     def updates(self, query: dict[str, list[str]]) -> list[dict]:
         return self.updates_page(query).items
 
-    def updates_page(self, query: dict[str, list[str]]) -> QueryPage:
+    def _radar_state(self) -> tuple[set[tuple[str, str]], list[str]]:
+        """The watch list and the acknowledgement list, read under one lock."""
         with self.local_lock:
             watched = {(r["subject_type"], r["subject_id"]) for r in list_watches(self.local)}
             seen = [r[0] for r in self.local.execute("SELECT event_id FROM acknowledgements")]
-        seen_ids = set(seen)
+        return watched, seen
+
+    # The radar's predicate is built by the four helpers below and nowhere else.
+    # updates_page() renders the rows they select; dismiss_unwatched() acts on
+    # them. A second copy of "which events is the operator looking at" is how a
+    # bulk action dismisses a row the operator could not see -- the same shape
+    # as the bug that lived in five call sites.
+
+    def _event_watch_clause(self, watched) -> tuple[str, list[object]]:
+        """Is a domain event's subject on the watch list?
+
+        `coalesce`, not the bare column: `NULL IN (...)` is NULL, so NEGATING
+        this clause would drop an event whose subject resolves to neither a
+        firmware release nor a source product -- an unwatched row silently
+        missing from "dismiss all unwatched". `''` is never a watch id, because
+        save_watch() refuses an empty one.
+        """
+        return ("(coalesce(fr.hardware_model_id,'') IN (SELECT value FROM json_each(?))"
+                " OR coalesce(sp.id,'') IN (SELECT value FROM json_each(?)))",
+                [json.dumps([i for t, i in watched if t == "hardware_model"]),
+                 json.dumps([i for t, i in watched if t == "source_product"])])
+
+    def _release_watch_clause(self, watched) -> tuple[str, list[object]]:
+        """The same question against v_device_region_history, which has only the
+        canonical column: a lone release carries no source_product identity."""
+        return ("coalesce(hardware_model_id,'') IN (SELECT value FROM json_each(?))",
+                [json.dumps([i for t, i in watched if t == "hardware_model"])])
+
+    def _event_feed_query(self, query: dict[str, list[str]], watched, seen
+                          ) -> tuple[str, str, list[object]]:
+        """`joins`, `where` and params for the domain-event radar feed."""
         tab = _first(query, "tab", "history")
         change_filter = _first(query, "change")
-        event_count = self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0]
-        if event_count:
-            q = _first(query, "q").strip()
-            clauses = ["1=1"]
-            params: list[object] = []
-            if q:
-                clauses.append("(coalesce(dc.brand,sp.manufacturer) LIKE ? COLLATE NOCASE OR coalesce(dc.variant,sp.canonical_name) LIKE ? COLLATE NOCASE OR dc.model_code LIKE ? COLLATE NOCASE OR de.after_json LIKE ? COLLATE NOCASE)")
-                params.extend([f"%{q}%"] * 4)
-            for key, column in (("maker", "coalesce(dc.brand,sp.manufacturer)"),
-                                ("model", "coalesce(dc.model_code,sir.source_value)"),
-                                ("region", "coalesce(ft.target_code,json_extract(de.after_json,'$.region'))")):
-                value = _first(query, key).strip()
-                if value:
-                    clauses.append(f"{column} LIKE ? COLLATE NOCASE")
-                    params.append(f"%{value}%")
-            if tab == "new":
-                clauses.append("de.id NOT IN (SELECT value FROM json_each(?))")
-                params.append(json.dumps(seen))
-            if tab == "watched":
-                clauses.append("(fr.hardware_model_id IN (SELECT value FROM json_each(?)) OR sp.id IN (SELECT value FROM json_each(?)))")
-                params.extend([json.dumps([i for t,i in watched if t=="hardware_model"]),
-                               json.dumps([i for t,i in watched if t=="source_product"])])
-            if change_filter == "Android upgrade":
-                clauses.append("json_extract(de.before_json,'$.android') IS NOT NULL AND json_extract(de.after_json,'$.android') IS NOT NULL AND CAST(json_extract(de.before_json,'$.android') AS TEXT)!=CAST(json_extract(de.after_json,'$.android') AS TEXT)")
-            elif change_filter == "Security patch":
-                clauses.append("de.event_type='security_patch_changed'")
-            where = " AND ".join(clauses)
-            joins = f"""FROM {self._radar_event_source()} de
+        q = _first(query, "q").strip()
+        clauses = ["1=1"]
+        params: list[object] = []
+        if q:
+            clauses.append("(coalesce(dc.brand,sp.manufacturer) LIKE ? COLLATE NOCASE OR coalesce(dc.variant,sp.canonical_name) LIKE ? COLLATE NOCASE OR dc.model_code LIKE ? COLLATE NOCASE OR de.after_json LIKE ? COLLATE NOCASE)")
+            params.extend([f"%{q}%"] * 4)
+        for key, column in (("maker", "coalesce(dc.brand,sp.manufacturer)"),
+                            ("model", "coalesce(dc.model_code,sir.source_value)"),
+                            ("region", "coalesce(ft.target_code,json_extract(de.after_json,'$.region'))")):
+            value = _first(query, key).strip()
+            if value:
+                clauses.append(f"{column} LIKE ? COLLATE NOCASE")
+                params.append(f"%{value}%")
+        if tab == "new":
+            clauses.append("de.id NOT IN (SELECT value FROM json_each(?))")
+            params.append(json.dumps(seen))
+        if tab == "watched":
+            clause, watch_params = self._event_watch_clause(watched)
+            clauses.append(clause)
+            params.extend(watch_params)
+        if change_filter == "Android upgrade":
+            clauses.append("json_extract(de.before_json,'$.android') IS NOT NULL AND json_extract(de.after_json,'$.android') IS NOT NULL AND CAST(json_extract(de.before_json,'$.android') AS TEXT)!=CAST(json_extract(de.after_json,'$.android') AS TEXT)")
+        elif change_filter == "Security patch":
+            clauses.append("de.event_type='security_patch_changed'")
+        joins = f"""FROM {self._radar_event_source()} de
                 LEFT JOIN firmware_releases fr ON fr.id=de.subject_id
                 LEFT JOIN v_device_catalog dc ON dc.hardware_model_id=fr.hardware_model_id
                 LEFT JOIN firmware_targets ft ON ft.id=fr.firmware_target_id
                 LEFT JOIN source_products sp ON de.subject_type='source_product' AND sp.id=de.subject_id
                 LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id"""
+        return joins, " AND ".join(clauses), params
+
+    def _release_feed_query(self, query: dict[str, list[str]], watched, seen
+                            ) -> tuple[str, list[object]]:
+        """`where` and params for the fallback feed used when no event exists."""
+        tab = _first(query, "tab", "history")
+        change_filter = _first(query, "change")
+        clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
+                                               "model": "model_code"},
+                                      ("brand", "variant", "model_code", "target_code", "target_name", "build_id"))
+        if tab == "new":
+            clauses.append("firmware_release_id NOT IN (SELECT value FROM json_each(?))")
+            params.append(json.dumps(seen))
+        if tab == "watched":
+            clause, watch_params = self._release_watch_clause(watched)
+            clauses.append(clause)
+            params.extend(watch_params)
+        if change_filter in ("Android upgrade", "Security patch"):
+            clauses.append("0")  # A lone release has no previous observation proving change.
+        return (" AND ".join(clauses) if clauses else "1=1"), params
+
+    def updates_page(self, query: dict[str, list[str]]) -> QueryPage:
+        watched, seen = self._radar_state()
+        seen_ids = set(seen)
+        event_count = self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0]
+        if event_count:
+            joins, where, params = self._event_feed_query(query, watched, seen)
             total = self.corpus.connection.execute(f"SELECT count(DISTINCT de.id) {joins} WHERE {where}", params).fetchone()[0]
             limit, offset = _pagination(query)
             rows = self.corpus.connection.execute(
@@ -231,18 +290,7 @@ class ObservatoryService:
                     # screen.
                     "acknowledged": row["id"] in seen_ids})
             return QueryPage(result, total, limit, offset)
-        clauses, params = _sql_filters(query, {"maker": "brand", "region": "target_code",
-                                               "model": "model_code"},
-                                      ("brand", "variant", "model_code", "target_code", "target_name", "build_id"))
-        if tab == "new":
-            clauses.append("firmware_release_id NOT IN (SELECT value FROM json_each(?))")
-            params.append(json.dumps(seen))
-        if tab == "watched":
-            clauses.append("hardware_model_id IN (SELECT value FROM json_each(?))")
-            params.append(json.dumps([i for t,i in watched if t=="hardware_model"]))
-        if change_filter in ("Android upgrade", "Security patch"):
-            clauses.append("0")  # A lone release has no previous observation proving change.
-        where = " AND ".join(clauses) if clauses else "1=1"
+        where, params = self._release_feed_query(query, watched, seen)
         total = self.corpus.connection.execute(
             f"SELECT count(*) FROM v_device_region_history WHERE {where}", params).fetchone()[0]
         limit, offset = _pagination(query)
@@ -1092,9 +1140,16 @@ class ObservatoryService:
             )
             self.local.commit()
 
-    def acknowledge_many(self, event_ids: list[str]) -> dict:
+    # The cap on a bulk acknowledgement, in ids. It guards a REQUEST BODY, which
+    # is why `capped` exists below: dismiss_unwatched() builds its list from this
+    # server's own query, and on a freshly ingested corpus that is legitimately
+    # every one of its 5,869 radar events. A class attribute rather than a
+    # literal so a test can lower it and exercise both sides cheaply.
+    BULK_ACKNOWLEDGE_LIMIT = 5000
+
+    def acknowledge_many(self, event_ids: list[str], *, capped: bool = True) -> dict:
         ids = list(dict.fromkeys(str(item).strip() for item in event_ids if str(item).strip()))
-        if len(ids) > 5000:
+        if capped and len(ids) > self.BULK_ACKNOWLEDGE_LIMIT:
             raise ValueError("too many update ids")
         valid = {row[0] for row in self.corpus.connection.execute(f"SELECT id FROM {self._radar_event_source()}")}
         if not valid and self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0] == 0:
@@ -1114,6 +1169,79 @@ class ObservatoryService:
         with self.local_lock:
             return [row[0] for row in self.local.execute(
                 "SELECT event_id FROM acknowledgements ORDER BY acknowledged_at DESC").fetchall()]
+
+    # --- dismiss every unwatched item ----------------------------------------
+    # Scoped to the tab and filters the operator currently has applied, NOT to
+    # the whole corpus. Someone who has typed a maker into the search box is
+    # looking at a subset and means that subset; "everything, including the
+    # 5,700 rows you filtered away" is the answer nobody asks for and cannot
+    # take back by re-typing the filter. It is the same predicate updates_page()
+    # renders, so what disappears is exactly what was on screen.
+    RADAR_FILTER_KEYS = ("q", "maker", "model", "region")
+
+    def _unwatched_pending_ids(self, query: dict[str, list[str]]) -> list[str]:
+        """Event ids matching the current view that are neither watched nor
+        already dismissed. One query; the caller never enumerates ids."""
+        watched, seen = self._radar_state()
+        if self.corpus.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0]:
+            joins, where, params = self._event_feed_query(query, watched, seen)
+            clause, watch_params = self._event_watch_clause(watched)
+            rows = self.corpus.connection.execute(
+                f"""SELECT DISTINCT de.id {joins} WHERE {where} AND NOT {clause}
+                      AND de.id NOT IN (SELECT value FROM json_each(?))""",
+                [*params, *watch_params, json.dumps(seen)]).fetchall()
+        else:
+            where, params = self._release_feed_query(query, watched, seen)
+            clause, watch_params = self._release_watch_clause(watched)
+            rows = self.corpus.connection.execute(
+                f"""SELECT firmware_release_id FROM v_device_region_history
+                     WHERE {where} AND NOT {clause}
+                       AND firmware_release_id NOT IN (SELECT value FROM json_each(?))""",
+                [*params, *watch_params, json.dumps(seen)]).fetchall()
+        return [row[0] for row in rows]
+
+    def unwatched_pending(self, query: dict[str, list[str]]) -> dict:
+        """What a dismissal would do, for the confirm step to state before the
+        click. Runs the SAME query the POST runs rather than a second estimate,
+        so the number shown is the number acted on."""
+        applied = sorted(key for key in self.RADAR_FILTER_KEYS if _first(query, key).strip())
+        if _first(query, "change").strip():
+            applied.append("change")
+        return {"count": len(self._unwatched_pending_ids(query)),
+                "tab": _first(query, "tab", "history"), "filters": applied,
+                "scope": "this tab and these filters, excluding watched subjects"}
+
+    def dismiss_unwatched(self, query: dict[str, list[str]]) -> dict:
+        """Dismiss them, reusing acknowledge_many: one validity check, one
+        executemany, one commit. `capped=False` because the cap guards an
+        untrusted request body and this list came from the query above."""
+        ids = self._unwatched_pending_ids(query)
+        dismissed = self.acknowledge_many(ids, capped=False)["acknowledged"]
+        with self.local_lock:
+            self._undo_batch = list(ids)
+        return {"dismissed": dismissed, "undoable": len(ids),
+                "tab": _first(query, "tab", "history")}
+
+    def undo_bulk_dismissal(self) -> dict:
+        """Reverse the most recent bulk dismissal.
+
+        Cheap and exact, so it is offered rather than a warning: a dismissal is
+        one row in one table, and dismiss_unwatched only ever inserts rows that
+        were ABSENT -- it selects undismissed events -- so deleting its batch
+        cannot revoke a dismissal made by hand earlier.
+
+        Held in memory, not on disk: this is an undo for the operator who just
+        clicked, not an audit trail, and the UI says so rather than offering a
+        button that would quietly do nothing after a restart. Only the most
+        recent batch, for the same reason.
+        """
+        with self.local_lock:
+            ids, self._undo_batch = self._undo_batch, []
+            if ids:
+                self.local.executemany(
+                    "DELETE FROM acknowledgements WHERE event_id = ?", [(i,) for i in ids])
+                self.local.commit()
+        return {"restored": len(ids)}
 
     SEARCH_PER_TYPE = 8
 
@@ -1563,6 +1691,9 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
                 "/api/v1/radar/overview": service.overview,
                 "/api/v1/updates": lambda: _page_payload(service.updates_page(query), service.meta),
                 "/api/v1/updates/acknowledgements": lambda: {"items": service.acknowledgements()},
+                # The confirm step's count. A read, so it is not origin-checked;
+                # it takes the same query string the POST does.
+                "/api/v1/updates/unwatched-pending": lambda: service.unwatched_pending(query),
                 "/api/v1/devices": lambda: _page_payload(service.devices_page(query), service.meta),
                 "/api/v1/chips/products": lambda: _page_payload(service.chip_products_page(query), service.meta),
                 "/api/v1/chips": lambda: _page_payload(service.chips_page(query), service.meta),
@@ -1625,6 +1756,15 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
                     self._json(HTTPStatus.NOT_FOUND, {"error": "update_not_found"})
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_update_ids"})
+                return
+            # Filters ride the query string, not the body, so the confirm step's
+            # GET and this POST are the same URL with two methods -- there is no
+            # second representation of "which rows" to drift out of step.
+            if parsed.path == "/api/v1/updates/dismiss-unwatched":
+                self._json(HTTPStatus.OK, service.dismiss_unwatched(parse_qs(parsed.query)))
+                return
+            if parsed.path == "/api/v1/updates/dismiss-unwatched/undo":
+                self._json(HTTPStatus.OK, service.undo_bulk_dismissal())
                 return
             if parsed.path == "/api/v1/admin/config":
                 try:

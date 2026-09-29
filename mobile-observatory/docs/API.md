@@ -170,6 +170,31 @@ unknown and do not satisfy Android-version filters. Exact device detail includes
 newest Samsung manifest's explicit latest marker outranks same-time historical
 rows; no firmware build strings are treated as chronology.
 
+### Dismissing every unwatched item
+
+`GET /updates/unwatched-pending` and `POST /updates/dismiss-unwatched` take the
+SAME query string `GET /updates` does (`tab`, `change`, `q`, `maker`, `model`,
+`region`) and answer about the same rows: everything that view matches whose
+subject is not on the watch list and which is not already dismissed. The GET
+returns `{count, tab, filters, scope}` for a confirm step to state before the
+click; the POST does it and returns `{dismissed, undoable, tab}`. Two methods on
+one URL, deliberately, so the number shown and the set acted on cannot drift.
+
+**The scope is the current tab and filters, not the whole corpus.** An operator
+with a maker typed into the search box is looking at a subset and means that
+subset, and re-typing the filter cannot undo a dismissal of the rows it hid.
+`limit` and `offset` are ignored: the page you are standing on does not bound
+the action.
+
+`POST /updates/dismiss-unwatched/undo` reverses the most recent bulk dismissal,
+in this server process, and returns `{restored}`. Exact rather than approximate:
+the dismissal only ever inserts rows that were absent, so undoing it cannot
+revoke an acknowledgement made by hand earlier. It is held in memory, not on
+disk — an undo for the operator who just clicked, not an audit trail.
+
+All three are behind the same token and (for the writes) Origin checks as every
+other state-changing route; see `docs/ACCESS_CONTROL.md`.
+
 Radar and product upgrade details use the current-event view when installed.
 Superseded events remain in the immutable audit ledger; correction events do not
 count as new firmware, upgrades, or unseen updates. Radar patch counts are actual

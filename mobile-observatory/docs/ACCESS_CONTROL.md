@@ -1,7 +1,7 @@
 # Access control
 
 The server had none until 2026-09-28: no authentication, no authorisation, no
-origin checking. Thirteen POST routes change state, and one of them --
+origin checking. Fifteen POST routes change state, and one of them --
 `/api/v1/identity/products/<id>/review` -- runs `UPDATE
 product_firmware_releases SET hardware_model_id=NULL` and `DELETE FROM
 product_hardware_links` against the corpus, then replays that decision at every

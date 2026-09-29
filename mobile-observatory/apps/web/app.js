@@ -1,6 +1,6 @@
 import { api, API_BASE } from './api.js';
 
-const state = { route: 'radar', data: null, fixtureMode: false, filter: '', acknowledged: new Set(), radarTab:'new', radarTabPinned:false, radarRegion:'all', radarChange:'all', exploreMode:'devices', exploreSort:{devices:'name_asc',silicon:'mobile_desc',releases:'latest_desc',sources:'latest_desc'}, productMode:'firmware', productQuery:'', productMaker:'', productRegion:'', productSort:'released_desc', maker:'all', chipVendor:'all', chipFamily:'all', chipPart:'all', android:'all', region:'all', support:'all', sourcePage:0, sourceQuery:'', sourceKind:'', sourceName:'', config:null };
+const state = { route: 'radar', data: null, fixtureMode: false, filter: '', acknowledged: new Set(), lastBulkDismissal: null, radarTab:'new', radarTabPinned:false, radarRegion:'all', radarChange:'all', exploreMode:'devices', exploreSort:{devices:'name_asc',silicon:'mobile_desc',releases:'latest_desc',sources:'latest_desc'}, productMode:'firmware', productQuery:'', productMaker:'', productRegion:'', productSort:'released_desc', maker:'all', chipVendor:'all', chipFamily:'all', chipPart:'all', android:'all', region:'all', support:'all', sourcePage:0, sourceQuery:'', sourceKind:'', sourceName:'', config:null };
 state.securityFilters = {};
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -191,6 +191,10 @@ async function ensureAgentBundle() {
 }
 
 function radarFilters(offset=0){return {limit:pageSize(),offset,q:state.filter,tab:state.radarTab,region:state.radarRegion==='all'?'':state.radarRegion,change:state.radarChange==='all'?'':state.radarChange};}
+// The same scope WITHOUT limit/offset. A bulk dismissal is bounded by the tab and
+// the filters, never by the page you happen to be standing on; sending limit=100
+// to a route that dismisses every match would read as a bound it is not.
+function radarScope(){const{limit,offset,...scope}=radarFilters();return scope;}
 async function loadRadarPage(offset=0){const payload=await api.updates(radarFilters(offset));state.data.updates=items(payload);state.data.updatePage=payload.meta?.page||{};
   // Each page carries its own acknowledged flags, so paging keeps the set in
   // step without ever fetching the whole acknowledgement table.
@@ -226,6 +230,24 @@ async function loadProductEvidencePage(offset=0){const firmware=state.productMod
 function heading(kicker, title, body, action = '') { return `<div class="page-head"><div><div class="eyebrow">${kicker}</div><h1>${title}</h1><p>${body}</p></div>${action}${state.fixtureMode ? '<span class="demo-flag" title="API unavailable">DEMO DATA</span>' : ''}</div>`; }
 function matches(row) { const q = state.filter.trim().toLowerCase(); return !q || Object.values(row).some(v => String(v).toLowerCase().includes(q)); }
 
+// On the Watched tab the answer is zero by construction, and a button that always
+// reports zero reads as broken. It stays visible and disabled, saying why.
+function dismissUnwatchedButton() {
+  return state.radarTab === 'watched'
+    ? '<button class="button" id="dismissUnwatched" disabled title="Every row on the Watched tab is watched, so there is nothing unwatched here to dismiss.">Dismiss unwatched…</button>'
+    : '<button class="button" id="dismissUnwatched">Dismiss unwatched…</button>';
+}
+
+// Rendered from state, not injected, so it survives the re-render that follows the
+// dismissal -- otherwise the Undo offer disappears the instant the feed reloads.
+function dismissResultNote() {
+  const last = state.lastBulkDismissal;
+  if (!last) return '';
+  return `<div class="validation-note" id="dismissResult"><b>Dismissed ${last.dismissed.toLocaleString()} unwatched update${last.dismissed === 1 ? '' : 's'}.</b>
+    Watched devices and products were left in the queue.
+    ${last.undoable ? '<button class="button" id="undoDismissal">Undo</button> <span class="subtle">Undo covers this dismissal only, and only until the server restarts.</span>' : ''}</div>`;
+}
+
 function renderRadar() {
   const d = state.data, o = d.overview;
   const visible=d.updates;
@@ -239,7 +261,8 @@ function renderRadar() {
     </article>`).join('');
   return heading('Update Radar','What changed since your last visit','A precise feed of new firmware for the devices and regions you care about.') + `
     <div class="metrics"><div class="metric"><small>New firmware</small><strong>${o.unseen}</strong><span>since your last visit</span></div><div class="metric"><small>Android upgrades</small><strong>${o.androidUpgrades}</strong><span>major version changes</span></div><div class="metric"><small>Security patch coverage</small><strong>${o.patchLevelDevices ?? '—'}${o.patchLevelDeviceTotal?` <span class="of">of ${o.patchLevelDeviceTotal}</span>`:''}</strong><span>devices with a known patch level${o.newestPatchLevel?` · newest ${escapeHtml(o.newestPatchLevel)}`:''}</span></div><div class="metric"><small>Source warnings</small><strong>${o.sourceWarnings}</strong><span>last run ${o.lastRun}</span></div></div>
-    <div class="toolbar"><div class="segmented" id="radarTabs"><button data-value="new" class="${state.radarTab==='new'?'active':''}">New</button><button data-value="watched" class="${state.radarTab==='watched'?'active':''}">Watched</button><button data-value="history" class="${state.radarTab==='history'?'active':''}">History</button></div><select id="radarRegion"><option value="all">All regions</option><option value="ILO">Israel / ILO</option><option value="MID">Middle East / MID</option><option value="GLOBAL">Global</option></select><select id="radarChange"><option value="all">All changes</option><option value="Android upgrade">Android upgrades</option><option value="Security patch">Security patches</option></select><span class="spacer"></span>${state.radarTab==='new'?'<button class="button" id="markAll">Mark visible seen</button>':''}</div>
+    <div class="toolbar"><div class="segmented" id="radarTabs"><button data-value="new" class="${state.radarTab==='new'?'active':''}">New</button><button data-value="watched" class="${state.radarTab==='watched'?'active':''}">Watched</button><button data-value="history" class="${state.radarTab==='history'?'active':''}">History</button></div><select id="radarRegion"><option value="all">All regions</option><option value="ILO">Israel / ILO</option><option value="MID">Middle East / MID</option><option value="GLOBAL">Global</option></select><select id="radarChange"><option value="all">All changes</option><option value="Android upgrade">Android upgrades</option><option value="Security patch">Security patches</option></select><span class="spacer"></span>${state.radarTab==='new'?'<button class="button" id="markAll">Mark visible seen</button>':''}${dismissUnwatchedButton()}</div>
+    <div id="dismissConfirm"></div>${dismissResultNote()}
     <div class="validation-note">A dash (—) means the captured vendor artifact did not state that value — it is not an empty value and not a guess. Build names are never guessed into Android versions. Click any dash for a research brief, or a device name for its known history.</div><div class="subtle">${page.total?page.offset+1:0}–${(page.offset||0)+visible.length} of ${page.total||0} matching events</div><div class="feed">${cards || `<div class="empty"><b>No ${state.radarTab} updates match.</b><br>Try another region or change type. This does not mean source coverage is complete.</div>`}</div><div class="toolbar">${pageSizeControl('radarRows')}<button class="button" id="radarPrev" ${page.offset?'':'disabled'}>← Previous</button><button class="button" id="radarNext" ${page.nextCursor?'':'disabled'}>Next →</button></div>`;
 }
 
@@ -639,6 +662,52 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   $('#radarPrev')?.addEventListener('click',()=>loadRadarPage(Math.max(0,(state.data.updatePage?.offset||0)-50)).catch(()=>toast('Could not load Radar page')));
   $('#radarNext')?.addEventListener('click',()=>loadRadarPage(Number(state.data.updatePage?.nextCursor||0)).catch(()=>toast('Could not load Radar page')));
   $('#markAll')?.addEventListener('click',async()=>{const pending=state.data.updates.filter(x=>!state.acknowledged.has(x.id));try{if(!state.fixtureMode)await api.acknowledgeMany(pending.map(x=>x.id));pending.forEach(x=>state.acknowledged.add(x.id));state.data.overview=state.fixtureMode?{...state.data.overview,unseen:Math.max(0,state.data.overview.unseen-pending.length)}:await api.overview();$('#navCount').textContent=state.data.overview.unseen;await loadRadarPage(0);toast(`${pending.length} updates marked as seen`);}catch{toast('Could not save all acknowledgements');}});
+  // Two clicks, because this one clears a queue rather than a row. The first asks
+  // the server how many rows the CURRENT tab and filters would dismiss and states
+  // it; only the second acts. The count is not computed here -- the server runs
+  // the same query the POST will, so the number on the button is the number acted on.
+  $('#dismissUnwatched')?.addEventListener('click',async()=>{
+    const panel=$('#dismissConfirm'); if(!panel)return;
+    panel.innerHTML='<div class="validation-note">Counting matching unwatched updates…</div>';
+    let preview;
+    try{preview=await api.unwatchedPending(radarScope());}
+    catch{panel.innerHTML='';toast('Could not count unwatched updates');return;}
+    // The server answers with its own parameter names; the operator never typed
+    // "q" into anything, so they are said back in the words the page uses.
+    const FILTER_LABELS={q:'search box',maker:'maker',model:'model code',region:'region',change:'change type'};
+    const scope=preview.filters.length
+      ? `the <b>${escapeHtml(preview.tab.charAt(0).toUpperCase()+preview.tab.slice(1))}</b> tab with your current ${preview.filters.map(f=>escapeHtml(FILTER_LABELS[f]||f)).join(' + ')} filter${preview.filters.length===1?'':'s'} applied — rows you cannot currently see are not touched`
+      : `the whole <b>${escapeHtml(preview.tab.charAt(0).toUpperCase()+preview.tab.slice(1))}</b> tab (no search or filter is applied)`;
+    panel.innerHTML=`<div class="validation-note"><b>Dismiss ${preview.count.toLocaleString()} unwatched update${preview.count===1?'':'s'}?</b>
+      <br>Scope: ${scope}. Watched devices and products stay in the queue; only unwatched subjects are dismissed.
+      <br><span class="subtle">Dismissing writes one row per update to your local acknowledgement table. It changes no captured evidence, and Undo is offered afterwards.</span>
+      <div class="toolbar"><button class="button primary" id="dismissConfirmYes"${preview.count?'':' disabled'}>Dismiss ${preview.count.toLocaleString()} now</button><button class="button" id="dismissConfirmNo">Cancel</button></div></div>`;
+    $('#dismissConfirmNo').addEventListener('click',()=>{panel.innerHTML='';});
+    $('#dismissConfirmYes').addEventListener('click',async()=>{
+      $('#dismissConfirmYes').disabled=true;
+      try{
+        // The same scope object the count was taken with, so the confirmed number
+        // and the acted-on set are the same request in two methods.
+        const result=await api.dismissUnwatched(radarScope());
+        state.lastBulkDismissal=result;
+        state.data.overview=await api.overview();
+        $('#navCount').textContent=state.data.overview.unseen;
+        await loadRadarPage(0);
+        toast(`${result.dismissed.toLocaleString()} unwatched updates dismissed`);
+      }catch{panel.innerHTML='';toast('Could not dismiss the unwatched updates');}
+    });
+  });
+  $('#undoDismissal')?.addEventListener('click',async()=>{
+    $('#undoDismissal').disabled=true;
+    try{
+      const result=await api.undoBulkDismissal();
+      state.lastBulkDismissal=null;
+      state.data.overview=await api.overview();
+      $('#navCount').textContent=state.data.overview.unseen;
+      await loadRadarPage(0);
+      toast(`${result.restored.toLocaleString()} updates restored to the queue`);
+    }catch{toast('Could not undo the dismissal');}
+  });
   $('#exportView')?.addEventListener('click',()=>{
     const rows=state.exploreMode==='devices'?state.data.devices:state.exploreMode==='silicon'?state.data.chips:state.exploreMode==='sources'?state.data.sourceRecords:state.data.releases;
     const keys=Object.keys(rows[0]||{}), csv=[keys.join(','),...rows.filter(matches).map(row=>keys.map(k=>`"${String(row[k]??'').replaceAll('"','""')}"`).join(','))].join('\n');

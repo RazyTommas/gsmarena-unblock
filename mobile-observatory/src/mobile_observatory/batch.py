@@ -26,7 +26,8 @@ from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
 from .current_firmware import ProjectionError, build as build_current_firmware
 from .integrity import check_corpus, summarise
-from .identity_bridge import rebuild_identity_registry
+from .identity_backfill import approve_catalog_confirmed_identities
+from .identity_bridge import rebuild_identity_registry, refresh_observation_link_states
 from .silence import STATUS_SILENT, detect_silence
 from .worker_lock import exclusive_worker
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
@@ -147,10 +148,29 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
             db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml",
             specs_csv=legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv",
             google_play_csv=legacy_root / "google-play-devices" / "supported_devices.csv", decisions=decisions)
+        # Identities that arrived AFTER their product was concluded. A remembered
+        # conclusion is final by design, so `_conclude` returns early for the
+        # product and never evaluates the new identity: it stays 'proposed',
+        # its links stay 'proposed', and promotion needs both approved. The
+        # evidence is captured and cannot reach the surface.
+        #
+        # This existed, unreferenced by anything, since 2026-09-22. It approves 0
+        # identities against today's captured devices.yml -- see the module
+        # docstring for the measured reason and for why it is wired in anyway.
+        results["identity_backfill"] = approve_catalog_confirmed_identities(
+            db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
         # Must run on EVERY batch: the TECNO source re-emits both spellings each time,
         # so a merge done once is undone by the next ingest.
         results["dedupe"] = merge_confirmed_duplicates(
             db.connection, legacy_root / "google-play-devices" / "supported_devices.csv")
+        # dedupe repoints observation_product_links.product_id and
+        # source_identity_registry.product_id at the surviving product, and the two
+        # are not guaranteed to move together -- a link can land on the survivor
+        # while its registry row stays with a product that no longer exists as its
+        # owner. Reconcile before promotion reads link_state, so promotion never
+        # sees a state a merge left behind.
+        with db.connection:
+            results["link_states_after_dedupe"] = refresh_observation_link_states(db.connection)
         results["product_promotion"] = promote_approved_product_observations(db.connection)
         results["device_promotion"] = vars(promote_approved_products_to_devices(db.connection))
         results["canonical_silicon"] = enrich_canonical_silicon(

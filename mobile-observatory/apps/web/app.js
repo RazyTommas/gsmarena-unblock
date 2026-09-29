@@ -265,12 +265,25 @@ const sourceShort = id => {
 const coverageStrip = () => {
   const queue = state.data.reviewQueue || [];
   if (!queue.length) return '';
+// Two gates hold an observation back, and this strip showed only one of them.
+// Promotion needs the PRODUCT approved and the LINK approved, so an observation on
+// an already-approved product whose identity is still proposed appeared in neither
+// the device count nor the pending count: 8,332 Xiaomi observations read as
+// "all captured evidence reviewed" while serving nothing. The headline is now the
+// real stalled population and the tooltip says which gate holds which part, because
+// the two are cleared by different work.
   return `<div class="coverage" role="group" aria-label="Catalogue coverage by vendor">${queue.map(v => {
-    const pending = v.observations_awaiting_review;
+    const byProduct = v.observations_awaiting_review;
+    const byLink = v.observations_held_by_link_review || 0;
+    const pending = v.observations_not_serving != null ? v.observations_not_serving : byProduct;
+    const why = [
+      byProduct ? `${byProduct.toLocaleString()} belong to ${v.products - v.approved} products that have not been reviewed` : '',
+      byLink ? `${byLink.toLocaleString()} belong to reviewed products but arrived under a source identity that has not been approved for them` : '',
+    ].filter(Boolean).join('; ');
     return `<div class="cov${v.canonical_devices ? '' : ' cov-none'}">
       <b>${escapeHtml(v.vendor)}</b>
       <span class="cov-n">${v.canonical_devices} device${v.canonical_devices === 1 ? '' : 's'}</span>
-      ${pending ? `<small title="${pending} captured observations belong to ${v.products - v.approved} products that have not been reviewed. They are not missing; they are not yet promoted.">${pending.toLocaleString()} obs awaiting review</small>`
+      ${pending ? `<small title="${escapeHtml(why)}. They are not missing; they are not yet promoted.">${pending.toLocaleString()} obs awaiting review</small>`
                 : `<small>all captured evidence reviewed</small>`}
     </div>`;
   }).join('')}</div>`;

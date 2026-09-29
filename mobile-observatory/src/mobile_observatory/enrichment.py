@@ -280,7 +280,13 @@ def _conclude(connection, product, *, catalog, specs, play, play_by_code, decisi
         connection.execute("UPDATE source_products SET review_state='approved',updated_at=? WHERE id=?", (now, product["id"]))
         connection.execute("UPDATE source_identity_registry SET resolution_state='approved',resolution_method=?,rule_version=?,confidence=? WHERE product_id=?",
                            (method, RULE_VERSION, confidence, product["id"]))
-        connection.execute("UPDATE observation_product_links SET link_state='approved' WHERE product_id=?", (product["id"],))
+        # link_state is NOT written here any more. It used to be
+        # `UPDATE observation_product_links SET link_state='approved' WHERE
+        # product_id=?` -- a fourth copy of the mirror rule, and the loosest of
+        # them: it approved every link on the product regardless of whether the
+        # link's own identity belonged to it. automate_identity_review reconciles
+        # every link once, at the end, through
+        # identity_bridge.refresh_observation_link_states.
     totals[conclusion] += 1
 
 
@@ -343,6 +349,13 @@ def automate_identity_review(connection: sqlite3.Connection, *, devices_yml: Pat
             for product in pending:
                 _conclude(connection, product, catalog=catalog, specs=specs, play=play,
                           play_by_code=play_by_code, decisions=decisions, totals=totals)
+
+    # One reconciliation for the whole corpus, after every conclusion is in. A
+    # link's state is a mirror of its identity's, so it is derived here rather
+    # than written at four sites that each had their own idea of the rule.
+    from .identity_bridge import refresh_observation_link_states
+    with connection:
+        totals.update(refresh_observation_link_states(connection))
 
     totals["total"] = len(rows)
     totals["silicon_observations"] = connection.execute("SELECT count(*) FROM observed_product_silicon").fetchone()[0]
@@ -851,6 +864,19 @@ def import_mediatek_catalog(connection: sqlite3.Connection, mediatek_csv: Path) 
 
 
 def write_agent_review_bundle(connection: sqlite3.Connection, output_dir: Path) -> dict[str, object]:
+    """Hand an agent the identities that are still OPEN QUESTIONS.
+
+    `conclusion != 'auto_approved'` alone is not that set. A conclusion records
+    what the automated rules could establish; `review_state` records where the
+    product actually stands, and the two can disagree in the settled direction --
+    dedupe merges a product into an approved survivor, and the manual review
+    endpoint approves one outright, neither of which rewrites the conclusion.
+    Measured on the live corpus: 628 candidates of which 2 (Xiaomi Redmi Note 5
+    Pro and Tecno Megapad SE, both conclusion='ambiguous') were already
+    review_state='approved'. Asking a reviewer to decide something the corpus has
+    already decided spends their attention and invites them to contradict it, so
+    the honest number is 626.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = connection.execute("""SELECT sp.id,sp.manufacturer,sp.canonical_name,ic.conclusion,ic.confidence,
       ic.rationale,ic.candidates_json,ic.evidence_json,group_concat(DISTINCT sir.source_value) source_values,
@@ -858,7 +884,8 @@ def write_agent_review_bundle(connection: sqlite3.Connection, output_dir: Path) 
       FROM source_products sp JOIN identity_conclusions ic ON ic.product_id=sp.id
       LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id
       LEFT JOIN observation_product_links opl ON opl.product_id=sp.id
-      WHERE ic.conclusion!='auto_approved' GROUP BY sp.id ORDER BY sp.manufacturer,sp.canonical_name""").fetchall()
+      WHERE ic.conclusion!='auto_approved' AND sp.review_state<>'approved'
+      GROUP BY sp.id ORDER BY sp.manufacturer,sp.canonical_name""").fetchall()
     candidates = [{**dict(r), "candidates": json.loads(r["candidates_json"]), "evidence": json.loads(r["evidence_json"])} for r in rows]
     for item in candidates:
         item.pop("candidates_json"); item.pop("evidence_json")

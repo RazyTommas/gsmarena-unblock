@@ -1,268 +1,147 @@
-# Mobile Observatory — continuation handoff
+# Mobile Observatory — handoff
 
-Updated: 2026-09-17 (Asia/Jerusalem)
+Updated 2026-09-30. Supersedes the 2026-09-17 handoff entirely — that one
+described port 8124 and a `/tmp` snapshot that no longer exists.
 
-## Continuation completed — product details and captured silicon
+State: `main` at `f5da9a7`, clean, pushed. 291 tests pass under BOTH
+`python3 -m unittest discover -s tests` and `pytest`. Corpus: 0 errors,
+1 warning.
 
-The application at `http://127.0.0.1:8124/` now serves the validated snapshot
-`/tmp/mobile-observatory-product-review-20260917`. The original
-`/tmp/mobile-observatory-review-20260916` is preserved. Local state was copied
-with SQLite backup; new UI activity writes to the new snapshot's local database.
+## What this is
 
-- Silicon product observations increased **14 → 33** (19 Qualcomm, 7 MediaTek,
-  6 Unisoc, 1 Xiaomi), with **183** combined silicon rows and **616** products.
-- Correction to the previous coverage assumption: the captured `gsm_specs.csv`
-  contains **36 Xiaomi rows**, only 33 with chipsets. The 19 additions are
-  specification-only products, with no invented firmware or hardware identities.
-- Matching preserves brand, `+`, network/regional qualifiers, exact catalog
-  codenames, Google Play identifier ambiguity and remembered review conclusions.
-- Each product silicon relationship now retains its exact specification URL,
-  CSV locator, capture hash, observed time, matching rule and specification fields.
-  Captured files are preserved in the new snapshot's `evidence/` directory.
-- Product Evidence names and chip-drawer products open a dedicated product detail
-  API/drawer with aliases, confidence, specifications, ROM history by region/channel,
-  Android upgrades, source/download links and security publications. Histories page
-  independently of the main table; missing data and applicability remain explicit.
-- No canonical hardware, hardware-silicon, firmware, security claim, event or
-  identity-conclusion records changed. Exact hardware-silicon mappings remain 4.
-- Validation: **48 Python tests**, **5 frontend API tests**, both JS syntax checks;
-  all 616 real product details and complete paginated histories checked, SQLite
-  integrity/foreign keys clean, enrichment idempotent. Silicon query: ~1.27 seconds.
-- Browser QA: Qualcomm filter → chip → product, specification-only coverage gaps,
-  Xiaomi downloads and region/channel filters, TECNO publication links, CVE/NVD and
-  bulletin links, main-table page 101–200 and global sorting, readable dark drawer;
-  no browser console errors. Test fixtures exercise history beyond 200 releases.
+A local-first firmware/silicon/CVE observatory over 865 phones. Stdlib-only
+Python 3.11+: `http.server` + SQLite. No pip, no Node, no container, no network
+at runtime. 13 publishers, 96,319 captured observations.
 
-See `docs/PRODUCT_BATCH_VALIDATION.md` and `tools/validate_product_batch.py` for
-reproduction. New implementation: `src/mobile_observatory/product_specs.py`;
-backend, enrichment/replay, frontend, API contract and tests were extended.
+Its defining property is what it refuses to do: it will not state a value it
+cannot source, it records absence AS absence, and it never compares dates
+across publishers as though they measured the same event.
 
-Continue next with canonical Samsung provenance, optional advanced filters,
-dedicated CVE detail/security prioritization and silicon read-model performance.
-Broader silicon coverage requires more captured specifications; do not infer
-mappings from the GSMArena slug inventory or marketing/model catalogs alone.
-Live collection remains a separate future adapter task.
+## Run it on a new box
 
-## Portable repository distribution
-
-The repository now contains `portable/mobile-observatory-2026-09-17.zip` and its
-checksum/count manifest. It includes current and previous reviewed corpus/local
-SQLite backups, the legacy crawler DB (five DB files total), original ledger,
-captured evidence, agent-review bundle and provenance paths. No active WAL files
-are copied; databases are made with SQLite backup.
-
-On another computer, download/clone the whole repository and run
-`python3 mobile-observatory/run.py` from its root (Windows: `py -3 ...`). Python
-3.11+ is sufficient. It restores real data into `.observatory-data` once, preserves
-later local state, and rebases evidence paths when moving that runtime directory.
-See `docs/PORTABLE_RUN.md`. The old `start.sh` remains the demonstration launcher.
-
-Distribution validation: 63 repository tests passed, 1 skipped (51 tests within
-Mobile Observatory); 5 frontend tests and both syntax checks passed. A separate
-copied installation restored the archive, served the API, and resolved all eight
-artifact paths entirely within the copied installation. Credential-signature scan
-found no matches in outgoing files or archive contents.
-
-## Start here
-
-The active product is the greenfield application in:
-
-`/home/user/gsmarena-unblock/mobile-observatory`
-
-Do not try to force the product back into the legacy crawler UI or its schema. The legacy material under `../crawler/relay/results` is evidence/input for reviewed ingestion. Preserve the system's central rule: raw observations, product-level evidence, reviewed hardware identities, and canonical facts are different confidence layers.
-
-Read these before changing architecture:
-
-- `README.md`
-- `docs/PRODUCT.md`
-- `docs/ARCHITECTURE.md`
-- `docs/IDENTITY_RESOLUTION.md`
-- `src/mobile_observatory/server.py`
-- `src/mobile_observatory/enrichment.py`
-- `apps/web/app.js`
-
-## Product intent
-
-The main user wants a fast, simple, local-first mobile intelligence dashboard:
-
-1. Immediate firmware-update visibility, refreshed several times daily.
-2. Complete device/region ROM history with Android, security patch, modem/baseband, original source, and direct ROM download when the source provides one.
-3. Mobile silicon exploration by vendor, family, exact part, revision, and reverse device/product lookup.
-4. Security relationships connecting CVE → bulletin/component → silicon → device/product → patch or firmware fix, without inventing applicability.
-5. Android-version questions such as supported Samsung/Xiaomi devices stuck on Android 14/15/16.
-6. Israel and surrounding Middle East/Levant regions are especially important, while retaining global coverage.
-7. Offline export/query capability.
-8. Agent-assisted identity resolution and evidence research, with remembered decisions and no silent canonical changes.
-
-The user strongly prefers a clean interface. Do not solve coverage gaps by making the main screens complicated.
-
-## Current runtime
-
-The reviewed snapshot currently runs at:
-
-`http://127.0.0.1:8124/`
-
-Start/restart it with:
+Verified end to end on a real clone on 2026-09-29; timings measured.
 
 ```sh
-cd /home/user/gsmarena-unblock/mobile-observatory
-PYTHONPATH=src python3 -m mobile_observatory.server \
-  --data-dir /tmp/mobile-observatory-product-review-20260917 \
-  --host 127.0.0.1 --port 8124
+git clone git@github.com:RazyTommas/gsmarena-unblock.git obs   # 12s, 120 MB
+cd obs/mobile-observatory
+python3 -m mobile_observatory.batch                            # 9m50s, no flags needed
+PYTHONPATH=src python3 -m mobile_observatory.server --port 8000 --data-dir .observatory-data
 ```
 
-Run validation with:
+The batch needs no flags: its default `--legacy-root` resolves to
+`../crawler/relay/results`, and all 16 required inputs are in git (24 MB).
 
-```sh
-cd /home/user/gsmarena-unblock/mobile-observatory
-python3 -m pytest -q
-node --check apps/web/app.js
-node --check apps/web/api.js
-```
+**Do not start from `python3 run.py`** even though the README leads with it. It
+works, but extracts the 2026-09-17 bundle: measured at **83 devices / 26,961
+observations** against 854 / 94,969 from the batch. The README is wrong to lead
+with it and has not been fixed.
 
-Previous-batch result: **41 Python tests passed**, both frontend syntax checks passed, and browser QA reported no current console errors.
+## The single most important caveat
 
-## Previous-batch data snapshot (see continuation above)
+**A rebuild is not a restore.** Rebuilding from the same inputs does not
+reproduce this corpus. Measured: 759 devices identical, **106 only in the live
+corpus, 95 only in a rebuild** — 201 resolve differently. Two causes, both
+deliberate behaviour:
 
-Approximate current corpus:
+- **1,111 identity conclusions are frozen under `RULE_VERSION 1`.** Remembered
+  conclusions are final by design, so the corpus does not depend on *when* it
+  last ran — which makes it depend on the *order* it ran in.
+- **1,316 observations rest on an input version no longer on disk.** The
+  capture tree is overwritten in place; the corpus accumulates. Six artifact
+  digests exist only in the live corpus.
 
-- 83 reviewed Samsung hardware models.
-- 21,186 canonical Samsung firmware releases.
-- 4,886 Xiaomi product-level firmware releases.
-- 862 TECNO product security publications.
-- 94 evidence-backed Android upgrade events.
-- 174 silicon rows in the combined mobile/security read model.
-- 4 exact reviewed hardware↔silicon mappings.
-- 14 GSMArena-backed product↔silicon observations: 9 Qualcomm, 4 MediaTek, 1 Xiaomi/XRing.
-- 4,192 CVEs plus MediaTek/Android applicability and fix-coordinate claims.
-- Only a small remaining identity-agent candidate set; do not reintroduce hundreds of manual reviews.
+The corpus is an archive whose inputs are a moving window, not a cache of them.
+If you need *this* corpus, copy `.observatory-data/`; do not rebuild.
+Documented in `docs/BACKUP.md` and in the portable bundle's own README.
 
-The low number of exact hardware↔silicon mappings is a **coverage gap**, not proof that devices lack chips. Product-level mappings are deliberately shown separately from reviewed hardware-model mappings.
+## Backup
 
-## What the latest batch changed
+`tools/backup_evidence.py` — **2.0 MB compressed, not 243 MB.** It asks the
+corpus which files it cites rather than listing directories, so a new source
+writing somewhere new is covered without editing the tool. `corpus.sqlite` is
+deliberately NOT backed up (derived, rebuildable). `local.sqlite` goes through
+sqlite3's backup API, never `cp`.
 
-### Reliability and navigation
+Exit 2 = archive written and verifies but INCOMPLETE. Drill exercised: deleted
+every irreplaceable byte, restored, 21 artifacts resolvable, 5,785
+acknowledgements back, served 865 devices.
 
-- “Mark visible seen” now uses one bulk API transaction: `POST /api/v1/updates/acknowledge-bulk`.
-- Radar device names are clickable.
-- Device and chip drawers expose history and reverse relationships.
-- Android `Unknown` is explained as source absence; build strings are not guessed into Android versions.
-- Search/filter fields retain focus and chip vendor/family/part inputs commit on Enter.
-- Reset alignment and dark tables were fixed.
+## Access control
 
-### Silicon
+Added 2026-09-28; before that there was none. A live CSRF was demonstrated
+(`Content-Type: text/plain` + `Origin: https://evil.example` → 200, row
+written) and then refused. See `docs/ACCESS_CONTROL.md`.
 
-- `chips_page` now builds a combined read model from canonical `silicon_parts` and `observed_product_silicon`.
-- Default sort is **mobile-linked first**, then link count, CVE count, and name.
-- Each row separates:
-  - `canonical_devices`: exact reviewed hardware mappings.
-  - `product_devices`: product-level GSMArena specification mappings.
-  - `devices`: their display total, labeled “mobile links.”
-- Qualcomm now appears from captured product evidence.
-- Chip details list reviewed hardware models and product-evidence names in separate sections.
-- Bulletin-only MediaTek parts remain available but no longer dominate the first page.
-- Chip endpoint time was reduced from roughly 2.6s to roughly 1.5s on the current snapshot. It can still be optimized further.
+- Loopback + no token = open. That is the dev machine, deliberately.
+- Non-loopback bind with no token **mints one** at `<data-dir>/auth-token`
+  (0600) and prints the PATH, never the value.
+- Token proves *who*; the Origin check proves *where the request was composed*.
+  Both are needed — the browser sends the cookie automatically, which is what
+  CSRF abuses.
 
-### Security
+**Two gaps that cannot be closed in code** and must be handled at deploy time:
+a loopback-bound server behind a reverse proxy or SSH tunnel is remotely
+reachable while still counting as "open", and plain HTTP exposes a permanent
+bearer token. The online box must set `MOBILE_OBSERVATORY_TOKEN` explicitly
+even behind a proxy, and must terminate TLS.
 
-- Findings sort by effective publication date descending.
-- “Open findings” was replaced with a more truthful “Unfixed linked claims” explanation.
-- Every security row is clickable and opens its reasoning/evidence chain.
-- Details link to the standard NVD CVE record and captured original vendor bulletin URL.
-- Zero device mappings never means “safe”; the UI says applicability is incomplete.
+## Open, none blocking
 
-### ROM and source provenance
+- `ledger/raw` grows without bound; no `VACUUM` anywhere; `batch.log` unrotated.
+- No HTTP access log — `log_message` is a no-op. An unhandled exception drops
+  the connection with no response.
+- The batch emits two log lines for a ten-minute run.
+- `run.py` hardcodes the 2026-09-17 zip; the 09-22 bundle has a manifest but no
+  zip beside it.
+- Nothing *detects* the rebuild/restore divergence above; it is only documented.
 
-- Xiaomi product ROM rows expose captured direct `bigota.d.miui.com` download URLs.
-- Product rows expose GSMArena links when an exact captured specification slug exists.
-- Samsung canonical firmware exposes the original FOTA manifest URL when captured.
-- A Samsung manifest link is not mislabeled as a ROM package download.
-- Source Records expose captured download/source URLs.
-- Only `http:` and `https:` URLs are rendered as external links; local `file:` evidence paths are not exposed as web links.
+## Hard rules (from the original brief — still binding)
 
-### Filtering and sorting
+- No account creation, no password entry, no CAPTCHA solving, no login or
+  bot-detection bypass, ever. **samfw.com is off limits.**
+- robots.txt is binding even when a fetch is trivial. Cheapness is not
+  permission. **dl.google.com** and **romprovider.com** are off limits;
+  **deviceinfohw.ru** is disabled (403s honest crawler UAs).
+- Authorised with limits: Samsung fota-cloud (UA `Kies2.0_FUS`, metadata only,
+  no credentials) and Google OTA check-in device impersonation (metadata only,
+  no IMEI, strip `update_token`/`androidId`, record `update_url` but never
+  fetch it).
+- Rate limits are a budget **per host per day, summed across every run** — not
+  per run.
+- **gsmarena belongs to `collector@field` exclusively. Do not touch it.**
+  `.claude/` and `crawler/relay/results/*.csv` are theirs — read, never modify.
+- Never commit credentials anywhere, including messages.
+- Data honesty: never invent a value to fill a blank; absence is recorded as
+  absence; never present a truncated list as complete; never compare dates
+  across publishers as if they mean the same thing.
+- Git: `--ff-only`, merge, **never rebase**. Never `git add -A` after a merge
+  without scanning for conflict markers. Delegates must not `git stash` in a
+  shared worktree. Leave the repo on `main`.
+- Do not undo `crawler/relay/tests/test_relay_never_rewrites.py`.
+- **Never self-report success.** No model-judged results. Every check must both
+  pass clean AND fail against a planted defect — a test that cannot fail proves
+  nothing. Before believing a number, ask whether the instrument is broken.
 
-- Product Evidence supports product/codename/build search, maker, region, and date/name/Android sorting.
-- Explore now has mode-specific sorting:
-  - Devices: latest firmware, name, Android.
-  - Silicon: mobile-linked, device count, CVE count, name.
-  - ROMs: newest, oldest, device name, Android.
-  - Source Records: newest, oldest, source, identity.
-- Backend pagination receives these filters/sorts; this is not limited to filtering the visible 100 rows.
+## Lessons this codebase has already paid for
 
-### Manual collection
+Written down because each was found the expensive way.
 
-- Admin accepts one or more installed captured-replay sources.
-- “Smart” maps compatible evidence scopes per source.
-- The target field is explicitly described as a matching hint, not an AI prompt or live web query.
-- Incompatible source/scope combinations are rejected before queueing.
-
-## Important files changed
-
-- `apps/web/app.js`
-- `apps/web/api.js`
-- `apps/web/styles.css`
-- `src/mobile_observatory/server.py`
-- `tests/test_api.py`
-
-Do not overwrite unrelated changes in the workspace. The outer repository currently contains untracked/modified work, including this application directory.
-
-## Known gaps and recommended next batch
-
-Proceed in this order:
-
-1. **Expand mobile silicon coverage safely — first captured batch completed above.**
-   - The available capture has 36 Xiaomi specifications, 33 with chipsets; all 33 are now represented at product confidence.
-   - Improve name/codename/model matching using `gsm_specs.csv`, Xiaomi `devices.yml`, Google Play supported devices, and remembered identity conclusions.
-   - Promote only exact/defensible relationships. Keep ambiguous matches at product level or in the agent proposal queue.
-   - Add evidence/source links to each silicon relationship, not just a generic “GSMArena-backed” label.
-
-2. **Create a real product detail drawer/page — completed above.**
-   - Product Evidence product names should be clickable.
-   - Show all aliases/codenames, complete ROM history by region/channel, Android upgrades, chipset/specification evidence, security publications, source URLs, ROM downloads, last observation, and identity confidence.
-   - Chip drawer product names should link to this detail.
-
-3. **Improve canonical device provenance.**
-   - Add exact GSMArena/vendor specification links for canonical Samsung devices where defensible.
-   - Surface ROM package links only when actually present; otherwise show manifest/source links with correct labeling.
-
-4. **Improve filters without clutter.**
-   - Add clickable sortable table headers and optional advanced filters/drawers rather than permanently adding many controls.
-   - Add maker, Android, channel, date range, source, confidence, “has download,” “has chip,” and “has security mapping” where appropriate.
-   - Preserve URL/query state if practical so filtered views can be shared/reopened.
-
-5. **Security prioritization.**
-   - Allow “mobile-linked only,” vendor, date range, fixed/unfixed, exact-part applicability, and device/product filters.
-   - Add a dedicated CVE detail API instead of relying only on the loaded 100-row page.
-   - Import exact advisory URLs/month URLs when the captured datasets provide them; current MediaTek URL is the vendor bulletin landing page.
-
-6. **Performance/read models.**
-   - The combined Silicon query is still about 1.5s. Consider a materialized/read-model table refreshed during batch ingestion.
-   - Avoid attaching the legacy database directly to web requests.
-
-7. **Live collection boundary.**
-   - Current manual jobs replay preserved local artifacts. They are truthful about not being live.
-   - Add live vendor/OTA collectors only with explicit adapters, rate/error handling, provenance, and coverage health. Do not make a replay look like a refresh.
-
-## Non-negotiable correctness rules
-
-- Never invent hardware model codes, Android versions, security applicability, fix state, ROM download URLs, or device↔chip mappings.
-- A bulletin mentioning a CVE is not device applicability.
-- A product-level specification match is not automatically an exact hardware-model match.
-- Keep effective vendor dates separate from observation/import dates.
-- Preserve original evidence and provenance.
-- Agent output enters proposals/review; it does not silently rewrite canonical facts.
-- “No records” and “zero open findings” must never be presented as proof of absence or safety.
-
-## Suggested immediate acceptance checks
-
-After the next change, verify in the browser:
-
-1. Explore → Silicon opens with mobile-linked Dimensity/Snapdragon rows first.
-2. Qualcomm filter works and shows linked product/hardware counts.
-3. Clicking a Qualcomm chip shows its mobile products.
-4. Security CVE details open both NVD and original bulletin links.
-5. Product Evidence exposes valid Xiaomi ROM downloads and GSMArena links.
-6. Dark theme tables and filters remain readable.
-7. Sorting/filtering works beyond the first 100 rows.
-8. `python3 -m pytest -q` remains green.
+1. **Run the thing.** Every serious defect this month was found by executing a
+   path end to end, never by reading code. A delegated agent's bundle test
+   stayed green through three crashes because its fixture never reached those
+   paths.
+2. **Fix the pattern, not the instance.** One bug lived in five call sites. It
+   was fixed three times, once per crash, each at whichever site the batch
+   reached first. The commit message for fix #2 even said "the same rule in two
+   places is how the second one survived" — and shipped with three more copies.
+   `resolve_silicon_vendor`/`resolve_silicon_family` are now the only route,
+   with a test that fails if the raw insert returns.
+3. **The dev corpus is a narrower world than production.** Three crashes were
+   invisible on the populated dev corpus and fatal on a first ingest.
+4. **A success line proves nothing about the payload.** `msg send -m -` printed
+   `sent` and delivered a one-hyphen body. The backup tool printed success with
+   `local.sqlite` missing from the archive. Read back what was actually written.
+5. **`200×` is a rule about a growing axis.** It does not apply here: the phone
+   catalogue is a fixed universe and we crawl the same internet a production box
+   would. Real ceiling ~6× (every model of the brands we can source firmware
+   for), ~62× absolute. A `~51 GB` figure derived from 200× was withdrawn.

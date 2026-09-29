@@ -196,10 +196,21 @@ class DeviceGridPlanTest(unittest.TestCase):
     def _grid_plan(self) -> tuple[str, str]:
         with QueryCounter(self.db.connection) as counter:
             self.service.devices_page({"limit": ["100"]})
+        # Selected by the grid's own join, not by being the longest statement that
+        # mentions the projection. "Longest" worked only while the grid was the
+        # ONLY query on this page to touch device_current_firmware; when
+        # _firmware_holdings was added -- it tests EXISTS against the same table
+        # and carries one placeholder per row on the page -- the heuristic started
+        # picking that instead, and this test failed while describing a plan it
+        # was not about. A discriminator that names what it wants cannot drift
+        # that way.
         candidates = [s for s in counter.statements
-                      if "device_current_firmware" in s and s.lstrip().upper().startswith("SELECT")]
-        self.assertTrue(candidates, "devices_page never touched device_current_firmware")
-        # The row-returning query is the long one; the total is a bare count.
+                      if "LEFT JOIN device_current_firmware lf" in s
+                      and s.lstrip().upper().startswith("SELECT")]
+        self.assertTrue(candidates, "devices_page never ran its grid query against the "
+                                    "projection; the join alias may have been renamed")
+        # Two remain: the row-returning query and the bare count over the same
+        # FROM clause. The rows one is the long one.
         statement = max(candidates, key=len)
         plan = "\n".join(row[-1] for row in
                          self.db.connection.execute("EXPLAIN QUERY PLAN " + statement))

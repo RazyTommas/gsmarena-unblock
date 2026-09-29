@@ -3,9 +3,65 @@
 Updated 2026-09-30. Supersedes the 2026-09-17 handoff entirely — that one
 described port 8124 and a `/tmp` snapshot that no longer exists.
 
-State: `main` at `f5da9a7`, clean, pushed. 291 tests pass under BOTH
-`python3 -m unittest discover -s tests` and `pytest`. Corpus: 0 errors,
-1 warning.
+State: `main` at `f5da9a7`, clean, pushed. 347 tests pass under BOTH
+`python3 -m unittest discover -s tests` and `pytest` (291 before the robustness
+round below). Corpus: 0 errors, 1 warning.
+
+## Robustness round, 2026-09-30
+
+Seven defects found by executing ~2,800 real requests against the running
+server, all now fixed with a guard that fails against the planted defect.
+
+Four of them were one family — **a value from the request reaching SQLite
+unbindable, or a clause reaching it unbound** — so they are fixed at the shared
+helper, not per route:
+
+- `_query_int` clamps every query-string integer into SQLite's signed 64-bit
+  range. `offset=2**63` parsed fine, clamped fine, and raised `OverflowError` at
+  BIND time; `OverflowError` is not `ValueError`, so the handler thread died and
+  the client got **no HTTP response at all**. It was live at all twelve
+  `_pagination` call sites. A path-segment id has the same bound.
+- `devices_page` parses `max_android` **before** appending its clause. It used to
+  append first, so a non-numeric value left one `?` unbound and dropped the
+  connection — and the "matches nothing" intent its comment describes had never
+  once executed.
+- `database.like_clause` / `like_contains` are now the only way a LIKE is built.
+  Unescaped, `?q=_` reported 865 devices / 452 chips / 3,443 releases as
+  "matching" and `?q=%` the same; now 60 / 4 / 0 and 0 / 0 / 0, with `q=5G`
+  unchanged at 99 / 28 / 1,357.
+- `_require_id_list` refuses a str where a JSON array is expected. A str is
+  iterable, so `{"ids": "abcdef"}` acknowledged six single-character ids and
+  answered `404 update_not_found` — a type error reported as a fact about the
+  corpus.
+
+And in the request lifecycle:
+
+- `Handler._body` bounds every body read. `Content-Length: 5000` in front of a
+  2-byte body parked a handler thread **forever**, holding its per-thread SQLite
+  handles; there was no read timeout anywhere. The bound is on IDLE time, so a
+  slow honest upload is not cut off.
+- `Handler._guarded` answers `500 {"error":"internal_error"}` instead of dropping
+  the connection, and `log_message` writes an access line again (both were listed
+  under "Open" here). A fault that leaves neither a response nor a log entry can
+  only be found by reproducing it.
+- `_refusal` stops an `OSError`'s filesystem path reaching a caller, and the
+  collection-request routes answer 404 rather than `409` carrying
+  `invalid literal for int() with base 10: 'abc'` as API prose.
+
+Presentation, and the one thing deliberately NOT decided:
+
+- `_firmware_holdings` is the single answer behind both the device grid and the
+  device detail view, so one device cannot describe itself two ways. TECNO i3
+  said `firmware_count: 0` / "firmware not observed" on the grid while its own
+  detail view listed "Captured ROM history · 1". 7 of 865 devices diverged; the
+  new `held_not_current` coverage state says "Captured releases; none establishes
+  current firmware" instead of claiming absence. 0 of 865 disagree now.
+- **Whether that `i3Pro-…` build belongs to the TECNO i3 is an identity
+  judgement and was not made.** Nothing was reattached, deleted or re-reviewed.
+  The `firmware_build_names_a_sibling_model` invariant was checked for
+  under-reporting and does NOT under-report: its count of 8 already includes the
+  i3Pro row, alongside L9Plus (×2), W3Pro, i5Pro, S11Plus, W5Lite and DP10APro.
+  It is 8 and not 9 because that row was never missing from it.
 
 ## What this is
 
@@ -88,8 +144,6 @@ even behind a proxy, and must terminate TLS.
 ## Open, none blocking
 
 - `ledger/raw` grows without bound; no `VACUUM` anywhere; `batch.log` unrotated.
-- No HTTP access log — `log_message` is a no-op. An unhandled exception drops
-  the connection with no response.
 - The batch emits two log lines for a ten-minute run.
 - `run.py` hardcodes the 2026-09-17 zip; the 09-22 bundle has a manifest but no
   zip beside it.

@@ -33,6 +33,38 @@ from mobile_observatory.seed import seed_demonstration  # noqa: E402
 LIVE_CORPUS = ROOT / ".observatory-data" / "corpus.sqlite"
 
 
+def a_batch_is_running() -> bool:
+    """True while an ingest batch holds the corpus lock.
+
+    A batch creates corpus.sqlite on its first statement and then spends
+    minutes filling it, so "the file exists" is not the same as "there is a
+    corpus here to check". Running the suite against a half-built one reports
+    a stale projection as a corpus error -- which it is not; it is a corpus
+    mid-flight. Measured on a fresh clone: the suite failed with
+    "device_missing_from_catalogue_projection: 83" purely because a batch was
+    running in another terminal.
+
+    The lock is the precise signal. If no batch holds it and the projection is
+    still stale, that IS the error this test exists to catch, and it still
+    fails. This narrows the skip to the one case where the check is
+    meaningless, rather than weakening the check itself.
+    """
+    lock = ROOT / ".observatory-data" / "batch.lock"
+    if not lock.is_file():
+        return False
+    try:
+        import fcntl
+        with lock.open("a+b") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return True
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    except (ImportError, OSError):
+        return False
+    return False
+
+
 class InvariantsCanFailTest(unittest.TestCase):
     """One planted violation per check."""
 
@@ -253,6 +285,10 @@ class LiveCorpusInvariantsTest(unittest.TestCase):
     @unittest.skipUnless(LIVE_CORPUS.is_file(), "no live corpus on this machine")
     def test_live_corpus_has_no_error_severity_findings(self) -> None:
         import sqlite3
+
+        if a_batch_is_running():
+            self.skipTest("an ingest batch holds the corpus lock; it is mid-build, "
+                          "not in a state any invariant can be asserted against")
 
         # Read-only, so a test run can never be the thing that changes the
         # corpus it is checking.

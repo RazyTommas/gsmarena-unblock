@@ -168,6 +168,72 @@ class LinkLicenceRuleTest(unittest.TestCase):
         self.assertNotIn("observation_link_identity_owned_by_another_product", checks)
 
 
+class TheBridgeCreatesLinksLicensedForTheirOwnProductTest(unittest.TestCase):
+    """Where the unlicensed state was actually minted, driven through the bridge.
+
+    Every other test here reconciles links that already exist. The bridge is the
+    only thing that CREATES them, and it read the registry with `WHERE id=?` --
+    so a corpus repaired by hand grew the same 13 links back on the next ingest.
+
+    The fixture is the real collision, not an invented one: the Xiaomi tracker
+    publishes model code HM2013023 under two device names whose region strip lands
+    on two different products. identity_id is uuid5(source_id, namespace,
+    normalized_value), so both observations name ONE registry row.
+    """
+
+    def test_a_second_product_reached_by_the_same_identity_is_not_approved(self) -> None:
+        from mobile_observatory import identity_bridge as bridge
+
+        db = Database.migrated()
+        self.addCleanup(db.close)
+        con = db.connection
+        # Ids exactly as the bridge derives them, so the seeded registry row is the
+        # one the rebuild will find rather than a lookalike.
+        p_w = bridge._id("product", "Xiaomi", bridge._norm("Redmi 1 W", "Xiaomi"))
+        p_plain = bridge._id("product", "Xiaomi", bridge._norm("Redmi 1", "Xiaomi"))
+        identity = bridge._id("identity", "xiaomi.community.firmware_tracker", "codename",
+                              bridge._norm("HM2013023"))
+        self.assertNotEqual(p_w, p_plain, "the fixture needs two products, or it proves nothing")
+        tracker = "xiaomi.community.firmware_tracker"   # the bridge dispatches on source id
+        with con:
+            con.execute("INSERT INTO sources(id,name,base_url,authority_scope,enabled,created_at)"
+                        " VALUES(?,'Tracker',NULL,'community',1,?)", (tracker, NOW))
+            con.execute("INSERT INTO ingestion_runs(id,source_id,started_at,outcome,parser_name,"
+                        "parser_version,accepted_count) VALUES('r',?,?,'succeeded','p','1',0)",
+                        (tracker, NOW))
+            con.execute("INSERT INTO artifacts VALUES('a',?,'r',?,'text/csv',NULL,?,'x',1)",
+                        (tracker, "a" * 64, NOW))
+            _product(con, p_w, "Redmi 1 W", "approved")
+            # Approved for "Redmi 1 W" only -- the state the vendor catalogue
+            # actually produced on the live corpus.
+            con.execute(
+                "INSERT INTO source_identity_registry VALUES(?,?,'codename','HM2013023','hm2013023',?,"
+                "'approved','xiaomi_vendor_codename_catalog','1','authoritative',?,?)",
+                (identity, tracker, p_w, NOW, NOW))
+            for oid, device in (("o-w", "Redmi 1 W Global"), ("o-plain", "Redmi 1 Global")):
+                con.execute(
+                    "INSERT INTO observations VALUES(?,?,'r','a','firmware_release',?,?,?,?,'valid',NULL)",
+                    (oid, tracker, oid, NOW,
+                     '{"data":{"source_device_name":"%s","model_code":"HM2013023",'
+                     '"build":"%s","branch":"Stable"}}' % (device, oid),
+                     f"{abs(hash(oid)):064d}"[:64]))
+
+        bridge.rebuild_identity_registry(con)
+
+        states = dict(con.execute(
+            """SELECT sp.canonical_name, opl.link_state FROM observation_product_links opl
+                 JOIN source_products sp ON sp.id = opl.product_id"""))
+        self.assertEqual({"Redmi 1 W": "approved", "Redmi 1": "proposed"}, states,
+                         "the bridge must ask whether the identity is approved FOR THIS "
+                         "product; asking by identity_id alone re-mints the unlicensed state "
+                         "on every ingest")
+        self.assertEqual(
+            identity,
+            con.execute("SELECT identity_id FROM observation_product_links WHERE product_id=?",
+                        (p_plain,)).fetchone()[0],
+            "precondition: both links really do share one identity row")
+
+
 class IdentityReviewDoesNotApproveByProductAloneTest(unittest.TestCase):
     """The loosest of the four copies, driven through the real entry point.
 

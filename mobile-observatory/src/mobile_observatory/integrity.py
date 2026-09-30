@@ -100,23 +100,46 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # matching exclusion this check contradicted the selection and reported TECNO
     # i3 as broken: its only build is "i3Pro-...", correctly not chosen, and
     # correctly reported as no current firmware.
+    # The tie test asks, per candidate row, "does another source sharing my
+    # currency_rank describe my (model, region, channel) partition?" As a
+    # correlated NOT EXISTS that was an index search over
+    # product_firmware_releases plus two `sources` lookups for each of the 10,135
+    # rows with a hardware model, and it cost 205ms of this check's 211ms --
+    # measured on the live corpus, warm disk, by timing the predicates
+    # separately. It is the same question partition_publishers_tied_on_rank
+    # answers a few checks below as ONE aggregate, so it is computed once here
+    # too: 211.3ms -> 22.7ms, returning the identical set of 845 ids.
+    #
+    # `=` and not `IS` in the membership test, deliberately. The correlated form
+    # compared with `=`, so a NULL on either side made EXISTS false and KEPT the
+    # row; GROUP BY instead puts all NULLs in one group, so `IS` here would start
+    # dropping rows the original kept. LEFT JOIN on `sources` for the same
+    # reason: the original's inner join made a row with an unresolvable source_id
+    # fail the EXISTS and survive, where an inner join here would delete it.
     with_firmware = _scalar(connection, """
+        WITH tied_partitions AS (
+          SELECT pfr.hardware_model_id AS hardware_model_id, pfr.region_code AS region_code,
+                 pfr.channel AS channel, s.currency_rank AS currency_rank
+            FROM product_firmware_releases pfr
+            JOIN sources s ON s.id = pfr.source_id
+           WHERE pfr.hardware_model_id IS NOT NULL
+           GROUP BY 1, 2, 3, 4
+          HAVING count(DISTINCT pfr.source_id) > 1)
         SELECT count(*) FROM (
           SELECT hardware_model_id FROM firmware_releases
            UNION
           SELECT pfr.hardware_model_id FROM product_firmware_releases pfr
+           LEFT JOIN sources ms ON ms.id = pfr.source_id
            WHERE pfr.hardware_model_id IS NOT NULL
              -- Tied publishers leave a partition unanswered by design; a device
              -- whose only partitions are tied has firmware and correctly has no
              -- current-firmware row. See partition_publishers_tied_on_rank.
              AND NOT EXISTS (
-               SELECT 1 FROM product_firmware_releases tie
-                 JOIN sources ts ON ts.id = tie.source_id
-                 JOIN sources ms ON ms.id = pfr.source_id
-                WHERE tie.hardware_model_id = pfr.hardware_model_id
-                  AND tie.region_code = pfr.region_code AND tie.channel = pfr.channel
-                  AND tie.source_id <> pfr.source_id
-                  AND ts.currency_rank = ms.currency_rank)
+               SELECT 1 FROM tied_partitions t
+                WHERE t.hardware_model_id = pfr.hardware_model_id
+                  AND t.region_code = pfr.region_code
+                  AND t.channel = pfr.channel
+                  AND t.currency_rank = ms.currency_rank)
              AND NOT EXISTS (
                SELECT 1 FROM device_catalog_flat d
                 WHERE d.hardware_model_id = pfr.hardware_model_id
@@ -397,13 +420,48 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # staging primary key and killed the entire batch, so one device's ambiguity
     # cost every other device its projection. Those partitions are now excluded
     # and counted here instead.
+    # Asked of firmware_releases directly rather than of v_latest_firmware, which
+    # was 360ms of this endpoint's 618ms -- the single most expensive check --
+    # measured on the live corpus, warm disk.
+    #
+    # v_latest_firmware exists to pick WHICH release is current in each
+    # (hardware_model_id, ifnull(firmware_target_id,''), channel) partition: that
+    # is its window PARTITION BY, and it keeps recency_rank = 1, so it emits
+    # exactly one row per partition. This check groups by
+    # (hardware_model_id, target_code, channel) and counts distinct target ids --
+    # both the group key and the counted expression are functions of the partition
+    # key ALONE. Which row won a partition therefore cannot change the answer, so
+    # the entire ranking the view computes (two window functions over 21,186
+    # releases, plus the samsung.fota json_extract scan behind source_positions)
+    # was computed and thrown away. DISTINCT over the partition key is the same
+    # input set: 726 triples instead of 21,186 rows, 360.3ms -> 3.6ms.
+    #
+    # ifnull() on the target id matches the view's partition expression exactly,
+    # so a NULL and an empty-string target collapse into one group here as they do
+    # there. The equality is proven over the live corpus and over constructed data
+    # where the finding is NON-ZERO by
+    # tests/test_integrity_fast_checks_agree.py -- the live corpus reports 0 here,
+    # and two queries agreeing on an empty answer prove nothing.
+    #
+    # ONE PRECONDITION, found by testing the NULL case rather than reasoning about
+    # it: this joins firmware_targets on the COLLAPSED id, where the view joined on
+    # whichever raw id won the partition. Those differ only if a single
+    # (model, channel) partition holds both a NULL target and an empty-string one
+    # AND a firmware_target exists whose id is the empty string -- otherwise
+    # `ft.id = ''` matches nothing and both forms produce the same empty code.
+    # No firmware_target has an empty id (0 of 19 on the corpus) and a
+    # firmware_target_id of '' is unreachable while the foreign key holds, because
+    # there is no parent row to point at. The test asserts that precondition
+    # directly and demonstrates the divergence when it is violated, so this is a
+    # guarded assumption rather than a silent one.
     shared_code = _scalar(connection, """
         SELECT count(*) FROM (
-          SELECT lf.hardware_model_id, coalesce(ft.target_code,'') AS code, lf.channel
-            FROM v_latest_firmware lf
-            LEFT JOIN firmware_targets ft ON ft.id = lf.firmware_target_id
+          SELECT d.hardware_model_id, coalesce(ft.target_code,'') AS code, d.channel
+            FROM (SELECT DISTINCT hardware_model_id, ifnull(firmware_target_id,'') AS target_id,
+                         channel FROM firmware_releases) d
+            LEFT JOIN firmware_targets ft ON ft.id = d.target_id
            GROUP BY 1, 2, 3
-          HAVING count(DISTINCT ifnull(lf.firmware_target_id,'')) > 1)""")
+          HAVING count(DISTINCT d.target_id) > 1)""")
     if shared_code:
         findings.append(Finding("device_targets_share_a_region_code", "warning", shared_code,
                                 "these (device, region code, channel) partitions are claimed by "

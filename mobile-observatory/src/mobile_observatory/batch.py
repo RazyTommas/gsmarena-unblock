@@ -200,6 +200,26 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
                 "evidence_rows": report.evidence_rows, "digest": report.digest}
         except ProjectionError as error:
             results["current_firmware"] = {"error": str(error), "published": False}
+        # The query planner has no statistics unless something runs ANALYZE, and
+        # nothing ever had: 129 indices and no sqlite_stat1 table at all, so every
+        # plan on this corpus was chosen from SQLite's built-in guesses about how
+        # selective an index is. Measured cost of fixing that: 0.1s. Measured
+        # effect: -56% on /api/v1/releases.
+        #
+        # It belongs HERE, not in a one-off command, for two reasons. Statistics
+        # describe a snapshot, and this batch is what changes the snapshot -- a
+        # manual ANALYZE is correct until the next ingest and then quietly stale.
+        # And sqlite_stat1 lives IN the database file, so a rebuild starts with no
+        # statistics again; anything not run by the thing that builds the corpus is
+        # lost every time the corpus is rebuilt.
+        #
+        # After the derivations above and before check_corpus, so the invariant
+        # queries are themselves planned with statistics, and so what is analysed is
+        # the corpus this run actually produced.
+        db.connection.execute("ANALYZE")
+        results["query_statistics"] = {
+            "analyzed_tables": db.connection.execute(
+                "SELECT count(DISTINCT tbl) FROM sqlite_stat1").fetchone()[0]}
         # Check the corpus we just produced, against the corpus -- not against a
         # fresh in-memory schema, which is what every existing validator did and
         # is why none of them could ever fail. Reported, not raised: the

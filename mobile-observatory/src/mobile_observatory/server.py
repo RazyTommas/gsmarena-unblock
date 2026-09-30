@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
+from . import search_index, storage
 from .access import COOKIE_NAME, AccessPolicy, token_for_binding
 
 from .watches import migrate_watches, list_watches, save_watch
@@ -1602,12 +1603,26 @@ class ObservatoryService:
         the region count in the detail line, where it is information rather than
         repetition. `total` stays the number of matching BUILDS, so the reported
         count and the listed rows are the same unit.
+        The FTS5 trigram index narrows which releases the joins below run over.
+        The LIKE predicates are UNCHANGED and still decide every match, so the
+        answer is the scan's answer -- the index only ever proposes candidates.
+        Measured on the live corpus: `SM-S938B` 39.4ms -> 1.1ms, `A15` 36.5ms ->
+        0.7ms, `TECNO_W4` 34.8ms -> 0.0ms, and `Galaxy` 43.5ms -> 45.3ms because
+        it matches every indexed row and is sent to the scan instead. See
+        search_index.py, including what it deliberately does NOT speed up.
         """
         like = like_contains(q)
-        base = ("FROM v_device_region_history WHERE " + " OR ".join(
+        narrowing = search_index.plan(self.corpus.connection, q, "firmware_release_id")
+        if narrowing.certainly_empty:
+            # The index is a superset of the LIKE match, so "no candidate rows"
+            # means no row can match and the joins need not run. This is the only
+            # place an answer is returned without evaluating the LIKE, and the
+            # superset property is the whole of why it is sound.
+            return QueryPage([], 0, limit, 0)
+        base = ("FROM v_device_region_history WHERE " + narrowing.clause + "(" + " OR ".join(
             like_clause(column) for column in
-            ("build_id", "model_code", "variant", "target_code")))
-        params = [like] * 4
+            ("build_id", "model_code", "variant", "target_code")) + ")")
+        params = [*narrowing.params, *([like] * 4)]
         total = self.corpus.connection.execute(
             "SELECT count(DISTINCT build_id) " + base, params).fetchone()[0]
         rows = self.corpus.connection.execute(

@@ -12,8 +12,8 @@ inputs. Only the step that builds the corpus can keep statistics current, so the
 assertion is about where the ANALYZE lives, not merely that one ever ran.
 
 run_batch reads 16 real inputs and takes ten minutes, so it is not invoked here.
-Two assertions instead: the statement is in run_batch, positioned so a rebuild
-cannot skip it; and ANALYZE genuinely populates sqlite_stat1 on a populated
+Two assertions instead: the statement is in the batch's ingest pipeline
+(`batch._ingest`, which run_batch wraps), positioned so a rebuild cannot skip it; and ANALYZE genuinely populates sqlite_stat1 on a populated
 database, so the first assertion is about something that works.
 """
 from __future__ import annotations
@@ -33,9 +33,9 @@ from mobile_observatory.seed import seed_demonstration  # noqa: E402
 
 class TheBatchRefreshesQueryStatisticsTest(unittest.TestCase):
     def test_run_batch_runs_analyze(self) -> None:
-        source = inspect.getsource(batch.run_batch)
+        source = inspect.getsource(batch._ingest)
         self.assertIn('execute("ANALYZE")', source,
-                      "run_batch does not ANALYZE, so a rebuilt corpus has no query-planner "
+                      "the batch does not ANALYZE, so a rebuilt corpus has no query-planner "
                       "statistics and every plan is guessed")
 
     def test_analyze_runs_after_the_derivations_and_before_the_checks(self) -> None:
@@ -46,7 +46,7 @@ class TheBatchRefreshesQueryStatisticsTest(unittest.TestCase):
         build_current_firmware, so what gets analysed is the corpus this run
         produced rather than the one it started from.
         """
-        source = inspect.getsource(batch.run_batch)
+        source = inspect.getsource(batch._ingest)
         analyze = source.index('execute("ANALYZE")')
         self.assertLess(source.index("build_current_firmware(db)"), analyze,
                         "ANALYZE runs before the projection is rebuilt, so it describes the "

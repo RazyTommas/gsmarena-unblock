@@ -420,9 +420,10 @@ class TheStemRuleIsInThePipelineTest(unittest.TestCase):
     """
 
     def test_run_batch_calls_the_stem_rule(self) -> None:
-        from mobile_observatory.batch import run_batch
+        from mobile_observatory import batch
 
-        self.assertIn("approve_stem_corroborated_identities", set(run_batch.__code__.co_names),
+        self.assertIn("approve_stem_corroborated_identities",
+                      set(batch._ingest.__code__.co_names),
                       "the stem rule releases captured evidence that otherwise cannot reach "
                       "the surface; it has to run in the batch, not exist beside it")
 

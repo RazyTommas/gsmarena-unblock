@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 
+from . import changesets, search_index
 from .adjudication import UNRESOLVABLE
 from .source_dates import ISO_DATE_GLOB, STATED_DATE_FIELDS
 
@@ -635,6 +636,48 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
         findings.append(Finding("approved_product_unplaceable_vendor", "error", total,
                                 f"approved products name a vendor matching no manufacturer and no "
                                 f"brand, so promotion would mint one from the string: {names}"))
+
+    # -- the search index must describe the corpus it is consulted about --------
+    #
+    # A stale index that looks fresh is worse than no index: the scan it replaced
+    # was slow and right. `staleness()` re-derives the whole indexed basis (66ms)
+    # rather than comparing a row count, because an edit that leaves the count
+    # alone -- a model code corrected, a region renamed -- is exactly the change a
+    # count cannot see. An ERROR, not a warning: while this is true the type-ahead
+    # can report a release that exists as absent.
+    #
+    # `deep` guards it for the reason at the top of this function: it is a
+    # re-derivation over 21,186 rows and /api/v1/admin/health is called on every
+    # page load. The request path has its own cheap tripwire (search_index.plan)
+    # which falls back to the scan, so the gap between these two checks is
+    # covered by being CORRECT and slow rather than by being unchecked.
+    if deep and connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?",
+            (search_index.STATE,)).fetchone():
+        stale, why = search_index.staleness(connection)
+        if stale:
+            findings.append(Finding("search_index_does_not_match_the_corpus", "error", 1, why))
+
+    # -- what a changeset cannot record --------------------------------------
+    #
+    # Reported so the limit is a measurement rather than a paragraph in
+    # changesets.py that nobody re-reads. The session extension identifies rows
+    # by primary key, so a table without one is not recorded AND NOT COMPLAINED
+    # ABOUT -- its changes are simply absent from the diff, and an operator
+    # reverting a batch would get a silently partial rollback.
+    #
+    # On this corpus it is one table, `identity_resolution_rationales`, which is
+    # the table recording WHY each automated identity conclusion was reached. A
+    # warning and not an error: nothing is misreported by it, the rollback is
+    # merely narrower than it appears. It becomes an error's worth of surprise
+    # only if somebody believes the revert was total, which is what naming it
+    # here prevents.
+    untracked = changesets.tables_invisible_to_a_changeset(connection)
+    if untracked:
+        findings.append(Finding(
+            "table_absent_from_every_changeset", "warning", len(untracked),
+            f"no PRIMARY KEY, so the session extension does not record changes to it and a "
+            f"changeset revert leaves it untouched: {', '.join(untracked)}"))
 
     order = {"error": 0, "warning": 1}
     findings.sort(key=lambda f: (order.get(f.severity, 2), -f.count))

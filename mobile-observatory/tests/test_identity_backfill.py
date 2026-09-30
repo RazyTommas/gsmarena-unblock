@@ -212,9 +212,9 @@ class TheRuleIsInThePipelineTest(unittest.TestCase):
     """
 
     def test_run_batch_calls_the_backfill_and_the_link_reconciliation(self) -> None:
-        from mobile_observatory.batch import run_batch
+        from mobile_observatory import batch
 
-        names = set(run_batch.__code__.co_names)
+        names = set(batch._ingest.__code__.co_names)
         self.assertIn("approve_catalog_confirmed_identities", names,
                       "the backfill closes the stall that leaves captured evidence unable to "
                       "reach the surface; it has to run in the batch, not exist beside it")

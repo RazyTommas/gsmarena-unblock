@@ -131,6 +131,13 @@ def seed_demonstration(db: Database, fixture_path: str | Path) -> None:
     # way ingest does.
     from .current_firmware import build as build_current_firmware
     build_current_firmware(db)
+    # And the search index, for exactly the same reason and in the same order the
+    # batch uses: after the projection that decides the model codes and variants
+    # it holds. A seeded corpus whose index was never built is a corpus that
+    # `check_corpus` correctly reports as stale -- seeding is this fixture's
+    # ingest, so it has to leave behind what an ingest leaves behind.
+    from .search_index import build as build_search_index
+    build_search_index(db.connection)
 
 
 def _seed_target(con, code: str) -> None:

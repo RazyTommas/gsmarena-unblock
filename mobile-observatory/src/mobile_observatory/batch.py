@@ -5,6 +5,7 @@ import csv
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .collectors.adapters.apple_ipsw import AppleIpswFirmwareAdapter
@@ -19,6 +20,7 @@ from .collectors.adapters.tecno_security import TecnoSecurityPatchAdapter
 from .collectors.adapters.xiaomi_tracker import XiaomiFirmwareTrackerAdapter
 from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
+from . import changesets, search_index
 from .dedupe import merge_confirmed_duplicates
 from .collectors.promotion import SamsungFirmwarePromoter
 from .adjudication import adjudicate_unresolvable_products, reopen_stale_adjudications
@@ -73,203 +75,262 @@ def seed_samsung_history_identities(db: Database, history_path: Path) -> int:
     return created
 
 
-def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
+def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path,
+              record_changeset: bool = True) -> dict:
+    """Run the ingest, recording an invertible diff of what it changed.
+
+    The recording wraps the migrations too, so a run that alters the schema says
+    so -- a changeset carries rows, not DDL, and a caller about to revert needs
+    to know its undo is partial BEFORE it runs. See changesets.py.
+
+    `record_changeset=False` runs the ingest with no session attached. It exists
+    for the tests that need the un-recorded path and for a first build, where the
+    changeset is the size of the corpus and its inverse is `rm corpus.sqlite`.
+    """
     data_dir.mkdir(parents=True, exist_ok=True)
+    db = Database(data_dir / "corpus.sqlite")
+    support = changesets.session_support()
+    recording = None
+    # db.close() lives HERE and not in _ingest, which is where it used to be.
+    # Asking the session for its changeset is a call against the open `sqlite3 *`
+    # handle, so the connection has to outlive the recording -- closing it inside
+    # the ingest would have handed the session extension a freed handle on every
+    # run, which is not an error anybody gets told about.
+    try:
+        if record_changeset and support.available:
+            with changesets.record_changes(db.connection) as recording:
+                db.apply_migrations()
+                results = _ingest(db, data_dir=data_dir, legacy_root=legacy_root,
+                                  fixture_root=fixture_root)
+        else:
+            db.apply_migrations()
+            results = _ingest(db, data_dir=data_dir, legacy_root=legacy_root,
+                              fixture_root=fixture_root)
+            results["changeset"] = {
+                "recorded": False,
+                "reason": support.reason if record_changeset else "not requested by the caller"}
+            return results
+    finally:
+        # Written even when the ingest raised: this ingest commits incrementally,
+        # so a crash leaves committed work behind and that is the run somebody
+        # actually needs to undo.
+        stored = _store_changeset(recording, data_dir)
+        db.close()
+    results["changeset"] = {"recorded": True, "reason": support.reason, **stored}
+    return results
+
+
+def _store_changeset(recording, data_dir: Path) -> dict:
+    if recording is None:
+        return {"error": "the session was never created"}
+    if recording.error:
+        return {"error": recording.error}
+    store = changesets.ChangesetStore(data_dir / "changesets")
+    path = store.write(recording, run=datetime.now(timezone.utc).strftime("batch-%Y%m%dT%H%M%SZ"))
+    return {"path": str(path), **recording.as_dict()}
+
+
+def _ingest(db: Database, *, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
     ledger = data_dir / "ledger"
-    db = Database.migrated(data_dir / "corpus.sqlite")
     pipeline = CollectorPipeline(ledger)
     importer = IngestionImporter(ledger, db.connection)
     results: dict[str, object] = {}
+    results["reviewed_samsung_devices_created"] = seed_reviewed_samsung(
+        db, fixture_root / "samsung" / "reviewed_profiles.json")
+    samsung_history = legacy_root / "T005-fota-modem" / "samsung_fota.csv"
+    results["samsung_history_devices_created"] = seed_samsung_history_identities(db, samsung_history)
+    adapters = [
+        (XiaomiFirmwareTrackerAdapter(legacy_root / "xiaomi-tracker" / "latest.yml"), "xiaomi-captured-history"),
+        (TecnoSecurityPatchAdapter(legacy_root / "tecno-security-comprehensive" / "tecno-security-updates.csv"), "tecno-captured"),
+        (SamsungFotaArtifactAdapter(fixture_root / "samsung" / "fota_sm-s938b_ilo.xml",
+                                    model_code="SM-S938B", csc="ILO", observed_at="2026-09-16T06:00:00Z"),
+         "samsung-captured-sm-s938b-ilo"),
+        (SamsungFotaHistoryAdapter(samsung_history), "samsung-fota-history-captured"),
+        # Android patch level per build. Without this nothing in the corpus can be
+        # adjudicated -- a device with no patch level is undecidable, not safe.
+        (SamsungAsplAdapter(legacy_root / "samsung-aspl" / "samsung_aspl.csv"),
+         "samsung-aspl-captured"),
+        # Xiaomi firmware HISTORY. The tracker adapter above carries only the
+        # LATEST build per device (4,886 rows); this is the archive behind it,
+        # re-parsed from the 337 captured mifirm.net model pages. The legacy
+        # corpus held 21,843 of these and collapsed fastboot/recovery into a
+        # single row -- see MifirmArchiveAdapter for the measured difference.
+        (MifirmArchiveAdapter(legacy_root / "mifirm-archive" / "mifirm-firmware-archive.csv"),
+         "mifirm-archive-captured"),
+        # Apple has no Android-style patch level (no -01/-05 tier, no aspl_month);
+        # this is firmware_release only. See apple_ipsw.py's docstring for why
+        # security_patch_publication is deliberately not attempted here.
+        (AppleIpswFirmwareAdapter(legacy_root / "ipsw-me" / "ipsw-me-firmware.csv"),
+         "ipsw-me-captured"),
+        # The three Transsion sources below were ingested by hand and never
+        # wired in here. The adapters existed, the captured artifacts were
+        # committed, and the batch simply did not list them -- so the corpus
+        # on this machine could not be reproduced from a clone. Measured: a
+        # fresh checkout rebuilt to 228 devices and 90,143 observations
+        # against 865 and 96,319, with Infinix and itel absent entirely,
+        # because these are the sources that carry them.
+        (FrboxTranssionCatalogAdapter(
+            legacy_root / "frbox-transsion-catalog" / "transsion_frbox_catalog.csv"),
+         "frbox-transsion-captured"),
+        (NaijaromTranssionAdapter(
+            legacy_root / "naijarom-transsion" / "naijarom-merged.csv"),
+         "naijarom-merged-captured"),
+        # One source, two captures: the same endpoint and response shape
+        # answering for different brands, which is why f2de0ff gave them one
+        # source id rather than three.
+        (TecnoOtaCheckinAdapter(
+            legacy_root / "tecno-ota-checkin" / "tecno_ota_checkin.csv"),
+         "ota-checkin-tecno"),
+        (TecnoOtaCheckinAdapter(
+            legacy_root / "infinix-itel-ota-checkin" / "infinix_itel_ota_checkin.csv"),
+         "ota-checkin-infinix-itel"),
+    ]
+    for adapter, run_id in adapters:
+        result = pipeline.run(adapter, run_id)
+        imported = importer.import_run(adapter.source_id, run_id)
+        results[adapter.source_id] = {"state": result.run.state, **imported}
+    promotion = SamsungFirmwarePromoter(db.connection).promote_pending()
+    results["samsung_promotion"] = {
+        "promoted": promotion.promoted, "skipped": promotion.skipped, "events": promotion.events}
+    results["identity_bridge"] = rebuild_identity_registry(
+        db.connection, legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv")
+    decisions = []
+    if (data_dir / 'local.sqlite').is_file():
+        with sqlite3.connect(data_dir / 'local.sqlite') as local:
+            local.row_factory = sqlite3.Row
+            if local.execute("SELECT 1 FROM sqlite_schema WHERE name='identity_decisions'").fetchone():
+                decisions = [dict(r) for r in local.execute('SELECT * FROM identity_decisions')]
+    # BEFORE the identity rules, so anything a new capture has unblocked is
+    # decided again in THIS run rather than spending a night in 'proposed'. An
+    # adjudication is terminal, not closed: it is withdrawn the moment the basis
+    # it was taken on stops describing the corpus. See adjudication.py.
+    with db.connection:
+        results["adjudication_reopened"] = reopen_stale_adjudications(db.connection)
+    results["identity_automation"] = automate_identity_review(
+        db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml",
+        specs_csv=legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv",
+        google_play_csv=legacy_root / "google-play-devices" / "supported_devices.csv", decisions=decisions)
+    # Identities that arrived AFTER their product was concluded. A remembered
+    # conclusion is final by design, so `_conclude` returns early for the
+    # product and never evaluates the new identity: it stays 'proposed',
+    # its links stay 'proposed', and promotion needs both approved. The
+    # evidence is captured and cannot reach the surface.
+    #
+    # This existed, unreferenced by anything, since 2026-09-22. It approves 0
+    # identities against today's captured devices.yml -- see the module
+    # docstring for the measured reason and for why it is wired in anyway.
+    results["identity_backfill"] = approve_catalog_confirmed_identities(
+        db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
+    # Second, and only for what the first one cannot reach: the catalog is keyed
+    # by regional codename variants and the mifirm archive publishes the bare
+    # stem, so an exact-key test can never match one. This approves a stem only
+    # when the product's OWN recorded conclusion carries a captured Google Play
+    # device code equal to it, and refuses (with the reason recorded) otherwise.
+    # It runs after the exact-key rule, never instead of it: anything the
+    # vendor's own word settles should be settled on the vendor's own word.
+    results["identity_stem_rule"] = approve_stem_corroborated_identities(
+        db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
+    # Must run on EVERY batch: the TECNO source re-emits both spellings each time,
+    # so a merge done once is undone by the next ingest.
+    results["dedupe"] = merge_confirmed_duplicates(
+        db.connection, legacy_root / "google-play-devices" / "supported_devices.csv")
+    # dedupe repoints observation_product_links.product_id and
+    # source_identity_registry.product_id at the surviving product, and the two
+    # are not guaranteed to move together -- a link can land on the survivor
+    # while its registry row stays with a product that no longer exists as its
+    # owner. Reconcile before promotion reads link_state, so promotion never
+    # sees a state a merge left behind.
+    with db.connection:
+        results["link_states_after_dedupe"] = refresh_observation_link_states(db.connection)
+    # AFTER every identity rule and after dedupe: a product is only unresolvable
+    # once everything that could resolve it has had its turn, and adjudicating
+    # before dedupe would record a basis for a product about to be merged away.
+    # It approves nothing, so promotion below is unaffected by it.
+    results["adjudication"] = adjudicate_unresolvable_products(
+        db.connection, decisions=decisions)
+    results["product_promotion"] = promote_approved_product_observations(db.connection)
+    results["device_promotion"] = vars(promote_approved_products_to_devices(db.connection))
+    results["canonical_silicon"] = enrich_canonical_silicon(
+        db.connection, legacy_root / "cross-reference" / "device-chipset-cve-xref.csv")
+    # Fills only the gaps enrich_canonical_silicon left empty; never overwrites
+    # its higher-authority rows (see enrich_gsmarena_hardware_silicon docstring).
+    results["gsmarena_canonical_silicon"] = enrich_gsmarena_hardware_silicon(
+        db.connection, legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv")
+    # Last of the silicon steps, so it only fills what the higher-authority
+    # captures left empty.
+    results["observed_silicon"] = enrich_observed_hardware_silicon(db.connection)
+    results["security_catalog"] = import_security_catalog(
+        db.connection, legacy_root / "google-asb-cves" / "android-security-bulletin-cves.csv")
+    results["mediatek_security_catalog"] = import_mediatek_catalog(
+        db.connection, legacy_root / "mediatek-cve-chipsets" / "mediatek-cve-chipsets.csv")
+    results["agent_review_bundle"] = write_agent_review_bundle(
+        db.connection, data_dir / "agent-review")
+    # Last derivation step, because it reads what every step above wrote.
+    # A failure here leaves the previously published generation serving --
+    # stale rather than absent -- so it is reported and does not abort the
+    # run, whose observations are already committed and correct.
     try:
-        results["reviewed_samsung_devices_created"] = seed_reviewed_samsung(
-            db, fixture_root / "samsung" / "reviewed_profiles.json")
-        samsung_history = legacy_root / "T005-fota-modem" / "samsung_fota.csv"
-        results["samsung_history_devices_created"] = seed_samsung_history_identities(db, samsung_history)
-        adapters = [
-            (XiaomiFirmwareTrackerAdapter(legacy_root / "xiaomi-tracker" / "latest.yml"), "xiaomi-captured-history"),
-            (TecnoSecurityPatchAdapter(legacy_root / "tecno-security-comprehensive" / "tecno-security-updates.csv"), "tecno-captured"),
-            (SamsungFotaArtifactAdapter(fixture_root / "samsung" / "fota_sm-s938b_ilo.xml",
-                                        model_code="SM-S938B", csc="ILO", observed_at="2026-09-16T06:00:00Z"),
-             "samsung-captured-sm-s938b-ilo"),
-            (SamsungFotaHistoryAdapter(samsung_history), "samsung-fota-history-captured"),
-            # Android patch level per build. Without this nothing in the corpus can be
-            # adjudicated -- a device with no patch level is undecidable, not safe.
-            (SamsungAsplAdapter(legacy_root / "samsung-aspl" / "samsung_aspl.csv"),
-             "samsung-aspl-captured"),
-            # Xiaomi firmware HISTORY. The tracker adapter above carries only the
-            # LATEST build per device (4,886 rows); this is the archive behind it,
-            # re-parsed from the 337 captured mifirm.net model pages. The legacy
-            # corpus held 21,843 of these and collapsed fastboot/recovery into a
-            # single row -- see MifirmArchiveAdapter for the measured difference.
-            (MifirmArchiveAdapter(legacy_root / "mifirm-archive" / "mifirm-firmware-archive.csv"),
-             "mifirm-archive-captured"),
-            # Apple has no Android-style patch level (no -01/-05 tier, no aspl_month);
-            # this is firmware_release only. See apple_ipsw.py's docstring for why
-            # security_patch_publication is deliberately not attempted here.
-            (AppleIpswFirmwareAdapter(legacy_root / "ipsw-me" / "ipsw-me-firmware.csv"),
-             "ipsw-me-captured"),
-            # The three Transsion sources below were ingested by hand and never
-            # wired in here. The adapters existed, the captured artifacts were
-            # committed, and the batch simply did not list them -- so the corpus
-            # on this machine could not be reproduced from a clone. Measured: a
-            # fresh checkout rebuilt to 228 devices and 90,143 observations
-            # against 865 and 96,319, with Infinix and itel absent entirely,
-            # because these are the sources that carry them.
-            (FrboxTranssionCatalogAdapter(
-                legacy_root / "frbox-transsion-catalog" / "transsion_frbox_catalog.csv"),
-             "frbox-transsion-captured"),
-            (NaijaromTranssionAdapter(
-                legacy_root / "naijarom-transsion" / "naijarom-merged.csv"),
-             "naijarom-merged-captured"),
-            # One source, two captures: the same endpoint and response shape
-            # answering for different brands, which is why f2de0ff gave them one
-            # source id rather than three.
-            (TecnoOtaCheckinAdapter(
-                legacy_root / "tecno-ota-checkin" / "tecno_ota_checkin.csv"),
-             "ota-checkin-tecno"),
-            (TecnoOtaCheckinAdapter(
-                legacy_root / "infinix-itel-ota-checkin" / "infinix_itel_ota_checkin.csv"),
-             "ota-checkin-infinix-itel"),
-        ]
-        for adapter, run_id in adapters:
-            result = pipeline.run(adapter, run_id)
-            imported = importer.import_run(adapter.source_id, run_id)
-            results[adapter.source_id] = {"state": result.run.state, **imported}
-        promotion = SamsungFirmwarePromoter(db.connection).promote_pending()
-        results["samsung_promotion"] = {
-            "promoted": promotion.promoted, "skipped": promotion.skipped, "events": promotion.events}
-        results["identity_bridge"] = rebuild_identity_registry(
-            db.connection, legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv")
-        decisions = []
-        if (data_dir / 'local.sqlite').is_file():
-            with sqlite3.connect(data_dir / 'local.sqlite') as local:
-                local.row_factory = sqlite3.Row
-                if local.execute("SELECT 1 FROM sqlite_schema WHERE name='identity_decisions'").fetchone():
-                    decisions = [dict(r) for r in local.execute('SELECT * FROM identity_decisions')]
-        # BEFORE the identity rules, so anything a new capture has unblocked is
-        # decided again in THIS run rather than spending a night in 'proposed'. An
-        # adjudication is terminal, not closed: it is withdrawn the moment the basis
-        # it was taken on stops describing the corpus. See adjudication.py.
-        with db.connection:
-            results["adjudication_reopened"] = reopen_stale_adjudications(db.connection)
-        results["identity_automation"] = automate_identity_review(
-            db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml",
-            specs_csv=legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv",
-            google_play_csv=legacy_root / "google-play-devices" / "supported_devices.csv", decisions=decisions)
-        # Identities that arrived AFTER their product was concluded. A remembered
-        # conclusion is final by design, so `_conclude` returns early for the
-        # product and never evaluates the new identity: it stays 'proposed',
-        # its links stay 'proposed', and promotion needs both approved. The
-        # evidence is captured and cannot reach the surface.
-        #
-        # This existed, unreferenced by anything, since 2026-09-22. It approves 0
-        # identities against today's captured devices.yml -- see the module
-        # docstring for the measured reason and for why it is wired in anyway.
-        results["identity_backfill"] = approve_catalog_confirmed_identities(
-            db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
-        # Second, and only for what the first one cannot reach: the catalog is keyed
-        # by regional codename variants and the mifirm archive publishes the bare
-        # stem, so an exact-key test can never match one. This approves a stem only
-        # when the product's OWN recorded conclusion carries a captured Google Play
-        # device code equal to it, and refuses (with the reason recorded) otherwise.
-        # It runs after the exact-key rule, never instead of it: anything the
-        # vendor's own word settles should be settled on the vendor's own word.
-        results["identity_stem_rule"] = approve_stem_corroborated_identities(
-            db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
-        # Must run on EVERY batch: the TECNO source re-emits both spellings each time,
-        # so a merge done once is undone by the next ingest.
-        results["dedupe"] = merge_confirmed_duplicates(
-            db.connection, legacy_root / "google-play-devices" / "supported_devices.csv")
-        # dedupe repoints observation_product_links.product_id and
-        # source_identity_registry.product_id at the surviving product, and the two
-        # are not guaranteed to move together -- a link can land on the survivor
-        # while its registry row stays with a product that no longer exists as its
-        # owner. Reconcile before promotion reads link_state, so promotion never
-        # sees a state a merge left behind.
-        with db.connection:
-            results["link_states_after_dedupe"] = refresh_observation_link_states(db.connection)
-        # AFTER every identity rule and after dedupe: a product is only unresolvable
-        # once everything that could resolve it has had its turn, and adjudicating
-        # before dedupe would record a basis for a product about to be merged away.
-        # It approves nothing, so promotion below is unaffected by it.
-        results["adjudication"] = adjudicate_unresolvable_products(
-            db.connection, decisions=decisions)
-        results["product_promotion"] = promote_approved_product_observations(db.connection)
-        results["device_promotion"] = vars(promote_approved_products_to_devices(db.connection))
-        results["canonical_silicon"] = enrich_canonical_silicon(
-            db.connection, legacy_root / "cross-reference" / "device-chipset-cve-xref.csv")
-        # Fills only the gaps enrich_canonical_silicon left empty; never overwrites
-        # its higher-authority rows (see enrich_gsmarena_hardware_silicon docstring).
-        results["gsmarena_canonical_silicon"] = enrich_gsmarena_hardware_silicon(
-            db.connection, legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv")
-        # Last of the silicon steps, so it only fills what the higher-authority
-        # captures left empty.
-        results["observed_silicon"] = enrich_observed_hardware_silicon(db.connection)
-        results["security_catalog"] = import_security_catalog(
-            db.connection, legacy_root / "google-asb-cves" / "android-security-bulletin-cves.csv")
-        results["mediatek_security_catalog"] = import_mediatek_catalog(
-            db.connection, legacy_root / "mediatek-cve-chipsets" / "mediatek-cve-chipsets.csv")
-        results["agent_review_bundle"] = write_agent_review_bundle(
-            db.connection, data_dir / "agent-review")
-        # Last derivation step, because it reads what every step above wrote.
-        # A failure here leaves the previously published generation serving --
-        # stale rather than absent -- so it is reported and does not abort the
-        # run, whose observations are already committed and correct.
-        try:
-            report = build_current_firmware(db)
-            results["current_firmware"] = {
-                "generation": report.generation, "rows": report.rows,
-                "devices": report.devices, "canonical_rows": report.canonical_rows,
-                "evidence_rows": report.evidence_rows, "digest": report.digest}
-        except ProjectionError as error:
-            results["current_firmware"] = {"error": str(error), "published": False}
-        # The query planner has no statistics unless something runs ANALYZE, and
-        # nothing ever had: 129 indices and no sqlite_stat1 table at all, so every
-        # plan on this corpus was chosen from SQLite's built-in guesses about how
-        # selective an index is. Measured cost of fixing that: 0.1s. Measured
-        # effect: -56% on /api/v1/releases.
-        #
-        # It belongs HERE, not in a one-off command, for two reasons. Statistics
-        # describe a snapshot, and this batch is what changes the snapshot -- a
-        # manual ANALYZE is correct until the next ingest and then quietly stale.
-        # And sqlite_stat1 lives IN the database file, so a rebuild starts with no
-        # statistics again; anything not run by the thing that builds the corpus is
-        # lost every time the corpus is rebuilt.
-        #
-        # After the derivations above and before check_corpus, so the invariant
-        # queries are themselves planned with statistics, and so what is analysed is
-        # the corpus this run actually produced.
-        db.connection.execute("ANALYZE")
-        results["query_statistics"] = {
-            "analyzed_tables": db.connection.execute(
-                "SELECT count(DISTINCT tbl) FROM sqlite_stat1").fetchone()[0]}
-        # Check the corpus we just produced, against the corpus -- not against a
-        # fresh in-memory schema, which is what every existing validator did and
-        # is why none of them could ever fail. Reported, not raised: the
-        # violations that exist today describe already-ingested data, and
-        # aborting the run repairs none of it.
-        findings = check_corpus(db.connection)
-        results["integrity"] = {"summary": summarise(findings),
-                                "findings": [f.as_dict() for f in findings]}
-        # Advisory only: never gates or alters the run above. See silence.py
-        # and docs/SOURCE_SILENCE_DETECTION.md. `main()` below turns a
-        # "silent" finding into a nonzero process exit and a logged ALARM,
-        # which is the only part of this that can reach anyone -- and only
-        # if the scheduled invocation's exit code is wired to alerting.
-        results["silence"] = detect_silence(db.connection)
-        results["totals"] = {
-            "devices": db.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0],
-            "observations": db.connection.execute("SELECT count(*) FROM observations").fetchone()[0],
-            "firmware_releases": db.connection.execute("SELECT count(*) FROM firmware_releases").fetchone()[0],
-            "product_firmware_releases": db.connection.execute(
-                "SELECT count(*) FROM product_firmware_releases").fetchone()[0],
-            "devices_with_current_firmware": db.connection.execute(
-                "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware").fetchone()[0],
-            "radar_events": db.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0],
-        }
-        return results
-    finally:
-        db.close()
+        report = build_current_firmware(db)
+        results["current_firmware"] = {
+            "generation": report.generation, "rows": report.rows,
+            "devices": report.devices, "canonical_rows": report.canonical_rows,
+            "evidence_rows": report.evidence_rows, "digest": report.digest}
+    except ProjectionError as error:
+        results["current_firmware"] = {"error": str(error), "published": False}
+    # AFTER current_firmware, which is what rebuilds device_catalog_flat, and so
+    # what decides the model codes and variants this index holds. Built here and
+    # nowhere else: an index maintained by hand is an index that is stale by the
+    # next ingest, and this one is read on every keystroke of the type-ahead.
+    #
+    # It rebuilds only when its basis digest moved -- see search_index.build. On
+    # a run that changes no release text that is both free and, more importantly,
+    # 5.6 MB that does not enter this run's changeset for no change at all.
+    results["search_index"] = search_index.build(db.connection)
+    # The query planner has no statistics unless something runs ANALYZE, and
+    # nothing ever had: 129 indices and no sqlite_stat1 table at all, so every
+    # plan on this corpus was chosen from SQLite's built-in guesses about how
+    # selective an index is. Measured cost of fixing that: 0.1s. Measured
+    # effect: -56% on /api/v1/releases.
+    #
+    # It belongs HERE, not in a one-off command, for two reasons. Statistics
+    # describe a snapshot, and this batch is what changes the snapshot -- a
+    # manual ANALYZE is correct until the next ingest and then quietly stale.
+    # And sqlite_stat1 lives IN the database file, so a rebuild starts with no
+    # statistics again; anything not run by the thing that builds the corpus is
+    # lost every time the corpus is rebuilt.
+    #
+    # After the derivations above and before check_corpus, so the invariant
+    # queries are themselves planned with statistics, and so what is analysed is
+    # the corpus this run actually produced.
+    db.connection.execute("ANALYZE")
+    results["query_statistics"] = {
+        "analyzed_tables": db.connection.execute(
+            "SELECT count(DISTINCT tbl) FROM sqlite_stat1").fetchone()[0]}
+    # Check the corpus we just produced, against the corpus -- not against a
+    # fresh in-memory schema, which is what every existing validator did and
+    # is why none of them could ever fail. Reported, not raised: the
+    # violations that exist today describe already-ingested data, and
+    # aborting the run repairs none of it.
+    findings = check_corpus(db.connection)
+    results["integrity"] = {"summary": summarise(findings),
+                            "findings": [f.as_dict() for f in findings]}
+    # Advisory only: never gates or alters the run above. See silence.py
+    # and docs/SOURCE_SILENCE_DETECTION.md. `main()` below turns a
+    # "silent" finding into a nonzero process exit and a logged ALARM,
+    # which is the only part of this that can reach anyone -- and only
+    # if the scheduled invocation's exit code is wired to alerting.
+    results["silence"] = detect_silence(db.connection)
+    results["totals"] = {
+        "devices": db.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0],
+        "observations": db.connection.execute("SELECT count(*) FROM observations").fetchone()[0],
+        "firmware_releases": db.connection.execute("SELECT count(*) FROM firmware_releases").fetchone()[0],
+        "product_firmware_releases": db.connection.execute(
+            "SELECT count(*) FROM product_firmware_releases").fetchone()[0],
+        "devices_with_current_firmware": db.connection.execute(
+            "SELECT count(DISTINCT hardware_model_id) FROM device_current_firmware").fetchone()[0],
+        "radar_events": db.connection.execute("SELECT count(*) FROM domain_events").fetchone()[0],
+    }
+    return results
 
 
 def main() -> None:

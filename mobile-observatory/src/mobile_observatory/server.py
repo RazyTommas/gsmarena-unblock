@@ -21,6 +21,7 @@ from .database import Database
 from .seed import DEMO_TIME, seed_demonstration
 from .current_firmware import (ProjectionError, build as build_current_firmware,
                                state as current_firmware_state)
+from .identity_bridge import refresh_observation_link_states
 from .integrity import check_corpus, review_queue, summarise
 from .silence import STATUS_SILENT, detect_silence
 from .collection_worker import CollectionWorker, WorkerPaths, migrate_collection_queue
@@ -721,8 +722,12 @@ class ObservatoryService:
                                            (decision, product_id))
             self.corpus.connection.execute("UPDATE source_identity_registry SET resolution_state=?,resolution_method='manual_product_review' WHERE product_id=?",
                                            (decision, product_id))
-            self.corpus.connection.execute("UPDATE observation_product_links SET link_state=? WHERE product_id=?",
-                                           ("approved" if decision == "approved" else "proposed", product_id))
+            # link_state is derived from the identity rows just written, not set
+            # in parallel with them. The previous line approved EVERY link on the
+            # product; a link whose identity belongs to another product would be
+            # approved by a decision that never mentioned it. See
+            # identity_bridge.LINK_LICENCE_CONDITION.
+            refresh_observation_link_states(self.corpus.connection, product_id=product_id)
             if decision == "rejected":
                 # A rejected identity must stop asserting a device relationship.
                 # Without this the product kept its product_hardware_links row

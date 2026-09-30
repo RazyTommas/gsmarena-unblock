@@ -22,6 +22,34 @@ after the same region-suffix strip. `aristotle -> Xiaomi 13T` is NOT in the
 catalog and stays proposed; `agate -> Xiaomi 11T China` is, and is approved on the
 vendor's own word. Nothing is approved because it is merely plausible, and nothing
 is approved for a product that was never approved itself.
+
+WHAT IT ACTUALLY APPROVES TODAY: NOTHING, and that is the point of wiring it in.
+Measured 2026-09-30 against the captured `devices.yml`, with this function called
+from run_batch for the first time: of the 58 stranded identities it targets --
+together gating 8,332 observations, none of which reach
+product_firmware_releases -- it approves **0**. 49 of their codenames are absent
+from the catalog and 9 mismatch on name.
+
+The reason is structural, not a bug here. `devices.yml` is keyed by REGIONAL
+codename variants (`vili_global`, `vili_eea_global`, `vili_tw_global`, ...), which
+is what `xiaomi.community.firmware_tracker` publishes, and every one of those is
+approved. The mifirm archive publishes the BARE stem (`vili`), which is not a key
+in the catalog at all, so the exact-match test cannot reach it.
+
+Closing the remaining 8,332 therefore requires asserting that the bare stem names
+the same product as its regional variants -- an identity judgement, and one with
+real corroborating evidence (the products' own recorded conclusions carry Google
+Play `device_codes: ["vili"]`). It is deliberately NOT made here. This module's
+contract is that an identity is approved only on a captured artifact's exact word;
+a stem rule is a new rule and belongs to whoever owns identity decisions.
+
+So this is wired in for the same reason a check is wired in before it fires: the
+stall it closes is a mechanical one that WILL recur the next time a source
+contributes an identity to a product that was concluded in an earlier run, and
+there must not be a second discovery of it. A test asserting only that it
+"approves things" would be vacuously green on this corpus, so
+tests/test_identity_backfill.py drives it from a fixture catalog and asserts what
+it REFUSES.
 """
 from __future__ import annotations
 
@@ -80,8 +108,12 @@ def approve_catalog_confirmed_identities(connection: sqlite3.Connection, *,
 
         # link_state mirrors the identity's resolution_state; refresh the links this
         # pass just settled so promotion can see them.
-        connection.execute("""
-            UPDATE observation_product_links SET link_state='approved'
-            WHERE link_state != 'approved' AND identity_id IN (
-                SELECT id FROM source_identity_registry WHERE resolution_state='approved')""")
+        #
+        # Routed through the one rule rather than repeating it. This site used to
+        # match on `identity_id IN (SELECT id ... WHERE resolution_state='approved')`
+        # -- the same product-blind lookup that gave the proposed product "Redmi 1"
+        # nine approved links -- so the module written to close a stall could also
+        # have widened one. See identity_bridge.LINK_LICENCE_CONDITION.
+        from .identity_bridge import refresh_observation_link_states
+        totals.update(refresh_observation_link_states(connection))
     return dict(totals)

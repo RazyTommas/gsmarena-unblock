@@ -281,6 +281,68 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
             f"{stranded} approved products hold firmware that no canonical device can reach, "
             "and no recorded decision explains why"))
 
+    # -- a link may not hold an approval nobody granted it --------------------
+    # observation_product_links.link_state mirrors the resolution_state of the
+    # registry row the link names -- FOR THIS PRODUCT. A link that is 'approved'
+    # while no approved registry row ties its identity to its own product is a
+    # state that should not be representable: promotion's other gate
+    # (sp.review_state='approved') is the only thing between it and serving.
+    #
+    # Measured before the fix: 13. Nine on the still-proposed product "Redmi 1",
+    # holding the approval of "Redmi 1 W"; four on "MI 3", holding "MI 3 / Mi 4"'s.
+    # Nothing was misreported, which is exactly why it went unseen -- so this is a
+    # warning, and the repair lives in the pipeline
+    # (identity_bridge.refresh_observation_link_states) rather than in a one-off
+    # script a later ingest would undo.
+    unlicensed_links = _scalar(connection, """
+        SELECT count(*) FROM observation_product_links
+         WHERE link_state = 'approved'
+           AND NOT EXISTS (SELECT 1 FROM source_identity_registry sir
+                            WHERE sir.id = observation_product_links.identity_id
+                              AND sir.product_id = observation_product_links.product_id
+                              AND sir.resolution_state = 'approved')""")
+    if unlicensed_links:
+        findings.append(Finding(
+            "observation_link_approved_without_an_approved_identity", "warning", unlicensed_links,
+            f"{unlicensed_links} observation links are approved to serve while no approved "
+            "source identity ties them to the product they name; the approval was granted "
+            "elsewhere (python3 -m mobile_observatory.batch reconciles them)"))
+
+    # -- and the reason those links exist ------------------------------------
+    # source_identity_registry.id is uuid5(source_id, namespace, normalized_value):
+    # no product component. Combined with
+    # ON CONFLICT(source_id,namespace,normalized_value), the row keeps whichever
+    # product_id inserted it FIRST, while a later observation naming the same
+    # source value can resolve to a different product and link to that one.
+    #
+    # On the live corpus that is 18 links across four source values. The clearest
+    # is model code HM2013023, which the Xiaomi tracker publishes both as
+    # "Redmi 1 W Global" -- the name the vendor catalogue confirms -- and as
+    # "Redmi 1 China / Global / Taiwan", which the region strip turns into a
+    # SEPARATE product "Redmi 1".
+    #
+    # Reported rather than repaired, and deliberately: deciding whether "Redmi 1"
+    # and "Redmi 1 W" (or "MI 3" and "MI 3 / Mi 4", or TECNO's ACE2N and itel's)
+    # are one phone is an identity judgement. The refusal is safe -- an approval is
+    # never inferred across products -- and this is the number that says a
+    # judgement is outstanding rather than letting it be taken by an id collision.
+    crossed = connection.execute("""
+        SELECT sir.source_value, owner.canonical_name, named.canonical_name, count(*)
+          FROM observation_product_links opl
+          JOIN source_identity_registry sir ON sir.id = opl.identity_id
+          JOIN source_products owner ON owner.id = sir.product_id
+          JOIN source_products named ON named.id = opl.product_id
+         WHERE sir.product_id <> opl.product_id
+         GROUP BY 1, 2, 3 ORDER BY count(*) DESC""").fetchall()
+    if crossed:
+        pairs = "; ".join(f"{row[0]}: {row[2]!r} vs {row[1]!r} ({row[3]})" for row in crossed[:4])
+        findings.append(Finding(
+            "observation_link_identity_owned_by_another_product", "warning",
+            sum(row[3] for row in crossed),
+            f"one captured source value resolves to more than one product, so these links "
+            f"name a product their identity row does not belong to; whether they are the "
+            f"same device is an outstanding identity decision: {pairs}"))
+
     # -- a build that names a sibling model ----------------------------------
     # Transsion build identifiers start with the model they were built for, so a
     # row whose build begins with the device's code PLUS MORE ("L9Plus-..." on
@@ -462,6 +524,31 @@ def review_queue(connection) -> list[dict]:
     "Apple 0" and could not tell whether the corpus had never looked, had
     looked and found nothing, or was holding thousands of observations behind a
     review. This reports the third case as the number it is.
+
+    A SECOND WAY TO BE HELD, which this reported as zero for a full month.
+    Promotion needs review_state='approved' on the product AND
+    link_state='approved' on the link. `observations_awaiting_review` counts only
+    the first gate, so an observation on an ALREADY APPROVED product whose link is
+    still 'proposed' was in neither column: not serving, and not reported as held.
+    Measured: 8,332 Xiaomi observations, on 57 auto-approved products, 0 of them
+    in product_firmware_releases -- the mifirm archive contributed identities to
+    products that had already been concluded, and a remembered conclusion is never
+    reopened, so the identities stayed 'proposed' forever. Xiaomi read 14,996
+    awaiting review when 23,328 observations were actually held.
+
+    The fix is NOT to widen `observations_awaiting_review`, because that number has
+    a meaning a reader relies on (the UI's tooltip names it: observations belonging
+    to products nobody has reviewed). The two states are held by different gates
+    and are cleared by different work, so they are two numbers:
+
+      observations_awaiting_review      -- the product itself is unreviewed
+      observations_held_by_link_review  -- the product IS approved; the identity
+                                           the observation arrived under is not
+      observations_not_serving          -- the real stalled population, their sum
+
+    Still not Findings. Both are pending work rather than faults, and the
+    distinction this module is built on -- "never looked" vs "looked and found
+    nothing" vs "held behind a review" -- needs three answers, not a bigger one.
     """
     return [dict(row) for row in connection.execute("""
         SELECT sp.manufacturer AS vendor,
@@ -471,6 +558,19 @@ def review_queue(connection) -> list[dict]:
                   JOIN source_products s2 ON s2.id = opl.product_id
                  WHERE s2.manufacturer = sp.manufacturer
                    AND s2.review_state <> 'approved') AS observations_awaiting_review,
+               -- The product is through review; the LINK is not. Invisible in
+               -- every column this function had, and invisible in the corpus: no
+               -- counter, no finding, nothing in the UI.
+               (SELECT count(*) FROM observation_product_links opl
+                  JOIN source_products s5 ON s5.id = opl.product_id
+                 WHERE s5.manufacturer = sp.manufacturer
+                   AND s5.review_state = 'approved'
+                   AND opl.link_state <> 'approved') AS observations_held_by_link_review,
+               (SELECT count(*) FROM observation_product_links opl
+                  JOIN source_products s6 ON s6.id = opl.product_id
+                 WHERE s6.manufacturer = sp.manufacturer
+                   AND (s6.review_state <> 'approved'
+                        OR opl.link_state <> 'approved')) AS observations_not_serving,
                (SELECT count(DISTINCT phl.hardware_model_id) FROM product_hardware_links phl
                   JOIN source_products s3 ON s3.id = phl.product_id
                  WHERE s3.manufacturer = sp.manufacturer) AS canonical_devices,
@@ -484,7 +584,7 @@ def review_queue(connection) -> list[dict]:
                  ) AS approved_evidence_only
           FROM source_products sp
          GROUP BY sp.manufacturer
-         ORDER BY observations_awaiting_review DESC, sp.manufacturer""")]
+         ORDER BY observations_not_serving DESC, sp.manufacturer""")]
 
 
 def summarise(findings: list[Finding]) -> str:
@@ -515,12 +615,17 @@ def main() -> None:
             print(f"  [{finding.severity}] {finding.check}: {finding.count} — {finding.detail}")
         print()
         print("review queue (captured evidence not yet serving):")
-        print("  %-10s %9s %9s %8s %11s %s" % (
-            "vendor", "products", "approved", "devices", "evidence-only", "obs awaiting review"))
+        # Both gates, separately. One column could not tell a product nobody has
+        # reviewed from an approved product whose identity is still proposed, and
+        # the second kind held 8,332 observations while reading as zero.
+        print("  %-10s %9s %9s %8s %11s %13s %13s %11s" % (
+            "vendor", "products", "approved", "devices", "evidence-only",
+            "held:product", "held:link", "not serving"))
         for row in review_queue(db.connection):
-            print("  %-10s %9d %9d %8d %11d %d" % (
+            print("  %-10s %9d %9d %8d %11d %13d %13d %11d" % (
                 row["vendor"], row["products"], row["approved"], row["canonical_devices"],
-                row["approved_evidence_only"], row["observations_awaiting_review"]))
+                row["approved_evidence_only"], row["observations_awaiting_review"],
+                row["observations_held_by_link_review"], row["observations_not_serving"]))
         if args.strict and any(f.severity == "error" for f in findings):
             raise SystemExit(1)
     finally:

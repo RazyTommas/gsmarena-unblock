@@ -563,7 +563,15 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    collapse costs legibility on every row. */
 .data-table td .subtle{display:inline;font-size:11px}
 .data-table td .subtle:before{content:"·";margin:0 6px;opacity:.45;font-weight:700}
-.data-table td br{display:none}
+/* `<br>` and `<small>` get their line back. Both were collapsed to keep a row
+   on one line, and with cells that clip you never saw what that cost. With
+   cells that wrap you do: `Vendor release: Unknown<small>First observed:
+   ...</small>` rendered as "UnknownFirst observed:", and a region cell as
+   "RUunknown". Two captured facts fused into one string that reads as a third,
+   made-up one, which is the failure mode this project cares most about. Only
+   `.subtle` stays inline, and it carries an explicit "·" separator so the join
+   is visible as a join. */
+.data-table td small{display:block}
 .data-table td{white-space:normal;overflow-wrap:break-word;vertical-align:top;padding:9px 14px}
 .data-table td .strong,.data-table td b{font-weight:700}
 .data-table td details,.data-table td summary{display:inline}

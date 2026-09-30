@@ -481,8 +481,6 @@ def main():
                         fail(where, "the truncation footer is outside the dropdown's own scroll box")
                     if s["footerText"] and not s["footerInViewport"]:
                         fail(where, f"the truncation footer is unreachable: {s['footerText']!r}")
-                    if s["hits"] and "Showing" in (s["footerText"] or "") is None:
-                        pass
                 page.fill("#globalSearch", "")
                 page.wait_for_timeout(300)
 

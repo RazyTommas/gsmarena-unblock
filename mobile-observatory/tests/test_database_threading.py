@@ -112,6 +112,46 @@ class DatabaseThreadingTest(unittest.TestCase):
 
         self.assertEqual(4, len(set(seen.values())), f"threads shared a connection: {seen}")
 
+    def test_every_connection_carries_the_read_settings(self) -> None:
+        """cache_size and mmap_size are PER-CONNECTION state.
+
+        This server hands each request thread its own connection, so settings
+        applied anywhere other than _connect reach the first connection and no
+        other -- and the ones that matter here are exactly the ones a thread uses:
+        the corpus reads that made /api/v1/admin/health cost 773-892ms all ran on
+        a per-thread handle. Asserted on a connection opened BY A THREAD, not on
+        the one the constructor made, because those are the two different code
+        paths and only one of them was ever exercised by hand.
+        """
+        db = Database.migrated(self.tmp_path / "corpus.sqlite", check_same_thread=False)
+        self.addCleanup(db.close)
+        wanted = {"cache_size": -16384, "mmap_size": 268435456}
+        seen: dict[str, dict[str, int]] = {}
+        guard = threading.Lock()
+
+        def record(name: str) -> None:
+            values = {p: db.connection.execute(f"PRAGMA {p}").fetchone()[0] for p in wanted}
+            with guard:
+                seen[name] = values
+
+        threads = [threading.Thread(target=record, args=(f"t{i}",)) for i in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(4, len(seen), "a recording thread did not run")
+        for name, values in seen.items():
+            self.assertEqual(wanted["cache_size"], values["cache_size"],
+                             f"thread {name} got SQLite's default page cache, not the "
+                             f"corpus-sized one")
+            # mmap_size reads back as the size actually mapped, which the build caps
+            # at SQLITE_MAX_MMAP_SIZE. Zero is the thing being guarded against: it
+            # means no mapping at all, which is what shipped.
+            self.assertGreater(values["mmap_size"], 0,
+                               f"thread {name} has no memory mapping; every page read "
+                               f"is a syscall")
+
     def test_one_thread_keeps_the_same_connection(self) -> None:
         """Per-thread must not mean per-access.
 

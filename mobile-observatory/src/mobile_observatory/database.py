@@ -103,6 +103,34 @@ class Database:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA journal_mode = WAL")
         connection.execute("PRAGMA busy_timeout = 5000")
+        # Read settings, sized for the corpus this actually opens: 255 MB at a
+        # 4 KB page size, i.e. ~62,000 pages. The defaults are SQLite's, which are
+        # chosen for a database of unknown size, and both were still in force here:
+        # cache_size = -2000 (2 MB, about 3% of the file) and mmap_size = 0 (no
+        # mapping at all, so every page read is a pread syscall into a 2 MB cache).
+        #
+        # Measured on the live corpus, warm disk, medians of 5, per connection:
+        #
+        #                          shared_code  with_fw  prodrel count  prodrel rows
+        #   as shipped                 379.2ms   213.5ms        72.2ms        84.0ms
+        #   mmap 256MB only            319.7ms   201.5ms        43.7ms        54.4ms
+        #   cache 64MB only            310.7ms   207.6ms        47.4ms        57.5ms
+        #   cache 16MB + mmap 256MB    304.9ms   203.5ms        45.5ms        53.9ms
+        #   cache 64MB + mmap 256MB    299.8ms   207.3ms        43.7ms        55.5ms
+        #
+        # The mapping is the win; the page cache is not. Going from 16 MB to 64 MB
+        # of cache on top of the mapping bought nothing measurable (43.7ms against
+        # 45.5ms on the count, inside run-to-run spread), and cache_size is charged
+        # PER CONNECTION -- this server hands every request thread its own -- while
+        # the mapping is one shared set of file-backed pages however many
+        # connections map it. So: map generously, cache modestly.
+        #
+        # 16 MB rather than 2 MB because the corpus does not fit in either and the
+        # difference is one allocation; 256 MB of mapping rather than the whole
+        # file because the address space is reserved eagerly and the working set of
+        # every query measured here is far below it.
+        connection.execute("PRAGMA cache_size = -16384")
+        connection.execute("PRAGMA mmap_size = 268435456")
         # Deliberately NOT recorded in a list for close() to walk. A thread serving
         # one HTTP request is one thread, and a registry of every connection ever
         # opened is a strong reference that outlives the thread that owns it: the

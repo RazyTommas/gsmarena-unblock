@@ -23,6 +23,15 @@ Every promotion records the source value, canonical target, decision author,
 timestamp, and evidence. Corrections supersede earlier decisions; history is not
 deleted.
 
+The automated rules that approve a source identity without a human are the other
+half of this and are held to the same standard: each names the captured field it
+is checkable against, each refuses rather than infers, and since 2026-09-30 each
+records its reason — for refusals as well as approvals — in
+`identity_resolution_rationales`. See `docs/AUTOMATED_IDENTITY_ENRICHMENT.md`.
+Those rules approve a *source identity against a source product*; none of them
+creates a canonical device, a hardware model or a model code, so they do not
+bypass the boundary described above.
+
 ## Agent response inbox (local, proposal-only)
 
 Admin can import the response to **Copy complete agent assignment** as a JSON

@@ -147,27 +147,46 @@ def by_table(measurement: dict, limit: int = 10) -> list[dict]:
     return sorted(rolled.values(), key=lambda item: -item["bytes"])[:limit]
 
 
-def directory_sizes(data_dir: str | Path) -> list[dict]:
-    """On-disk bytes per immediate child of the data directory.
+def directory_sizes(data_dir: str | Path, *, depth: int = 2) -> list[dict]:
+    """On-disk bytes per child of the data directory, `depth` levels down.
 
-    The other half of "is this growth a problem": `ledger/` is 109 MB of captured
+    The other half of "is this growth a problem": `ledger/` is 108 MB of captured
     artifacts that no `dbstat` query can see. Reported beside the pages so the
     two are not confused for one number, and so an answer about the corpus file
     is not mistaken for an answer about the directory.
+
+    `depth` defaults to 2 rather than 1 because one level was not enough to
+    answer the question that was actually being asked. HANDOFF.md's open list
+    names `ledger/raw` as the tree that "grows without bound" -- it is 19 MB,
+    and `ledger/staging` beside it is **90 MB**, 4.7x larger and unmentioned. A
+    top-level total of 108 MB for `ledger` hides which half of it matters.
     """
     root = Path(data_dir)
     if not root.is_dir():
         return []
-    entries = []
-    for child in sorted(root.iterdir()):
-        if child.is_file():
-            total, files = child.stat().st_size, 1
-        else:
-            total, files = 0, 0
-            for path in child.rglob("*"):
-                if path.is_file():
-                    total += path.stat().st_size
-                    files += 1
-        entries.append({"name": child.name, "bytes": total, "files": files,
-                        "kind": "file" if child.is_file() else "directory"})
+
+    def measure(path: Path) -> tuple[int, int]:
+        total = files = 0
+        for child in path.rglob("*"):
+            if child.is_file():
+                total += child.stat().st_size
+                files += 1
+        return total, files
+
+    entries: list[dict] = []
+
+    def walk(path: Path, level: int) -> None:
+        for child in sorted(path.iterdir()):
+            relative = str(child.relative_to(root))
+            if child.is_file():
+                entries.append({"name": relative, "bytes": child.stat().st_size, "files": 1,
+                                "kind": "file", "depth": level})
+                continue
+            total, files = measure(child)
+            entries.append({"name": relative, "bytes": total, "files": files,
+                            "kind": "directory", "depth": level})
+            if level < depth:
+                walk(child, level + 1)
+
+    walk(root, 1)
     return sorted(entries, key=lambda item: -item["bytes"])

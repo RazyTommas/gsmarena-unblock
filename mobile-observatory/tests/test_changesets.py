@@ -119,6 +119,35 @@ class Reversibility(unittest.TestCase):
         self.assertEqual(settled, changesets.table_digests(self.connection),
                          "a refused revert must leave the corpus exactly as it was")
 
+    def test_a_refusal_names_the_table_and_the_KIND_of_conflict(self):
+        """A wrong label on an honest error is worse than no label.
+
+        The first version of CONFLICT_NAMES was shifted by one and reported a
+        UNIQUE-constraint refusal as "FOREIGN_KEY (would leave an orphan)",
+        which sent a real investigation after an orphan that did not exist.
+        Pinned here against a conflict whose kind is known.
+        """
+        self.connection.execute(
+            "CREATE TABLE unique_keyed(id TEXT PRIMARY KEY, k TEXT, UNIQUE(k))")
+        self.connection.execute("INSERT INTO unique_keyed VALUES ('first','shared')")
+        with changesets.record_changes(self.connection) as recording:
+            self.connection.execute("INSERT INTO unique_keyed VALUES ('second','other')")
+        # Make the recorded insert collide on the UNIQUE key rather than the PK.
+        self.connection.execute("DELETE FROM unique_keyed WHERE id='second'")
+        self.connection.execute("INSERT INTO unique_keyed VALUES ('third','other')")
+        with self.assertRaises(changesets.ChangesetConflict) as caught:
+            changesets.apply_changeset(self.connection, recording.changeset)
+        message = str(caught.exception)
+        self.assertIn("unique_keyed", message, message)
+        self.assertIn("CONSTRAINT", message, message)
+        self.assertNotIn("FOREIGN_KEY", message, message)
+
+    def test_the_conflict_names_start_at_one(self):
+        """The off-by-one this file exists to stop coming back."""
+        self.assertEqual(1, min(changesets.CONFLICT_NAMES))
+        self.assertIn("FOREIGN_KEY", changesets.CONFLICT_NAMES[5])
+        self.assertEqual(5, changesets.SQLITE_CHANGESET_FOREIGN_KEY)
+
     def test_summary_names_the_tables_and_counts_the_operations(self):
         with changesets.record_changes(self.connection) as recording:
             self.connection.execute("INSERT INTO device VALUES ('d5','Pixel 10','frankel')")

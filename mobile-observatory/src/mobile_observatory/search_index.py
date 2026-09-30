@@ -137,6 +137,16 @@ def release_count(connection) -> int:
 
 
 def state(connection) -> dict | None:
+    """What the index records about its own basis, or None if there is no index.
+
+    Returns None rather than raising when the table is absent. A corpus opened
+    before migration 0032 has no `search_index_state`, and the right behaviour
+    there is the scan that served it before -- not a 500 from the type-ahead
+    because an accelerator is missing.
+    """
+    if not connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?", (STATE,)).fetchone():
+        return None
     row = connection.execute(
         f"SELECT name, source_rows, release_rows, basis_digest, built_at "
         f"FROM {STATE} WHERE name=?", (INDEX,)).fetchone()

@@ -113,14 +113,36 @@ class DirectoryBytes(unittest.TestCase):
             (root / "ledger" / "raw" / "a.json").write_bytes(b"x" * 5000)
             (root / "ledger" / "raw" / "b.json").write_bytes(b"y" * 3000)
             (root / "batch.log").write_bytes(b"z" * 100)
+            (root / "ledger" / "staging").mkdir()
+            (root / "ledger" / "staging" / "big.json").write_bytes(b"s" * 40000)
             sizes = {item["name"]: item for item in storage.directory_sizes(root)}
-            self.assertEqual(8000, sizes["ledger"]["bytes"])
-            self.assertEqual(2, sizes["ledger"]["files"])
+            self.assertEqual(48000, sizes["ledger"]["bytes"])
+            self.assertEqual(3, sizes["ledger"]["files"])
             self.assertEqual(100, sizes["batch.log"]["bytes"])
             self.assertEqual("directory", sizes["ledger"]["kind"])
             self.assertEqual("file", sizes["batch.log"]["kind"])
             # largest first, so "where are the bytes" is answered by reading down
             self.assertEqual("ledger", storage.directory_sizes(root)[0]["name"])
+
+    def test_it_looks_deep_enough_to_name_which_subtree_is_growing(self):
+        """A total for `ledger` hides which half of it matters.
+
+        HANDOFF.md's open list names `ledger/raw` as the tree that grows without
+        bound; on the live corpus `ledger/staging` beside it is 4.7x larger.
+        """
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "ledger" / "raw").mkdir(parents=True)
+            (root / "ledger" / "staging").mkdir()
+            (root / "ledger" / "raw" / "a").write_bytes(b"x" * 19000)
+            (root / "ledger" / "staging" / "b").write_bytes(b"y" * 90000)
+            sizes = {item["name"]: item["bytes"] for item in storage.directory_sizes(root)}
+            self.assertEqual(109000, sizes["ledger"])
+            self.assertEqual(19000, sizes[str(Path("ledger") / "raw")])
+            self.assertEqual(90000, sizes[str(Path("ledger") / "staging")])
+            # depth=1 must NOT see them, or the default is doing nothing
+            shallow = {item["name"] for item in storage.directory_sizes(root, depth=1)}
+            self.assertNotIn(str(Path("ledger") / "staging"), shallow)
 
     def test_a_missing_directory_reports_nothing_rather_than_guessing(self):
         self.assertEqual([], storage.directory_sizes("/nonexistent/observatory-data"))

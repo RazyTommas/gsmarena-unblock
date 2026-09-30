@@ -61,8 +61,20 @@ SQLITE_DELETE = 9
 # sqlite3session.h conflict dispositions
 SQLITE_CHANGESET_OMIT = 0
 SQLITE_CHANGESET_ABORT = 2
+SQLITE_CHANGESET_FOREIGN_KEY = 5
 
 OP_NAMES = {SQLITE_INSERT: "insert", SQLITE_UPDATE: "update", SQLITE_DELETE: "delete"}
+# sqlite3session.h conflict kinds, so a refusal names what happened. These start
+# at 1, NOT 0 -- an earlier version of this table was shifted by one and reported
+# a UNIQUE-constraint refusal as "FOREIGN_KEY (would leave an orphan)", sending
+# the first real investigation it was used in after an orphan that did not exist.
+# A wrong label on an honest error is worse than no label.
+CONFLICT_NAMES = {1: "DATA (the row is present with different values)",
+                  2: "NOTFOUND (the row to change is absent)",
+                  3: "CONFLICT (an insert collides on the PRIMARY KEY)",
+                  4: "CONSTRAINT (a constraint other than the primary key, "
+                     "e.g. UNIQUE or CHECK)",
+                  5: "FOREIGN_KEY (applying it would leave an orphan)"}
 
 # The environment variable that forces the unavailable path. It exists so the
 # degraded branch is exercised by a test rather than only reasoned about: a
@@ -220,6 +232,7 @@ def _bind(lib: ctypes.CDLL) -> None:
     lib.sqlite3changeset_start.argtypes = [pv, i, v]
     lib.sqlite3changeset_next.argtypes = [v]
     lib.sqlite3changeset_op.argtypes = [v, ctypes.POINTER(cp), pi, pi, pi]
+    lib.sqlite3changeset_fk_conflicts.argtypes = [v, pi]
     lib.sqlite3changeset_finalize.argtypes = [v]
 
 
@@ -459,10 +472,32 @@ def apply_changeset(connection, changeset: bytes) -> None:
     lib = _library
     filter_cb = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_char_p)(
         lambda context, name: 1)
-    conflicts: list[int] = []
+    conflicts: list[str] = []
 
     def on_conflict(context, kind, iterator):
-        conflicts.append(kind)
+        # Name the table and the conflict kind before aborting. `rc=4, conflicts=1`
+        # on its own says a revert failed without saying where, which makes the
+        # one thing an operator needs -- what in the corpus moved -- a guessing
+        # game.
+        if kind == SQLITE_CHANGESET_FOREIGN_KEY:
+            # For THIS kind alone the iterator carries no change: SQLite invokes
+            # the handler once at the end, and sqlite3changeset_fk_conflicts is
+            # documented as the only call permitted on it. Asking it for an
+            # operation would be reading a position that does not exist.
+            count = ctypes.c_int()
+            lib.sqlite3changeset_fk_conflicts(iterator, ctypes.byref(count))
+            conflicts.append(f"{CONFLICT_NAMES[kind]}: {count.value} violation(s)")
+            return SQLITE_CHANGESET_ABORT
+        table = ctypes.c_char_p()
+        columns = ctypes.c_int()
+        operation = ctypes.c_int()
+        indirect = ctypes.c_int()
+        where = "an unnamed change"
+        if lib.sqlite3changeset_op(iterator, ctypes.byref(table), ctypes.byref(columns),
+                                   ctypes.byref(operation), ctypes.byref(indirect)) == SQLITE_OK:
+            where = (f"{(table.value or b'?').decode(errors='replace')}"
+                     f" ({OP_NAMES.get(operation.value, 'change')})")
+        conflicts.append(f"{CONFLICT_NAMES.get(kind, kind)} on {where}")
         return SQLITE_CHANGESET_ABORT
 
     conflict_cb = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_int,
@@ -477,9 +512,9 @@ def apply_changeset(connection, changeset: bytes) -> None:
     if rc != SQLITE_OK:
         message = lib.sqlite3_errmsg(handle)
         raise ChangesetConflict(
-            f"changeset did not apply and nothing was changed (rc={rc}, "
-            f"conflicts={len(conflicts)}): "
-            f"{message.decode(errors='replace') if message else 'no message'}")
+            f"changeset did not apply and NOTHING was changed (rc={rc}): "
+            + ("; ".join(conflicts) if conflicts
+               else (message.decode(errors="replace") if message else "no conflict reported")))
 
 
 # --------------------------------------------------------------------------

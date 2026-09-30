@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
-from . import search_index, storage
+from . import search_index
 from .access import COOKIE_NAME, AccessPolicy, token_for_binding
 
 from .watches import migrate_watches, list_watches, save_watch

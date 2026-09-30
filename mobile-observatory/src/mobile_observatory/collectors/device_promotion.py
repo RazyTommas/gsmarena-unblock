@@ -143,6 +143,17 @@ def _same_device_name(left: str, right: str) -> bool:
     return normalise(left) == normalise(right)
 
 
+def _correction_id(entity_type: str, entity_id: str, reason: str) -> str:
+    """The id a correction gets, derived from what makes it unique.
+
+    Same construction as source_corrections._audit, so the two writers to this
+    append-only table agree on what identifies a row rather than one of them
+    minting a fresh identity for a fact it already recorded.
+    """
+    from ..enrichment import _id
+    return _id("source-correction", entity_type, entity_id, reason)
+
+
 def _record_unresolved(connection: sqlite3.Connection, product_id: str, owner_id: str,
                        model_code: str, owner_name: str, claimed_name: str, now: str) -> None:
     """Write down a refusal, so it is auditable rather than a number in a log.
@@ -150,12 +161,39 @@ def _record_unresolved(connection: sqlite3.Connection, product_id: str, owner_id
     source_data_corrections is the corpus's existing place for "we decided
     something about this row and here is the before and after". A refusal is
     exactly that: the product asked to be this device and was told no.
+
+    DO NOTHING on conflict, and a DETERMINISTIC id. This was `INSERT OR REPLACE`
+    with `new_id()`, and the combination quietly rewrote the row on every batch:
+
+      - The table has `UNIQUE(entity_type, entity_id, reason)`, so the same
+        refusal collides with itself on the next run. REPLACE then DELETES the
+        stored row and inserts a new one.
+      - `source_data_corrections_no_delete` exists to forbid exactly that
+        ("source corrections are immutable"). It did not fire: SQLite runs a
+        REPLACE's implicit delete WITHOUT delete triggers unless
+        `PRAGMA recursive_triggers` is on, and it is not. So an immutable table
+        was being rewritten nightly and its own guard could not see it.
+      - Because the id was random, the replacement was a DIFFERENT row, and
+        `recorded_at` moved to the current run. A reader asking when this refusal
+        was first reached got last night's clock instead of the answer.
+
+    Measured on a copy of the live corpus: 6 of the 7 stored refusals were
+    deleted and re-inserted on every run, for no change in what they said. That
+    churn is also what made a batch's changeset non-invertible -- re-inserting
+    the previous ids conflicted with the UNIQUE key the replacements now held.
+
+    Keeping the first recording is the behaviour the schema already declares.
+    The id mirrors source_corrections._audit, the other writer to this table,
+    which derives it from the same three columns for the same reason.
     """
     connection.execute(
-        """INSERT OR REPLACE INTO source_data_corrections
+        """INSERT INTO source_data_corrections
              (id, entity_type, entity_id, reason, before_json, after_json, evidence_id, recorded_at)
-           VALUES (?,?,?,?,?,?,NULL,?)""",
-        (new_id(), "source_product", product_id,
+           VALUES (?,?,?,?,?,?,NULL,?)
+           ON CONFLICT(entity_type, entity_id, reason) DO NOTHING""",
+        (_correction_id("source_product", product_id,
+                        "model_code_claimed_by_a_differently_named_device"),
+         "source_product", product_id,
          "model_code_claimed_by_a_differently_named_device",
          json.dumps({"model_code": model_code, "claimed_name": claimed_name}, sort_keys=True),
          json.dumps({"held_by_device": owner_id, "held_by_name": owner_name}, sort_keys=True),

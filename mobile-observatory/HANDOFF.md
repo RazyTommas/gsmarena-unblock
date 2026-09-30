@@ -11,6 +11,121 @@ round below). Corpus: 0 errors, 1 warning.
 corpus 0 errors / 3 warnings. Migrations 0030 and 0031 have NOT been applied to
 `.observatory-data`; a human does that.** See below.
 
+## Three compiled-in SQLite capabilities, 2026-09-30
+
+`ENABLE_SESSION`, `ENABLE_FTS5` and `ENABLE_DBSTAT_VTAB` are all in this box's
+libsqlite3 and none was used. **521 tests under both runners** (479 before). No
+new dependency: `ctypes` and `sqlite3` only.
+
+**Migration 0032 has NOT been applied to `.observatory-data`; a human does that.**
+Until it is, search runs the scan exactly as before — see "cannot go stale".
+
+### a batch is now reversible from a 0.27 MB diff, not a 246 MB copy
+
+The open item below said nothing detects the rebuild/restore divergence. The
+batch now records a SQLite **changeset** per run into `<data-dir>/changesets/`.
+Measured on a copy of the live corpus, steady-state re-run:
+
+| | bytes | |
+|---|---|---|
+| `corpus.sqlite` | 265,809,920 | |
+| one batch's changeset | **285,184** | **932× smaller** |
+
+Inverted and applied in 0.02s; **64 table content digests compared, 3 changed by
+the run, 0 still differing afterwards.** `docs/CHANGESETS.md` has the contract,
+`tools/corpus_changeset.py` the `list` / `show` / `revert` commands.
+
+Three limits, each measured rather than asserted:
+
+- **Rows, not schema.** A migration is not in it. `schema_changed` is reported
+  and `revert` refuses such a run without `--schema-moved`.
+- **Only tables with a PRIMARY KEY.** Exactly one here —
+  `identity_resolution_rationales`, the table recording *why* each identity was
+  concluded. `check_corpus` reports it as `table_absent_from_every_changeset`
+  (warning) so a revert's blind spot is known before it is relied on.
+- **Net effect, not history.** Insert-then-update collapses to one insert.
+
+It does **not** replace `tools/backup_evidence.py`: a changeset only has meaning
+against the corpus it was recorded on. It replaces the *pre-batch copy taken only
+so the run could be undone*.
+
+Python 3.12.3 binds no session API (`Connection.create_session` raises
+`AttributeError`), so the C API is reached through `ctypes` against the
+libsqlite3 `_sqlite3` already links. The connection-handle offset is verified in
+a **subprocess** first, so a wrong guess costs a dead child and a reported reason
+rather than the batch.
+
+### an immutable table was being rewritten nightly — found by the revert refusing
+
+The first revert against the live corpus **refused**, naming
+`source_data_corrections`. It was right to.
+
+`collectors/device_promotion._record_unresolved` wrote with `INSERT OR REPLACE`
+and a random `new_id()`. The table has `UNIQUE(entity_type, entity_id, reason)`,
+so every batch collided with itself; REPLACE then deleted the stored row and
+inserted a new one. `source_data_corrections_no_delete` exists to forbid exactly
+that and **never fired**: SQLite runs a REPLACE's implicit delete *without* delete
+triggers unless `PRAGMA recursive_triggers` is on, and it is not.
+
+Measured: **6 of 7 stored refusals deleted and re-inserted on every run**, each
+time with a new primary key and a new `recorded_at` — so "when was this refusal
+first reached" answered with last night's clock. Now `ON CONFLICT … DO NOTHING`
+with a derived id, matching `source_corrections._audit`, the other writer to the
+same table. `tests/test_corrections_are_append_only.py` also scans the source so
+no writer can spell it `REPLACE` again.
+
+### search: FTS5 narrows, LIKE still decides
+
+`/api/v1/search` was ~53ms of releases in a ~68ms payload, and `q=%` — matching
+nothing — still cost 51ms, so the cost was scanning 21,186 releases through the
+view's four joins, not evaluating the LIKE.
+
+An FTS5 **trigram** index now proposes candidates; every `database.like_clause`
+predicate is unchanged and still decides every match, so results are identical
+**by construction**. Compared against the scan over 58 queries on the live
+corpus, totals *and* rows: **0 disagreements**, including all five from the
+wildcard round (`_` → 60/4/0, `%` → 0/0/0, `TECNO_W4` → 1 device, `5G` →
+99/28/1357, `i3` → 1/0/39).
+
+Releases part, sum over those 58: **3,251ms → 1,221ms (−62%)**; whole payload
+3,952ms → 1,900ms (−52%). Index costs **5.59 MB, 2.23% of the corpus**.
+
+Where it does not help, and this is not a corner:
+
+- **1–2 character queries get nothing.** A trigram index cannot answer shorter
+  than a trigram, and FTS5 returns **no rows** rather than an error — so without
+  the length gate `5G` reads as "nothing matches" and is believed. Four of the
+  five queries above are shorter than three characters.
+- **Very broad queries are slower through an index**, so they are not sent
+  through one. `Galaxy` matches all 21,186 rows; 68.7ms → 69.9ms via the scan.
+- **Devices and chips are deliberately not indexed.** Devices is 865 rows and
+  costs 0.7ms with a query and 0.7ms with none; chips is 11.6ms with no query and
+  11.7ms with one. `q` was never the cost outside releases.
+
+It cannot go stale silently: the batch rebuilds it when its basis digest moves,
+`check_corpus` re-derives the whole basis and reports
+`search_index_does_not_match_the_corpus` (error), and the request path checks a
+0.01ms row-count tripwire and **falls back to the scan** rather than answer from
+a stale index. The cheap check catches rows arriving or leaving, not a same-count
+edit; the digest catches that, once per batch.
+
+### sizes are measured now, and two open items were judged on the wrong number
+
+`tools/corpus_sizes.py` reports real bytes from `dbstat`. It states its own
+residual, so a partial account cannot pass as a small one (currently 0.000 MB).
+
+- File **246.105 MB**; tables 155.062 MB; **indexes 89.938 MB — 36.5% of it**.
+- `VACUUM` reclaims **1.039 MB, 0.42%** (266 free pages). The estimate in the
+  open list below was right, and is now a measurement.
+- `observations` is **139.75 MB — 57% of the corpus** (102.1 MB of rows plus
+  37.6 MB across 5 indexes). `sqlite_autoindex_observations_2`, an implicit
+  UNIQUE index, is 20.6 MB on its own and the second largest object in the file.
+- `firmware_release_evidence` and its index are only 47% and 53% full, so VACUUM
+  would repack more than the freelist figure suggests; 1.039 MB is a floor.
+- **`ledger/raw` is 18.3 MB. `ledger/staging` beside it is 89.9 MB** — 4.9×
+  larger, and not mentioned anywhere. The growth item below names the smaller of
+  the two. `history/review-20260916` is another 65.8 MB in 2 files.
+
 ## Data honesty, 2026-09-30
 
 ### 626 products had a terminal state, and it was spelled "pending"
@@ -169,6 +284,9 @@ Documented in `docs/BACKUP.md` and in the portable bundle's own README.
 
 ## Backup
 
+See also `docs/CHANGESETS.md`, which is a different job: undoing the last batch,
+not surviving the loss of the directory. Neither replaces the other.
+
 `tools/backup_evidence.py` — **2.0 MB compressed, not 243 MB.** It asks the
 corpus which files it cites rather than listing directories, so a new source
 writing somewhere new is covered without editing the tool. `corpus.sqlite` is
@@ -200,11 +318,22 @@ even behind a proxy, and must terminate TLS.
 
 ## Open, none blocking
 
-- `ledger/raw` grows without bound; no `VACUUM` anywhere; `batch.log` unrotated.
+- The ledger grows without bound — and it is **`ledger/staging` at 89.9 MB**,
+  not the `ledger/raw` (18.3 MB) this line used to name. `batch.log` unrotated.
+- `VACUUM` still runs nowhere. Now measured rather than estimated: it reclaims
+  1.039 MB of 246.105 MB (0.42%), plus some repacking of two 47%-full btrees.
+  Still not worth a batch step.
 - The batch emits two log lines for a ten-minute run.
 - `run.py` hardcodes the 2026-09-17 zip; the 09-22 bundle has a manifest but no
   zip beside it.
-- Nothing *detects* the rebuild/restore divergence above; it is only documented.
+- The rebuild/restore divergence is still not detected *as such*. What exists now
+  is narrower and worth not confusing with it: every batch records exactly what
+  it changed, invertibly. That makes a **write** reversible and visible; it does
+  not compare a rebuild against this corpus.
+- 6 `identity_resolution_rationales` rows and the rest of that table are outside
+  every changeset, because it has no PRIMARY KEY. Giving it one would close the
+  last blind spot in a revert; it is a schema change on a 721-row table and was
+  not made here.
 
 ## Hard rules (from the original brief — still binding)
 

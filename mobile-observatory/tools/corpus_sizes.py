@@ -86,7 +86,10 @@ def main() -> int:
     if directories:
         print(f"\n{data_dir} on disk (dbstat cannot see any of this):")
         for item in directories:
-            print(f"  {_mb(item['bytes'])}  {item['files']:6d} files  {item['name']}")
+            if item["bytes"] < 1024 and item["depth"] > 1:
+                continue
+            print(f"  {_mb(item['bytes'])}  {item['files']:6d} files  "
+                  f"{'  ' * (item['depth'] - 1)}{item['name']}")
     return 0
 
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from .database import like_clause, like_contains
+
 # Aggregate each relation independently: joining claims to fixes multiplies rows
 # and can misleadingly imply that every fix belongs to every affected part.
 INDEX = """WITH bulletin AS (
@@ -56,13 +58,16 @@ def query_catalog(connection: sqlite3.Connection, query: dict, limit: int, offse
     value = lambda key: (query.get(key) or [''])[0].strip()
     clauses, params = ['1=1'], []
     if value('q'):
-        clauses.append('(cve LIKE ? COLLATE NOCASE OR component LIKE ? COLLATE NOCASE OR bulletin LIKE ? COLLATE NOCASE OR evidence LIKE ? COLLATE NOCASE)')
-        params.extend([f"%{value('q')}%"] * 4)
+        # Wildcards escaped: see database.like_clause. `?q=_` used to match every
+        # finding whose cve, component, bulletin or evidence held any character.
+        clauses.append('(' + ' OR '.join(
+            like_clause(column) for column in ('cve', 'component', 'bulletin', 'evidence')) + ')')
+        params.extend([like_contains(value('q'))] * 4)
     for key, column, op in [('cve','cve','='),('date_from',"CASE WHEN published_precision='month' THEN date(substr(published_at,1,7)||'-01','+1 month','-1 day') ELSE substr(published_at,1,10) END",'>='),('date_to',"CASE WHEN published_precision='month' THEN substr(published_at,1,7)||'-01' ELSE substr(published_at,1,10) END",'<=')]:
         if value(key):
             clauses.append(f'{column} {op} ? COLLATE NOCASE');params.append(value(key))
     if value('vendor'):
-        clauses.append('evidence LIKE ? COLLATE NOCASE');params.append(f"%{value('vendor')}%")
+        clauses.append(like_clause('evidence'));params.append(like_contains(value('vendor')))
     if value('mobile_linked') in ('1','true'):
         clauses.append('device_count>0')
     if value('exact_part') in ('1','true'):

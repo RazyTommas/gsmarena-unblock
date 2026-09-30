@@ -6,6 +6,50 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+# The character every generated LIKE clause declares as its escape. Backslash
+# rather than something exotic so the generated SQL stays readable in a log.
+LIKE_ESCAPE = "\\"
+
+
+def like_clause(column: str, *, collate: bool = True) -> str:
+    """`<column> LIKE ? ESCAPE ...` -- the ONLY way this codebase builds a LIKE.
+
+    A bound parameter stops injection; it does not stop the value being read as
+    a PATTERN. `%` and `_` are LIKE metacharacters, so an unescaped substring
+    search never searched for itself:
+
+        GET /api/v1/search?q=_   ->  865 devices, 452 chips, 3,443 releases
+        GET /api/v1/search?q=%   ->  the same -- i.e. everything
+
+    Measured on the live corpus. Nothing crashed and nothing was injected; the
+    server simply reported a match total that was not a count of anything the
+    reader asked about, and a literal search for a model code containing `_`
+    (`TECNO_W4` is one) was impossible. In a system whose product is counts it
+    can source, a confidently wrong count is the defect.
+
+    Paired with like_contains() below -- a clause from here and a pattern from
+    anywhere else is a bug, which is why the escape character lives in one
+    constant both read.
+
+    COLLATE binds tighter than LIKE, so it applies to the pattern operand
+    exactly as it did before ESCAPE was appended; verified against the previous
+    clause text on wildcard-free input.
+    """
+    collation = " COLLATE NOCASE" if collate else ""
+    return f"{column} LIKE ?{collation} ESCAPE '{LIKE_ESCAPE}'"
+
+
+def like_contains(value: str) -> str:
+    """A LIKE pattern matching `value` LITERALLY, anywhere in the column.
+
+    The escape itself must be escaped first, or a value ending in a backslash
+    would escape the closing `%` and change what the pattern means.
+    """
+    escaped = (value.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
+                    .replace("%", LIKE_ESCAPE + "%")
+                    .replace("_", LIKE_ESCAPE + "_"))
+    return f"%{escaped}%"
+
 
 class Database:
     """SQLite lifecycle with mandatory integrity settings.

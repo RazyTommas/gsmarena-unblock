@@ -4,6 +4,7 @@ import argparse
 import json
 import mimetypes
 import sqlite3
+import sys
 import time
 from datetime import datetime, timezone
 import threading
@@ -17,7 +18,7 @@ from .access import COOKIE_NAME, AccessPolicy, token_for_binding
 
 from .watches import migrate_watches, list_watches, save_watch
 from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
-from .database import Database
+from .database import Database, like_clause, like_contains
 from .seed import DEMO_TIME, seed_demonstration
 from .current_firmware import (ProjectionError, build as build_current_firmware,
                                state as current_firmware_state)
@@ -198,19 +199,27 @@ class ObservatoryService:
         clauses = ["1=1"]
         params: list[object] = []
         if q:
-            clauses.append("(coalesce(dc.brand,sp.manufacturer) LIKE ? COLLATE NOCASE OR coalesce(dc.variant,sp.canonical_name) LIKE ? COLLATE NOCASE OR dc.model_code LIKE ? COLLATE NOCASE OR de.after_json LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 4)
+            clauses.append("(" + " OR ".join(like_clause(column) for column in (
+                "coalesce(dc.brand,sp.manufacturer)",
+                "coalesce(dc.variant,sp.canonical_name)",
+                "dc.model_code", "de.after_json")) + ")")
+            params.extend([like_contains(q)] * 4)
         for key, column in (("maker", "coalesce(dc.brand,sp.manufacturer)"),
                             ("model", "coalesce(dc.model_code,sir.source_value)"),
                             ("region", "coalesce(ft.target_code,json_extract(de.after_json,'$.region'))")):
             value = _first(query, key).strip()
             if value:
-                clauses.append(f"{column} LIKE ? COLLATE NOCASE")
-                params.append(f"%{value}%")
+                clauses.append(like_clause(column))
+                params.append(like_contains(value))
         if tab == "new":
             clauses.append("de.id NOT IN (SELECT value FROM json_each(?))")
             params.append(json.dumps(seen))
         if tab == "watched":
+            # _event_watch_clause, not an inline copy: it coalesces, and NEGATING
+            # the bare `col IN (...)` form drops an event whose subject resolves to
+            # neither layer -- an unwatched row surviving "dismiss all unwatched".
+            # Both sides of this merge edited this block; the escaping below and
+            # this shared clause are separate fixes and the merge keeps both.
             clause, watch_params = self._event_watch_clause(watched)
             clauses.append(clause)
             params.extend(watch_params)
@@ -352,6 +361,115 @@ class ObservatoryService:
                                     "support_asserted_at": row["asserted_at"]}
                 for row in rows}
 
+    # The three things a reader can be told about a device's firmware. Named
+    # here because two views render them and both must mean the same thing.
+    COVERAGE_OBSERVED = "observed"              # a current build is established
+    COVERAGE_HELD_NOT_CURRENT = "held_not_current"  # releases captured, none current
+    COVERAGE_NOT_OBSERVED = "not_observed"      # nothing captured at all
+
+    def _firmware_holdings(self, hardware_model_ids) -> dict[str, dict]:
+        """How much firmware the corpus HOLDS for each device, and whether any of
+        it establishes a current build.
+
+        The one answer behind both the grid and the device detail view. They used
+        to count separately and disagreed:
+
+          /api/v1/devices?model=TECNO%20i3  ->  firmware_count 0,
+                                                "Catalogued; firmware not observed"
+          /api/v1/devices/TECNO%20i3        ->  "Captured ROM history · 1"
+
+        Both numbers were honestly derived and neither was wrong on its own. The
+        grid read device_current_firmware, the projection of what is CURRENT; the
+        detail view read product_firmware_releases, what was CAPTURED. For TECNO
+        i3 those differ because the projection deliberately refuses one build --
+        `i3Pro-...` names a sibling model, see current_firmware.EVIDENCE_SQL --
+        and refusing to call it current is right. Printing "firmware not
+        observed" about a device whose next panel lists a build is not.
+
+        Measured on the live corpus: 7 of 865 devices diverge, all 7 carrying one
+        of the 8 sibling-model builds the `firmware_build_names_a_sibling_model`
+        invariant reports. TECNO i3 is only the instance where the gap crosses
+        zero and the two views contradict each other in words rather than in a
+        count. So this fixes the class: `held` is what the detail view lists, and
+        the grid now shows that number, with coverage saying whether any of it
+        establishes a current build. The other 858 devices' numbers do not move
+        -- verified before the change, not asserted.
+
+        A device lives in exactly one layer -- the projection refuses to publish
+        otherwise, and 0 of 865 hold both -- so the two counts add rather than
+        needing a layer decision here.
+
+        One query for the page, like _support_for above: three aggregates over
+        the page's ids, NOT three correlated subqueries per row, and over
+        firmware_releases rather than v_device_region_history.
+
+        Both of those are measured, because the obvious way to write this was
+        expensive in the way this codebase has already paid for once. On the live
+        corpus, /devices at limit=500 (the largest page the UI offers):
+
+            4.6 ms  without this lookup at all
+           35.8 ms  correlated subqueries over v_device_region_history
+           33.1 ms  the same counts grouped once per page
+           11.2 ms  grouped, over firmware_releases
+
+        So the correlated shape was NOT the cost, which is why it was measured
+        rather than assumed. The cost is the view: v_device_region_history
+        inner-joins v_device_catalog, i.e. five identity tables, and a count over
+        it pays for all of them to answer a question about one column. The
+        default 100-row page goes 1.1ms -> 1.8ms.
+
+        Counting the base table is equivalent for these ids, not merely
+        coincidentally: the view's one inner join is
+        `dc.hardware_model_id = fr.hardware_model_id`, so it can only DROP
+        releases whose hardware model is absent from the catalogue -- and every id
+        here comes from the catalogue. Measured on the live corpus as well: the
+        view and firmware_releases both hold exactly 21,186 rows. And it is
+        checked rather than trusted --
+        tests/test_device_views_agree.py compares this count against the detail
+        view's own total, which still counts the view, for every device.
+
+        The id list goes in as JSON rather than as 1,500 placeholders so the
+        statement text does not grow with the page.
+        """
+        ids = list(dict.fromkeys(hardware_model_ids))
+        if not ids:
+            return {}
+        rows = self.corpus.connection.execute(
+            """WITH page(id) AS (SELECT value FROM json_each(?)),
+                 canonical AS (SELECT hardware_model_id hm, count(*) n
+                                 FROM firmware_releases
+                                WHERE hardware_model_id IN (SELECT id FROM page)
+                                GROUP BY hardware_model_id),
+                 evidence AS (SELECT hardware_model_id hm, count(*) n
+                                FROM product_firmware_releases
+                               WHERE hardware_model_id IN (SELECT id FROM page)
+                               GROUP BY hardware_model_id),
+                 established AS (SELECT DISTINCT hardware_model_id hm
+                                   FROM device_current_firmware
+                                  WHERE hardware_model_id IN (SELECT id FROM page))
+               SELECT p.id AS id,
+                      coalesce(c.n, 0) + coalesce(e.n, 0) AS held,
+                      est.hm IS NOT NULL AS current
+                 FROM page p
+                 LEFT JOIN canonical c ON c.hm = p.id
+                 LEFT JOIN evidence e ON e.hm = p.id
+                 LEFT JOIN established est ON est.hm = p.id""",
+            (json.dumps(ids),)).fetchall()
+        return {row["id"]: {"firmware_count": row["held"],
+                            "firmwareCoverage": (
+                                self.COVERAGE_OBSERVED if row["current"]
+                                else self.COVERAGE_HELD_NOT_CURRENT if row["held"]
+                                else self.COVERAGE_NOT_OBSERVED)}
+                for row in rows}
+
+    # What each coverage state says in place of a region list. Kept beside the
+    # states themselves so a new state cannot ship without a sentence, and so
+    # the grid and the detail view quote the same one.
+    COVERAGE_NOTE = {
+        COVERAGE_NOT_OBSERVED: "Catalogued; firmware not observed",
+        COVERAGE_HELD_NOT_CURRENT: "Captured releases; none establishes current firmware",
+    }
+
     def devices(self, query: dict[str, list[str]]) -> list[dict]:
         return self.devices_page(query).items
 
@@ -375,7 +493,27 @@ class ObservatoryService:
             params.append(support_codes.get(support, support))
         max_android = _first(query, "max_android").strip()
         if max_android:
+            # Parse BEFORE appending the clause. It used to append first, so when
+            # int() raised on `max_android=abc` the clause -- carrying a `?` --
+            # was already in the list, the except branch appended a second clause
+            # `"0"` with no placeholder of its own, and one `?` went unbound:
+            #   sqlite3.ProgrammingError: Incorrect number of bindings supplied.
+            #   The current statement uses 3, and there are 2 supplied.
+            # The connection dropped with no HTTP response, so the intent the
+            # comment below describes had never once executed.
+            #
+            # The clamp is the same one _pagination needs: `max_android=10**20`
+            # reached the driver as an unbindable int and dropped the connection
+            # by the other half of this defect's family. An Android major above
+            # every observed value means "no ceiling", and the clamped bound says
+            # exactly that.
             try:
+                ceiling = int(max_android)
+            except ValueError:
+                # A non-numeric ceiling is not a version, so it selects nothing.
+                # No placeholder, and now no orphaned one either.
+                clauses.append("0")
+            else:
                 # Same gate as the rendered value: a device whose latest build is
                 # only a capture-order guess has no established Android version,
                 # so it must not satisfy a version filter either. A filter that
@@ -383,9 +521,7 @@ class ObservatoryService:
                 # number the UI refuses to show for it.
                 clauses.append("(lf.android_major IS NOT NULL AND lf.android_major <= ? "
                                "AND lf.latest_basis!='observation_order_only')")
-                params.append(int(max_android))
-            except ValueError:
-                clauses.append("0")
+                params.append(max(SQLITE_MIN_INT, min(SQLITE_MAX_INT, ceiling)))
         # device_catalog_flat, not v_device_catalog: the view re-joins five
         # identity tables per request and its ORDER BY spans three of them, so
         # the plan ended in USE TEMP B-TREE FOR ORDER BY over the whole
@@ -465,6 +601,10 @@ class ObservatoryService:
         total = self.corpus.connection.execute(
             "SELECT count(*) " + base, params).fetchone()[0]
         support_by_device = self._support_for(row["id"] for row in rows)
+        # Firmware counts come from _firmware_holdings, NOT from the projection
+        # column selected above, so this grid and the device detail view cannot
+        # disagree about how many builds a device has. See _firmware_holdings.
+        holdings = self._firmware_holdings(row["id"] for row in rows)
         result = [
             # The Android version and patch level stay suppressed when the only
             # basis is capture order. They describe the build we picked, and on
@@ -475,8 +615,15 @@ class ObservatoryService:
             # Costs 3 devices of 303; 86 keep a version via vendor_release_date.
             {**dict(row), "android": (row["android"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
              "patch": (row["patch"] or "Unknown") if row["software_state_basis"] != "observation_order_only" else "Unknown",
-             "region": row["region"] or "Catalogued; firmware not observed",
-             "firmwareCoverage": "observed" if row["firmware_count"] else "not_observed",
+             # A device holding captured releases that none of the projection
+             # would call current used to fall through to "firmware not
+             # observed", which contradicted its own detail view. It now says
+             # which of the two it is.
+             "region": row["region"] or self.COVERAGE_NOTE.get(
+                 holdings.get(row["id"], {}).get("firmwareCoverage"),
+                 self.COVERAGE_NOTE[self.COVERAGE_NOT_OBSERVED]),
+             **holdings.get(row["id"], {"firmware_count": 0,
+                                        "firmwareCoverage": self.COVERAGE_NOT_OBSERVED}),
              **support_by_device.get(row["id"], {"support_status": None, "support_evidence_id": None,
                                                  "support_asserted_at": None}),
              "support": {v: k for k, v in support_codes.items()}.get(
@@ -618,11 +765,12 @@ class ObservatoryService:
         source = _first(query, "source").strip()
         kind = _first(query, "kind").strip()
         if q:
-            clauses.append("(o.source_key LIKE ? COLLATE NOCASE OR o.payload_json LIKE ? COLLATE NOCASE OR o.source_id LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 3)
+            clauses.append("(" + " OR ".join(like_clause(column) for column in (
+                "o.source_key", "o.payload_json", "o.source_id")) + ")")
+            params.extend([like_contains(q)] * 3)
         if source:
-            clauses.append("o.source_id LIKE ? COLLATE NOCASE")
-            params.append(f"%{source}%")
+            clauses.append(like_clause("o.source_id"))
+            params.append(like_contains(source))
         if kind:
             clauses.append("o.record_type=?")
             params.append(kind)
@@ -694,13 +842,14 @@ class ObservatoryService:
             value = _first(query, key).strip()
             if value:
                 if key == "region":
-                    clauses.append(f"{expression} LIKE ? COLLATE NOCASE"); params.append(f"%{value}%")
+                    clauses.append(like_clause(expression)); params.append(like_contains(value))
                 else:
                     clauses.append(f"{expression}=? COLLATE NOCASE"); params.append(value)
         q = _first(query, "q").strip()
         if q:
-            clauses.append("(sp.canonical_name LIKE ? COLLATE NOCASE OR sir.source_value LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 2)
+            clauses.append("(" + " OR ".join(like_clause(column) for column in (
+                "sp.canonical_name", "sir.source_value")) + ")")
+            params.extend([like_contains(q)] * 2)
         where = " AND ".join(clauses)
         base = f"""FROM source_products sp LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id
                    LEFT JOIN observation_product_links opl ON opl.product_id=sp.id WHERE {where}"""
@@ -815,6 +964,8 @@ class ObservatoryService:
             WHERE hardware_model_id=? AND latest_basis!='observation_order_only'
             ORDER BY target_key,channel''', (identifier,))]
         from .lineage_specs import hardware_specification_evidence
+        holdings = self._firmware_holdings([identifier]).get(
+            identifier, {'firmware_count': 0, 'firmwareCoverage': self.COVERAGE_NOT_OBSERVED})
         return {'latestFirmware': latest, 'device': device, 'silicon': silicon, 'aliases': aliases, 'regions': regions,
                 'specifications': hardware_specification_evidence(c, model),
                 # ROM history. The canonical view behind releases_page is fed by
@@ -824,6 +975,15 @@ class ObservatoryService:
                 # regions". Two views of one device disagreeing is the same
                 # falsehood as "firmware not observed", one screen along.
                 'firmware': _page_payload(self._device_history(model, identifier), self.meta),
+                # The SAME answer the grid renders, from the same function -- so
+                # a reader who sees "firmware not observed" on the grid cannot
+                # then be shown a list of builds here, and vice versa. It is
+                # published rather than merely used, because the two panels above
+                # ('Latest known regional builds' and 'Captured ROM history')
+                # legitimately hold different numbers of rows and this is what
+                # says why.
+                **holdings,
+                'firmwareCoverageNote': self.COVERAGE_NOTE.get(holdings['firmwareCoverage']),
                 'security': _page_payload(self.security_page({'model':[model],'limit':['50']}), self.meta),
                 'boundaries': {'identity': 'Reviewed hardware identity; incomplete specifications remain unknown.',
                                'history': 'All captured releases are accessible through pagination; this does not imply complete vendor coverage.',
@@ -915,8 +1075,9 @@ class ObservatoryService:
                 clauses.append(f"{expression}=? COLLATE NOCASE"); params.append(value)
         q = _first(query, "q").strip()
         if q:
-            clauses.append("(sp.canonical_name LIKE ? COLLATE NOCASE OR pfr.build_id LIKE ? COLLATE NOCASE OR sir.source_value LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 3)
+            clauses.append("(" + " OR ".join(like_clause(column) for column in (
+                "sp.canonical_name", "pfr.build_id", "sir.source_value")) + ")")
+            params.extend([like_contains(q)] * 3)
         where = " AND ".join(clauses)
         joins = """FROM product_firmware_releases pfr
           JOIN source_products sp ON sp.id=pfr.product_id
@@ -958,8 +1119,9 @@ class ObservatoryService:
             clauses.append("sp.manufacturer=? COLLATE NOCASE"); params.append(maker)
         q = _first(query, "q").strip()
         if q:
-            clauses.append("(sp.canonical_name LIKE ? COLLATE NOCASE OR psp.security_patch_month LIKE ? COLLATE NOCASE)")
-            params.extend([f"%{q}%"] * 2)
+            clauses.append("(" + " OR ".join(like_clause(column) for column in (
+                "sp.canonical_name", "psp.security_patch_month")) + ")")
+            params.extend([like_contains(q)] * 2)
         where = " AND ".join(clauses)
         joins = """FROM product_security_publications psp
           JOIN source_products sp ON sp.id=psp.product_id
@@ -1153,6 +1315,17 @@ class ObservatoryService:
     BULK_ACKNOWLEDGE_LIMIT = 5000
 
     def acknowledge_many(self, event_ids: list[str], *, capped: bool = True) -> dict:
+        # A str is iterable, so `for item in event_ids` over "abcdef" iterated
+        # its SIX CHARACTERS: {"ids": "abcdef"} acknowledged nothing, hit "a" as
+        # the first unknown id, and answered 404 update_not_found -- a type error
+        # reported as a fact about the corpus. `{"ids": 7}` reached 400 only
+        # because an int happens not to be iterable, so the correct answer was
+        # an accident of which wrong type you sent.
+        #
+        # _require_id_list is shared with every other list-taking entry point for
+        # the same reason _pagination is shared: this assumption is not specific
+        # to acknowledgements.
+        event_ids = _require_id_list(event_ids, "update ids")
         ids = list(dict.fromkeys(str(item).strip() for item in event_ids if str(item).strip()))
         if capped and len(ids) > self.BULK_ACKNOWLEDGE_LIMIT:
             raise ValueError("too many update ids")
@@ -1261,10 +1434,10 @@ class ObservatoryService:
         repetition. `total` stays the number of matching BUILDS, so the reported
         count and the listed rows are the same unit.
         """
-        like = f"%{q}%"
-        base = """FROM v_device_region_history
-                  WHERE build_id LIKE ? COLLATE NOCASE OR model_code LIKE ? COLLATE NOCASE
-                     OR variant LIKE ? COLLATE NOCASE OR target_code LIKE ? COLLATE NOCASE"""
+        like = like_contains(q)
+        base = ("FROM v_device_region_history WHERE " + " OR ".join(
+            like_clause(column) for column in
+            ("build_id", "model_code", "variant", "target_code")))
         params = [like] * 4
         total = self.corpus.connection.execute(
             "SELECT count(DISTINCT build_id) " + base, params).fetchone()[0]
@@ -1284,16 +1457,15 @@ class ObservatoryService:
         there -- but without v_latest_firmware, whose whole-corpus window is what
         made the type-ahead cost half a second.
         """
-        like = f"%{q}%"
+        like = like_contains(q)
         # Reads device_catalog_flat, the same row devices_page reads, which is
         # what keeps the promise above literally true: both now match against
         # the device's primary SoC rather than one matching every part and the
         # other one. It also drops a MATERIALIZE of v_chip_devices per keystroke.
-        base = """FROM device_catalog_flat dc
-                  WHERE dc.brand LIKE ? COLLATE NOCASE OR dc.variant LIKE ? COLLATE NOCASE
-                     OR dc.model_code LIKE ? COLLATE NOCASE OR dc.codename LIKE ? COLLATE NOCASE
-                     OR dc.chip_marketing_name LIKE ? COLLATE NOCASE
-                     OR dc.chip_part_number LIKE ? COLLATE NOCASE"""
+        base = ("FROM device_catalog_flat dc WHERE " + " OR ".join(
+            like_clause(column) for column in
+            ("dc.brand", "dc.variant", "dc.model_code", "dc.codename",
+             "dc.chip_marketing_name", "dc.chip_part_number")))
         params = [like] * 6
         total = self.corpus.connection.execute(
             "SELECT count(DISTINCT dc.hardware_model_id) " + base, params).fetchone()[0]
@@ -1368,8 +1540,16 @@ class ObservatoryService:
                 "sources": [{"id": key, "label": value} for key, value in SOURCE_OPTIONS.items()]}
 
     def save_config(self, value: dict) -> dict:
-        regions = [str(x) for x in value.get("preferredRegions", [])]
-        sources = [str(x) for x in value.get("enabledSources", [])]
+        # The same str-is-iterable hole acknowledge-bulk had. Here it happened to
+        # land on the right status -- "ILO" becomes ['I','L','O'], no single
+        # character is a region key, so the unknown-region check refuses it -- but
+        # for the wrong reason, and only because every key in REGION_OPTIONS and
+        # SOURCE_OPTIONS is longer than one character. That is a property of the
+        # option tables, not of this code, so it is checked rather than relied on.
+        regions = [str(x) for x in _require_id_list(
+            value.get("preferredRegions", []), "preferredRegions")]
+        sources = [str(x) for x in _require_id_list(
+            value.get("enabledSources", []), "enabledSources")]
         if any(x not in REGION_OPTIONS for x in regions) or any(x not in SOURCE_OPTIONS for x in sources):
             raise ValueError("unknown region or source")
         clean = {
@@ -1587,6 +1767,158 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
     # AccessPolicy(None) and is readable as having chosen it.
 
     class Handler(BaseHTTPRequestHandler):
+        # Largest body any route may declare. The biggest a route actually
+        # accepts is the 1 MB proposal import, so this is a ceiling on the
+        # DECLARATION -- refused before a single byte is read, rather than after
+        # buffering it. An oversized declaration is not an expensive request; it
+        # is a request that never becomes one.
+        MAX_BODY_BYTES = 2_000_000
+        # How long the body may go QUIET, not how long it may take in total.
+        # Bounding the total would cut off a legitimately slow large upload;
+        # bounding the gap between packets cuts off only a client that has
+        # stopped sending -- which is exactly the case Content-Length lied
+        # about. See _body().
+        BODY_IDLE_TIMEOUT_SECONDS = 5
+        # Class-level default so _guarded can read it even if a fault happens
+        # before handle_one_request sets it for this request.
+        _response_started = False
+
+        def send_response(self, code, message=None) -> None:
+            # Recorded so _guarded() knows whether a 500 can still be sent: once
+            # a status line is on the wire, a second one would corrupt the
+            # response rather than replace it.
+            self._response_started = True
+            super().send_response(code, message)
+
+        def handle_one_request(self) -> None:
+            self._response_started = False
+            super().handle_one_request()
+
+        def _body(self) -> bytes:
+            """This request's body, or ValueError -- never an unbounded block.
+
+            `self.rfile.read(int(Content-Length))` was written at eight routes,
+            and every one of them trusted a header the client controls. The
+            header is a CLAIM: read() blocks until that many bytes arrive, so
+
+                curl -m 5 -X POST /api/v1/watches \\
+                     -H 'Content-Length: 5000' --data-binary '{}'
+
+            parked the handler thread inside read() -- still holding its
+            per-thread SQLite handles -- until the client went away. Measured:
+            curl timed out at 5s with no response, and the thread was still
+            there. There was no read timeout anywhere in the process, so on any
+            interface a stranger can reach, a trickle of these is resource
+            exhaustion with no packets of consequence and (before this change)
+            no log line either.
+
+            Three refusals, all before or instead of blocking:
+            absent/unparseable/negative length, a length above MAX_BODY_BYTES,
+            and a body that stops arriving. The caller turns any of them into
+            400, because a body that does not match its own header is a bad
+            request, not a server fault.
+
+            read1(), not read(): read() on a buffered reader loops internally
+            until it has all n bytes, so a timeout around it bounds the TOTAL
+            transfer and would cut off a slow honest upload. read1() returns
+            whatever one underlying read yields, so the loop below makes the
+            timeout bound the GAP between packets instead -- a client that keeps
+            sending is never cut off, and one that has stopped is refused in
+            BODY_IDLE_TIMEOUT_SECONDS rather than never.
+
+            The socket timeout is set and restored around the read rather than
+            once on the connection: it must bound how long we wait for THIS
+            body, not how long a legitimately idle keep-alive connection may sit
+            between requests.
+            """
+            raw = self.headers.get("Content-Length")
+            if raw is None:
+                # No declared body. Not an error -- several routes accept an
+                # empty POST -- and notably NOT a reason to read until EOF,
+                # which is the other way to block forever.
+                return b""
+            try:
+                length = int(raw)
+            except ValueError:
+                raise ValueError("Content-Length is not a number") from None
+            if length < 0:
+                # int() accepts "-1" happily and rfile.read(-1) means READ TO
+                # EOF, i.e. block until the client closes. The negative case is
+                # therefore the same defect wearing a different number.
+                raise ValueError("Content-Length is negative")
+            if length > self.MAX_BODY_BYTES:
+                raise ValueError(f"declared body of {length} bytes is larger than the "
+                                 f"{self.MAX_BODY_BYTES} byte limit")
+            # read1 where available (rfile is a BufferedReader in http.server's
+            # default configuration); read otherwise, which degrades to a total
+            # bound rather than an idle one but never to no bound at all.
+            read_some = getattr(self.rfile, "read1", self.rfile.read)
+            previous = self.connection.gettimeout()
+            self.connection.settimeout(self.BODY_IDLE_TIMEOUT_SECONDS)
+            chunks: list[bytes] = []
+            received = 0
+            try:
+                while received < length:
+                    chunk = read_some(min(length - received, 65536))
+                    if not chunk:
+                        break  # clean EOF: the client closed mid-body
+                    chunks.append(chunk)
+                    received += len(chunk)
+            except (TimeoutError, OSError) as exc:
+                # A half-read body leaves the connection's framing unknown:
+                # whatever arrives next cannot be trusted to be a new request,
+                # so this connection does not get reused.
+                self.close_connection = True
+                raise ValueError(f"body stopped arriving after {received} of {length} bytes "
+                                 f"({self.BODY_IDLE_TIMEOUT_SECONDS}s idle)") from exc
+            finally:
+                self.connection.settimeout(previous)
+            if received < length:
+                self.close_connection = True
+                raise ValueError(f"body is {received} bytes, shorter than the declared {length}")
+            return b"".join(chunks)
+
+        def _payload(self, *, limit: int | None = None):
+            """The request's JSON body. The ONLY body reader on this handler.
+
+            Eight routes each open-coded `int(Content-Length)` + `rfile.read()`,
+            which is how one flaw came to live at eight sites: whichever route a
+            probe reached first was the one that looked broken. `limit` is a
+            route's own ceiling, tighter than MAX_BODY_BYTES, and is checked
+            against the bytes that ACTUALLY arrived rather than against the
+            client's claim about them.
+            """
+            body = self._body()
+            if limit is not None and not 0 < len(body) <= limit:
+                raise ValueError(f"body must be between 1 and {limit} bytes, not {len(body)}")
+            return json.loads(body or b"{}")
+
+        def _guarded(self, route) -> None:
+            """Run a route and answer even when it raises.
+
+            An unhandled exception used to propagate into socketserver, which
+            printed a traceback and closed the socket: the client saw the
+            connection drop with NO HTTP response (curl exit 52), and because
+            log_message was a no-op the server kept no record. A fault that
+            produces neither a response nor a log line is a fault you find
+            twice -- and the first six times it was found here, it was found by
+            a crash.
+
+            The exception's own text is NOT sent. An API caller gets a stable
+            code; the message goes to the log, where an operator can read it and
+            a stranger cannot. See the collection-request routes, where
+            `invalid literal for int() with base 10: 'abc'` was being returned
+            as API prose.
+            """
+            try:
+                route()
+            except Exception as exc:  # noqa: BLE001 -- the point is to catch everything
+                self.log_error("unhandled %s on %s %s: %s",
+                               type(exc).__name__, self.command, self.path, exc)
+                if not self._response_started:
+                    self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal_error"})
+                self.close_connection = True
+
         def _gate(self, parsed) -> bool:
             """Apply the access policy. True means the request may proceed.
 
@@ -1685,7 +2017,15 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             finally:
                 service.release_thread_connections()
 
+        # Both verbs go through _guarded, so neither can drop a connection
+        # without answering. Adding a third verb means adding it here too.
         def do_GET(self) -> None:  # noqa: N802
+            self._guarded(self._route_get)
+
+        def do_POST(self) -> None:  # noqa: N802
+            self._guarded(self._route_post)
+
+        def _route_get(self) -> None:
             parsed = urlparse(self.path)
             if self._consume_token_param(parsed):
                 return
@@ -1748,18 +2088,20 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
                 return
             self._static(parsed.path)
 
-        def do_POST(self) -> None:  # noqa: N802
+        def _route_post(self) -> None:
             parsed = urlparse(self.path)
             if not self._gate(parsed):
                 return
             if parsed.path == "/api/v1/updates/acknowledge-bulk":
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    payload = json.loads(self.rfile.read(length) or b"{}")
+                    payload = self._payload()
                     self._json(HTTPStatus.OK, service.acknowledge_many(payload.get("ids", [])))
                 except KeyError:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "update_not_found"})
-                except (ValueError, TypeError, json.JSONDecodeError):
+                except (ValueError, TypeError, AttributeError, json.JSONDecodeError):
+                    # AttributeError too: a body of `[]` or `"x"` has no .get,
+                    # and a payload that is the wrong SHAPE is a bad request,
+                    # not the 500 it used to become.
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_update_ids"})
                 return
             # Filters ride the query string, not the body, so the confirm step's
@@ -1773,100 +2115,111 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
                 return
             if parsed.path == "/api/v1/admin/config":
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    payload = json.loads(self.rfile.read(length) or b"{}")
-                    self._json(HTTPStatus.OK, service.save_config(payload))
-                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(HTTPStatus.OK, service.save_config(self._payload()))
+                except (ValueError, TypeError, AttributeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_config"})
                 return
             if parsed.path == "/api/v1/identity/agent-proposals":
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    if not 0 < length <= 1_000_000:
-                        raise ValueError("Proposal import must be at most 1 MB")
-                    payload = json.loads(self.rfile.read(length))
-                    self._json(HTTPStatus.CREATED, service.import_agent_proposals(payload))
+                    self._json(HTTPStatus.CREATED,
+                               service.import_agent_proposals(self._payload(limit=1_000_000)))
                 except (ValueError, TypeError, json.JSONDecodeError) as exc:
-                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_agent_proposals", "detail": str(exc)})
+                    self._json(HTTPStatus.BAD_REQUEST,
+                               {"error": "invalid_agent_proposals", "detail": _refusal(exc)})
                 return
             proposal_prefix = "/api/v1/identity/agent-proposals/"
             if parsed.path.startswith(proposal_prefix) and parsed.path.endswith("/review"):
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    if not 0 < length <= 20_000:
-                        raise ValueError("Review must be at most 20 KB")
-                    payload = json.loads(self.rfile.read(length))
-                    self._json(HTTPStatus.OK, service.review_agent_proposal(unquote(parsed.path[len(proposal_prefix):-len("/review")]),payload))
+                    self._json(HTTPStatus.OK, service.review_agent_proposal(
+                        unquote(parsed.path[len(proposal_prefix):-len("/review")]),
+                        self._payload(limit=20_000)))
                 except KeyError:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "proposal_not_found"})
                 except (ValueError, TypeError, json.JSONDecodeError) as exc:
-                    self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_proposal_review", "detail": str(exc)})
+                    self._json(HTTPStatus.BAD_REQUEST,
+                               {"error": "invalid_proposal_review", "detail": _refusal(exc)})
                 return
             if parsed.path == "/api/v1/watches":
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    payload = json.loads(self.rfile.read(length) or b"{}")
-                    self._json(HTTPStatus.OK, service.save_watch(payload))
-                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(HTTPStatus.OK, service.save_watch(self._payload()))
+                except (ValueError, TypeError, AttributeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_watch"})
                 return
             if parsed.path == "/api/v1/identity/decisions":
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    payload = json.loads(self.rfile.read(length) or b"{}")
-                    self._json(HTTPStatus.OK, service.save_identity_decision(payload))
-                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(HTTPStatus.OK, service.save_identity_decision(self._payload()))
+                except (ValueError, TypeError, AttributeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_identity_decision"})
                 return
             if parsed.path == "/api/v1/admin/collection-requests":
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    payload = json.loads(self.rfile.read(length) or b"{}")
-                    self._json(HTTPStatus.CREATED, service.request_collection(payload))
-                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(HTTPStatus.CREATED, service.request_collection(self._payload()))
+                except (ValueError, TypeError, AttributeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_collection_request"})
                 return
             if parsed.path == "/api/v1/admin/collection-requests/process-next":
                 try:
                     self._json(HTTPStatus.OK, service.process_next_collection_request())
                 except (ValueError, OSError) as exc:
-                    self._json(HTTPStatus.CONFLICT, {"error": "collection_failed", "detail": str(exc)})
+                    self._json(HTTPStatus.CONFLICT,
+                               {"error": "collection_failed", "detail": _refusal(exc)})
                 return
             if parsed.path == "/api/v1/admin/collection-requests/recover":
                 try:
                     self._json(HTTPStatus.OK, service.recover_collection_requests())
                 except (ValueError, OSError) as exc:
-                    self._json(HTTPStatus.CONFLICT, {"error": "worker_active", "detail": str(exc)})
+                    self._json(HTTPStatus.CONFLICT,
+                               {"error": "worker_active", "detail": _refusal(exc)})
                 return
-            request_prefix, retry_suffix = "/api/v1/admin/collection-requests/", "/retry"
-            if parsed.path.startswith(request_prefix) and parsed.path.endswith(retry_suffix):
+            # Both collection-request id routes, sharing one parse. A request id
+            # is an INTEGER primary key, so `/abc/retry` names no request that
+            # could exist -- exactly what every other malformed-id path in this
+            # server answers 404 to. It used to let int() raise inside the try,
+            # which produced `409 {"detail": "invalid literal for int() with
+            # base 10: 'abc'"}`: the wrong status class (409 asserts a conflict
+            # with some real state, and there was none) carrying a raw Python
+            # exception message as API prose.
+            request_prefix = "/api/v1/admin/collection-requests/"
+            for suffix, action, ok, conflict in (
+                    ("/retry", service.retry_collection_request,
+                     HTTPStatus.CREATED, "retry_conflict"),
+                    ("/process", service.process_collection_request,
+                     HTTPStatus.OK, "collection_request_conflict")):
+                if not (parsed.path.startswith(request_prefix) and parsed.path.endswith(suffix)):
+                    continue
+                raw_id = parsed.path[len(request_prefix):-len(suffix)]
                 try:
-                    self._json(HTTPStatus.CREATED, service.retry_collection_request(int(parsed.path[len(request_prefix):-len(retry_suffix)])))
+                    request_id = int(raw_id)
+                except ValueError:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "collection_request_not_found"})
+                    return
+                if not SQLITE_MIN_INT <= request_id <= SQLITE_MAX_INT:
+                    # The third member of the query-string integer family, found
+                    # by the malformed-request sweep rather than by inspection:
+                    # `/api/v1/admin/collection-requests/<2**63>/retry` parses as
+                    # an int, so the ValueError guard above lets it through, and
+                    # it then raises OverflowError at bind time inside the worker.
+                    # An id SQLite cannot store is an id no row can have, so this
+                    # is a 404 for the same reason 'abc' is.
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "collection_request_not_found"})
+                    return
+                try:
+                    self._json(ok, action(request_id))
                 except KeyError:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "collection_request_not_found"})
                 except (ValueError, OSError) as exc:
-                    self._json(HTTPStatus.CONFLICT, {"error": "retry_conflict", "detail": str(exc)})
-                return
-            request_prefix, process_suffix = "/api/v1/admin/collection-requests/", "/process"
-            if parsed.path.startswith(request_prefix) and parsed.path.endswith(process_suffix):
-                raw_id = parsed.path[len(request_prefix):-len(process_suffix)]
-                try:
-                    self._json(HTTPStatus.OK, service.process_collection_request(int(raw_id)))
-                except KeyError:
-                    self._json(HTTPStatus.NOT_FOUND, {"error": "collection_request_not_found"})
-                except (ValueError, OSError) as exc:
-                    self._json(HTTPStatus.CONFLICT, {"error": "collection_request_conflict", "detail": str(exc)})
+                    self._json(HTTPStatus.CONFLICT, {"error": conflict, "detail": _refusal(exc)})
                 return
             product_prefix = "/api/v1/identity/products/"
             if parsed.path.startswith(product_prefix) and parsed.path.endswith("/review"):
                 product_id = unquote(parsed.path[len(product_prefix):-len("/review")])
                 try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                    payload = json.loads(self.rfile.read(length) or b"{}")
-                    self._json(HTTPStatus.OK, service.review_source_product(product_id, payload.get("decision", "")))
+                    payload = self._payload()
+                    self._json(HTTPStatus.OK,
+                               service.review_source_product(product_id, payload.get("decision", "")))
                 except KeyError:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "product_not_found"})
-                except (ValueError, TypeError, json.JSONDecodeError):
+                except (ValueError, TypeError, AttributeError, json.JSONDecodeError):
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_product_decision"})
                 return
             prefix, suffix = "/api/v1/updates/", "/acknowledge"
@@ -1915,9 +2268,64 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             self.wfile.write(body)
 
         def log_message(self, format: str, *args) -> None:
-            return
+            """One line per request and per error, on stderr.
+
+            This was `return` -- a deliberate silence, from when the server had
+            one operator on loopback and the lines were noise. The cost only
+            showed when a request FAILED: an unhandled exception dropped the
+            connection and left nothing behind at all, so the only way to learn
+            it had happened was to reproduce it. Six of the defects in this
+            round were found that way. A fault that leaves no log entry is a
+            fault you find twice.
+
+            The stdlib calls this from log_request (status and size) and from
+            log_error (the reason), so restoring it covers both with one method.
+
+            Control characters are stripped because the request line and the
+            path come off the wire: without that, a caller chooses what a
+            terminal renders and can forge whole log lines with \\r\\n. flush
+            because stdout/stderr to a pipe is block-buffered -- the lesson
+            already paid for by the startup banner vanishing under nohup.
+            """
+            line = (format % args) if args else format
+            safe = "".join(ch if ch.isprintable() else "\\x%02x" % ord(ch) for ch in line)
+            print(f"{self.address_string()} - - [{self.log_date_time_string()}] {safe}",
+                  file=sys.stderr, flush=True)
 
     return Handler
+
+
+def _refusal(exc: BaseException) -> str:
+    """The `detail` text an API caller may be shown for a refusal.
+
+    Every `raise ValueError` behind these routes carries a sentence this
+    codebase WROTE for an operator to read ("Only failed, partial or interrupted
+    requests can be retried."), so a ValueError's message is relayed.
+
+    An OSError's is not. It carries strerror plus the filesystem PATH it failed
+    on -- a server-side detail, handed to anyone who can reach the port, and the
+    handoff is explicit that a loopback bind behind a proxy or tunnel is still
+    remotely reachable.
+
+    A TypeError's is not either. Nothing behind these routes raises TypeError
+    deliberately -- `grep -rn 'raise TypeError' src/` finds only
+    _require_id_list, which no detail-carrying route calls -- so any TypeError
+    here came from the interpreter and describes our code, not the request.
+
+    Both go to the log instead, where an operator can read them and a stranger
+    cannot.
+
+    This is the second half of the fix, not the whole one: a filter cannot tell
+    an authored ValueError from an accidental one, and the raw message that was
+    actually reaching clients came from int(). That one is fixed where it
+    belongs -- by parsing the id before dispatching, so the exception is never
+    raised. tests/test_error_bodies_are_authored.py sweeps the malformed-request
+    matrix and fails on a raw-interpreter or filesystem-path fingerprint in any
+    response body.
+    """
+    if isinstance(exc, (OSError, TypeError)):
+        return "the server could not complete this request; see the server log"
+    return str(exc)
 
 
 def _first(query: dict[str, list[str]], key: str, default: str = "") -> str:
@@ -1925,19 +2333,78 @@ def _first(query: dict[str, list[str]], key: str, default: str = "") -> str:
     return values[0] if values else default
 
 
+def _require_id_list(value, what: str) -> list:
+    """A JSON field that must be an ARRAY, checked before anything iterates it.
+
+    `isinstance(value, str)` first is the whole point: a str satisfies every
+    duck-typed "is it iterable" test and then yields characters, so a
+    client-supplied string silently became a list of one-character ids. A bare
+    `iter(value)` guard would have accepted it; so would `hasattr(value,
+    '__iter__')`. Only an explicit type check refuses it.
+
+    Also refuses dict and bytes -- a dict iterates its keys, bytes its integers,
+    and both would produce a plausible-looking list of the wrong thing. The
+    accepted types are list and tuple, which is what json.loads yields for an
+    array.
+    """
+    if not isinstance(value, (list, tuple)):
+        raise TypeError(f"{what} must be a JSON array, not {type(value).__name__}")
+    return list(value)
+
+
+# SQLite binds integers as signed 64-bit. Python's are arbitrary precision, so
+# int("9223372036854775808") succeeds, max()/min() succeed, and the value only
+# fails at BIND time -- inside the query, after the route has committed to
+# answering -- with `OverflowError: Python int too large to convert to SQLite
+# INTEGER`. OverflowError is not a ValueError, so nothing caught it: the handler
+# thread died, socketserver closed the socket, and the client got no HTTP
+# response at all (measured: curl exit 52, empty body). Every paginating route
+# shared it.
+SQLITE_MAX_INT = 2 ** 63 - 1
+SQLITE_MIN_INT = -(2 ** 63)
+
+
+def _query_int(raw: str, *, default: int, low: int, high: int) -> int:
+    """A query-string integer SQLite can always bind.
+
+    Two failure modes, one function, because they were being handled in
+    different places and neither was handled everywhere:
+
+    - not a number at all -> `default` (a mistyped query string must not be an
+      error page);
+    - a number outside SQLite's signed 64-bit range -> clamped into it.
+
+    Clamping rather than rejecting, deliberately: `offset=10**20` means "past
+    the end" and an empty page IS that answer, while `limit=10**20` means "as
+    many as you allow" and the cap already answers it. Neither is a request the
+    server cannot understand, so neither earns a 4xx -- but both must arrive at
+    the driver as a bindable value.
+
+    `low`/`high` are always inside the SQLite range, which is what makes the
+    clamp total rather than best-effort.
+    """
+    assert SQLITE_MIN_INT <= low <= high <= SQLITE_MAX_INT, "bounds must be bindable"
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, value))
+
+
 def _pagination(query: dict[str, list[str]]) -> tuple[int, int]:
-    try:
-        # Cap raised from 200 to 500 so the rows-per-page control can offer a page
-        # big enough to scan without paging. Still capped: an uncapped limit turns
-        # one mistyped query string into a full-table render.
-        limit = max(1, min(500, int(_first(query, "limit", "100"))))
-    except ValueError:
-        limit = 100
+    # Cap raised from 200 to 500 so the rows-per-page control can offer a page
+    # big enough to scan without paging. Still capped: an uncapped limit turns
+    # one mistyped query string into a full-table render.
+    #
+    # Fixed HERE and only here, for all twelve callers. The same bug had already
+    # been found at six routes; patching those six would have left the other six
+    # for the next probe, which is exactly how the last one-bug-five-sites
+    # episode in this codebase played out. tests/test_hostile_query_strings.py
+    # scans the source for `_pagination(` call sites and fails if one appears in
+    # a function the sweep does not cover.
+    limit = _query_int(_first(query, "limit", "100"), default=100, low=1, high=500)
     raw_offset = _first(query, "cursor", _first(query, "offset", "0"))
-    try:
-        offset = max(0, int(raw_offset))
-    except ValueError:
-        offset = 0
+    offset = _query_int(raw_offset, default=0, low=0, high=SQLITE_MAX_INT)
     return limit, offset
 
 
@@ -1947,13 +2414,13 @@ def _sql_filters(query: dict[str, list[str]], fields: dict[str, str],
     params: list[object] = []
     q = _first(query, "q").strip()
     if q:
-        clauses.append("(" + " OR ".join(f"{column} LIKE ? COLLATE NOCASE" for column in searchable) + ")")
-        params.extend([f"%{q}%"] * len(searchable))
+        clauses.append("(" + " OR ".join(like_clause(column) for column in searchable) + ")")
+        params.extend([like_contains(q)] * len(searchable))
     for key, column in fields.items():
         value = _first(query, key).strip()
         if value:
-            clauses.append(f"{column} LIKE ? COLLATE NOCASE")
-            params.append(f"%{value}%")
+            clauses.append(like_clause(column))
+            params.append(like_contains(value))
     return clauses, params
 
 

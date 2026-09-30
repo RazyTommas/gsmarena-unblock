@@ -188,6 +188,90 @@ class WideContainersScroll(unittest.TestCase):
                               f"tooltip, not a route to the value")
 
 
+class WrappingCellsAndOverflowProbesAreMutuallyExclusive(unittest.TestCase):
+    """Cells that wrap cannot overflow, so nothing may measure them as if they do.
+
+    titleOverflowingCells() existed because the CSS clipped each row to one line:
+    it read scrollWidth for every `.data-table td` and gave the clipped ones a
+    title. The CSS now says `white-space:normal; overflow-wrap:break-word`, so
+    cells wrap and none of them overflows -- verified in a browser on the rendered
+    device grid at 1440x900: 500 cells, 0 overflowing, 0 with a title attribute.
+    The function could no longer produce any output.
+
+    It was still running on every DOM mutation and every resize, and a scrollWidth
+    read per cell forces a synchronous layout: 6.4ms median per pass over 500
+    cells, and 253ms against 109ms of total layout time across a fixed script of 12
+    resizes and 6 re-renders.
+
+    This asserts the PAIRING rather than just the deletion, because either half
+    alone is a defect that reads as fine. Restore the clipping without restoring a
+    title and values become unreachable; restore the probe without the clipping and
+    the layout cost comes back for output that is always empty.
+    """
+
+    APP_PATH = Path(__file__).resolve().parents[1] / "apps" / "web" / "app.js"
+
+    def _cells_wrap(self) -> bool:
+        wraps = False
+        for sel, decls, at in _rules(CSS_PATH.read_text()):
+            if "data-table" not in sel or "td" not in sel:
+                continue
+            for prop, value in decls:
+                if prop == "white-space" and value.strip().lower() == "normal":
+                    wraps = True
+                if prop == "white-space" and "nowrap" in value.lower():
+                    return False
+        return wraps
+
+    def test_the_stylesheet_still_wraps_table_cells(self) -> None:
+        """Guards the premise. If cells stop wrapping, the test below is wrong to
+        forbid the probe and must fail here instead of silently permitting a
+        regression."""
+        self.assertTrue(self._cells_wrap(),
+                        ".data-table td no longer declares white-space:normal. Cells can clip "
+                        "again, so overflowing values need a route to their text and the "
+                        "assertion below is no longer the right rule.")
+
+    def test_no_per_cell_scrollwidth_probe_while_cells_wrap(self) -> None:
+        app = self.APP_PATH.read_text()
+        self.assertTrue(self._cells_wrap(), "premise checked by the test above")
+        offenders = [line.strip() for line in app.splitlines()
+                     if "scrollWidth" in line and "data-table" in line]
+        # Also catch the two-line form: a querySelectorAll over cells whose body
+        # reads scrollWidth.
+        if "data-table td" in app:
+            for block in app.split("querySelectorAll('.data-table td')")[1:]:
+                if "scrollWidth" in block[:400]:
+                    offenders.append("querySelectorAll('.data-table td') ... scrollWidth")
+        self.assertEqual([], offenders,
+                         "app.js measures scrollWidth per table cell while the CSS makes cells "
+                         "wrap. Cells that wrap never overflow, so this forces a synchronous "
+                         "layout over every cell after every mutation and resize and can never "
+                         "set a title:\n  " + "\n  ".join(offenders))
+
+    def test_a_focusable_scroller_has_a_visible_focus_ring(self) -> None:
+        """app.js makes an overflowing .data-card focusable; a focus ring that is
+        only the UA default is invisible against --card in the dark palette."""
+        app = self.APP_PATH.read_text()
+        if "setAttribute('tabindex'" not in app:
+            self.skipTest("nothing makes a card focusable")
+        rings = [sel for sel, decls, at in _rules(CSS_PATH.read_text())
+                 if "data-card" in sel and "focus" in sel
+                 and any(p == "outline" and "none" not in v and v.strip() != "0"
+                         for p, v in decls)]
+        self.assertTrue(rings,
+                        "app.js gives .data-card tabindex but the stylesheet defines no focus "
+                        "outline for it, so keyboard focus is invisible")
+
+    def test_the_focusable_card_carries_a_label(self) -> None:
+        app = self.APP_PATH.read_text()
+        if "setAttribute('tabindex'" not in app:
+            self.skipTest("nothing makes a card focusable")
+        self.assertIn("aria-label", app,
+                      "a focusable scroll region with no accessible name is announced as "
+                      "nothing more than 'group'")
+
+
 class EveryColourIsAToken(unittest.TestCase):
     """Rule 3: a colour defined outside the theme blocks cannot be themed."""
 

@@ -78,15 +78,27 @@ async function load() {
     // Phase 1: only what Radar and the chrome need. The old boot awaited all 24
     // endpoints before painting anything, so first paint was hostage to the
     // slowest of them.
-    const [overview, updates, health, config, watches, watchlist] = await Promise.all([
+    // api.health() is deliberately NOT in this Promise.all. It runs fourteen
+    // corpus invariant checks and cost 773-892ms against the other five, which
+    // finished by 207ms; because Promise.all resolves on the slowest, first paint
+    // waited for it and so did phase 2, which did not even start until 849ms.
+    // Measured fresh load: 1,212ms total, and health returning at 948ms.
+    //
+    // It is fired here, unawaited, and paints itself when it lands. Not dropped:
+    // every consumer of it is guarded on state.healthPending below so the page
+    // says the status is still loading rather than rendering the zero that an
+    // empty health array would otherwise produce -- "0 sources need attention" is
+    // a claim, and it must not be made before anything has been checked.
+    const [overview, updates, config, watches, watchlist] = await Promise.all([
       api.overview(), api.updates(radarFilters()),
-      api.health(), api.config(), api.watches(), api.watchlist()
+      api.config(), api.watches(), api.watchlist()
     ]);
     state.data = { ...EMPTY_DATA, meta: overview.meta || {}, overview,
       updates: items(updates), updatePage: updates.meta?.page || {},
-      health: items(health), watches: items(watches), watchlist: items(watchlist),
-      reviewQueue: health.reviewQueue || [],
-      integrity: health.integrity || null, projection: health.projection || null };
+      health: [], watches: items(watches), watchlist: items(watchlist),
+      reviewQueue: [], integrity: null, projection: null };
+    state.healthPending = true;
+    state.healthError = null;
     state.config = config;
     // Seeded from the rows actually on screen, which is all this set is ever
     // asked about. The whole-list endpoint shipped 5,785 ids (220KB) on every
@@ -114,6 +126,7 @@ async function load() {
     // is worse than the bug it replaced, since the tab would then be lying
     // about what is under it. Refetch, after first paint so nothing is delayed.
     if (flipToHistory) loadRadarPage(0).catch(() => {});
+    loadHealth();
     loadRest();
     return;
   } catch (error) {
@@ -133,6 +146,25 @@ async function load() {
     render();
     return;
   }
+}
+
+// Collector status and the corpus invariant findings. Its own phase because it is
+// the single slowest call the app makes and nothing on first paint depends on it:
+// it feeds the Admin page's integrity panel and source table, the Explore source
+// filter's per-source record counts, and one sentence of the coverage notice.
+// A failure here must leave those saying "unavailable", never "zero".
+async function loadHealth() {
+  try {
+    const health = await api.health();
+    Object.assign(state.data, {
+      health: items(health), reviewQueue: health.reviewQueue || [],
+      integrity: health.integrity || null, projection: health.projection || null });
+    state.healthError = null;
+  } catch (error) {
+    state.healthError = error.message || 'Collector status is unavailable.';
+  }
+  state.healthPending = false;
+  render();
 }
 
 // Phase 2: everything the other views need, fetched after the first paint.
@@ -353,7 +385,7 @@ function renderExplore() {
   return heading('Device & Silicon Explorer','Find the exact hardware','Filter devices by identity, Android version, region, and exact silicon part.') + `
   <div class="filters"><label>Manufacturer<select id="makerFilter"><option value="all">All manufacturers</option>${[...new Set(state.data.devices.map(x=>x.maker))].sort().map(x=>`<option>${escapeHtml(x)}</option>`).join('')}</select></label><label>Chip vendor contains<input class="filter-input" id="chipFilter" list="vendorOptions" value="${escapeHtml(state.chipVendor==='all'?'':state.chipVendor)}" placeholder="Type Qualcomm, MediaTek…"><datalist id="vendorOptions">${[...new Set(state.data.chips.map(x=>x.vendor))].sort().map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Chip family contains<input class="filter-input" id="familyFilter" list="familyOptions" value="${escapeHtml(state.chipFamily==='all'?'':state.chipFamily)}" placeholder="Type Snapdragon, Dimensity…"><datalist id="familyOptions">${families.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Part contains<input class="filter-input" id="partFilter" list="partOptions" value="${escapeHtml(state.chipPart==='all'?'':state.chipPart)}" placeholder="Type SM8750, MT…"><datalist id="partOptions">${parts.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Android ceiling<select id="androidFilter"><option value="all">Any version</option><option value="17">17 or lower</option><option value="16">16 or lower</option><option value="15">15 or lower</option></select></label><label>Region<select id="regionFilter"><option value="all">Any region</option><option value="ilo">Israel / ILO</option><option value="mid">Middle East / MID</option><option value="global">Global</option></select></label><label>Support<select id="supportFilter"><option value="all">All statuses</option><option value="Supported">Officially supported</option><option value="Likely supported">Likely supported</option><option value="End announced">End announced</option><option value="Unsupported">Unsupported</option><option value="Unknown">Not stated by vendor</option></select></label></div>
   <div class="toolbar"><div class="segmented" id="exploreTabs"><button data-value="devices" class="${state.exploreMode==='devices'?'active':''}">Devices (${state.data.devicePage?.total||devices.length})</button><button data-value="silicon" class="${state.exploreMode==='silicon'?'active':''}">Silicon (${state.data.chipPage?.total||chips.length})</button><button data-value="releases" class="${state.exploreMode==='releases'?'active':''}">Canonical ROMs (${state.data.releasePage?.total||releases.length})</button><button data-value="sources" class="${state.exploreMode==='sources'?'active':''}">Source records (${sourcePage.total||0})</button></div><span class="subtle">${state.exploreMode==='sources'?`${sourcePage.offset+1}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}`:`${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+1}-${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+(state.exploreMode==='devices'?devices.length:state.exploreMode==='silicon'?chips.length:releases.length)} shown`}</span><span class="spacer"></span>${state.exploreMode!=='sources'?`<button class="button" id="canonicalPrev">←</button><button class="button" id="canonicalNext">→</button>`:''}${pageSizeControl('exploreRows')}<button class="button" id="exportView">Export CSV ↓</button></div>
-  ${state.exploreMode==='devices'?`<h2 class="section-title">Reviewed devices</h2>${coverageStrip()}<div class="data-card">${devices.length?`<table class="data-table"><thead><tr><th>Device identity</th><th>Silicon</th><th>Software state</th><th>Current firmware</th><th>Support</th></tr></thead><tbody>${deviceRows(devices)}</tbody></table>`:'<div class="empty"><b>No matching devices.</b><br>No result may also mean incomplete source coverage; check Admin health.</div>'}</div>`:state.exploreMode==='silicon'?`<h2 class="section-title">Silicon index</h2><div class="data-card">${chips.length?`<table class="data-table"><thead><tr><th>Chip</th><th>Exact part</th><th>Used by</th><th>Advisories</th><th>Attention</th></tr></thead><tbody>${chipRows(chips)}</tbody></table>`:'<div class="empty"><b>No matching silicon.</b><br>Try a broader chip filter.</div>'}</div>`:state.exploreMode==='releases'?`<h2 class="section-title">Canonical ROM versions</h2><div class="data-card">${releases.length?`<table class="data-table"><thead><tr><th>Model</th><th>Region</th><th>Build</th><th>OS</th><th>Security patch</th><th>Baseband</th><th>Released</th></tr></thead><tbody>${releaseRows(releases)}</tbody></table>`:'<div class="empty"><b>No observed ROMs match.</b><br>This is different from proof that no ROM exists.</div>'}</div>`:`<h2 class="section-title">All captured source records</h2><div class="notice">These rows are visible evidence awaiting or supporting canonical identity resolution. “Unresolved” is intentional—not missing data.</div><div class="toolbar"><input id="sourceQuery" value="${escapeHtml(state.sourceQuery)}" placeholder="Search name, codename, build…"><select id="sourceName"><option value="">All sources</option><option value="xiaomi.community.firmware_tracker">Xiaomi (${state.data.health.find(x=>x.source.includes('xiaomi'))?.records||0})</option><option value="tecno.vendor.security_device_scope">Tecno (${state.data.health.find(x=>x.source.includes('tecno'))?.records||0})</option><option value="samsung.fota">Samsung (${state.data.health.find(x=>x.source.includes('samsung'))?.records||0})</option></select><select id="sourceKind"><option value="">All record types</option><option value="firmware_release">Firmware</option><option value="security_patch_publication">Security patch publication</option></select><button class="button primary" id="sourceSearch">Search</button></div><div class="data-card"><table class="data-table"><thead><tr><th>Source identity</th><th>Collector</th><th>Record type</th><th>Observed value</th><th>Region</th><th>Identity state</th><th>Observed</th></tr></thead><tbody>${sourceRows(sourceRecords)}</tbody></table></div><div class="toolbar"><button class="button" id="sourcePrev" ${sourcePage.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${sourcePage.total?sourcePage.offset+1:0}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}</span><button class="button" id="sourceNext" ${sourcePage.nextCursor?'':'disabled'}>Next →</button></div>`}`;
+  ${state.exploreMode==='devices'?`<h2 class="section-title">Reviewed devices</h2>${coverageStrip()}<div class="data-card">${devices.length?`<table class="data-table"><thead><tr><th>Device identity</th><th>Silicon</th><th>Software state</th><th>Current firmware</th><th>Support</th></tr></thead><tbody>${deviceRows(devices)}</tbody></table>`:'<div class="empty"><b>No matching devices.</b><br>No result may also mean incomplete source coverage; check Admin health.</div>'}</div>`:state.exploreMode==='silicon'?`<h2 class="section-title">Silicon index</h2><div class="data-card">${chips.length?`<table class="data-table"><thead><tr><th>Chip</th><th>Exact part</th><th>Used by</th><th>Advisories</th><th>Attention</th></tr></thead><tbody>${chipRows(chips)}</tbody></table>`:'<div class="empty"><b>No matching silicon.</b><br>Try a broader chip filter.</div>'}</div>`:state.exploreMode==='releases'?`<h2 class="section-title">Canonical ROM versions</h2><div class="data-card">${releases.length?`<table class="data-table"><thead><tr><th>Model</th><th>Region</th><th>Build</th><th>OS</th><th>Security patch</th><th>Baseband</th><th>Released</th></tr></thead><tbody>${releaseRows(releases)}</tbody></table>`:'<div class="empty"><b>No observed ROMs match.</b><br>This is different from proof that no ROM exists.</div>'}</div>`:`<h2 class="section-title">All captured source records</h2><div class="notice">These rows are visible evidence awaiting or supporting canonical identity resolution. “Unresolved” is intentional—not missing data.</div><div class="toolbar"><input id="sourceQuery" value="${escapeHtml(state.sourceQuery)}" placeholder="Search name, codename, build…"><select id="sourceName"><option value="">All sources</option><option value="xiaomi.community.firmware_tracker">Xiaomi${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('xiaomi'))?.records||0})`}</option><option value="tecno.vendor.security_device_scope">Tecno${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('tecno'))?.records||0})`}</option><option value="samsung.fota">Samsung${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('samsung'))?.records||0})`}</option></select><select id="sourceKind"><option value="">All record types</option><option value="firmware_release">Firmware</option><option value="security_patch_publication">Security patch publication</option></select><button class="button primary" id="sourceSearch">Search</button></div><div class="data-card"><table class="data-table"><thead><tr><th>Source identity</th><th>Collector</th><th>Record type</th><th>Observed value</th><th>Region</th><th>Identity state</th><th>Observed</th></tr></thead><tbody>${sourceRows(sourceRecords)}</tbody></table></div><div class="toolbar"><button class="button" id="sourcePrev" ${sourcePage.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${sourcePage.total?sourcePage.offset+1:0}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}</span><button class="button" id="sourceNext" ${sourcePage.nextCursor?'':'disabled'}>Next →</button></div>`}`;
 }
 
 let securityPageRequest=0;
@@ -512,6 +544,17 @@ function identityMatchRow(hit,query,namespace){
 // already goes to ask whether a run worked.
 function integrityPanel() {
   const state_ = state.data.integrity, proj = state.data.projection;
+  // Pending and absent are different answers and must not render the same way.
+  // Returning '' while the check is still in flight would leave the Admin page
+  // looking like a corpus with nothing to report.
+  if (!state_ && state.healthPending) return `<div class="integrity integrity-ok">
+    <div class="integrity-head"><b>Checking corpus invariants…</b></div>
+    <p class="subtle">Fourteen checks run against the corpus itself. Results appear here
+       when they finish.</p></div>`;
+  if (!state_ && state.healthError) return `<div class="integrity integrity-warn">
+    <div class="integrity-head"><b>Corpus invariants were not checked</b></div>
+    <p class="subtle">${escapeHtml(state.healthError)} This is not a statement that the
+       invariants passed.</p></div>`;
   if (!state_) return '';
   const findings = state_.findings || [];
   const errors = findings.filter(f => f.severity === 'error');
@@ -533,10 +576,17 @@ function integrityPanel() {
 
 function renderAdmin() {
   const health=state.data.health.filter(matches), delayed=health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length;
+  // "0 sources need attention" before anything has been asked is a claim, not a
+  // blank. Say which it is.
+  const healthNotice = state.healthPending
+    ? 'Collector status is still loading. No source has been checked yet.'
+    : state.healthError
+      ? `Collector status is unavailable: ${escapeHtml(state.healthError)}`
+      : `${delayed} ${delayed===1?'source needs':'sources need'} attention.`;
   const cfg=state.config||{};
   return heading('Operations','Know when the data is trustworthy','Collection health, coverage gaps, and offline snapshot readiness.') + `
   ${integrityPanel()}
-  <div class="notice">${delayed} ${delayed===1?'source needs':'sources need'} attention. Product views preserve the last valid observation and display its age.</div>
+  <div class="notice">${healthNotice} Product views preserve the last valid observation and display its age.</div>
   <div class="admin-grid"><div><div class="data-card"><table class="data-table"><thead><tr><th>Source</th><th>Scope</th><th>Status</th><th>Evidence captured / imported</th><th>Collection</th><th>Records</th></tr></thead><tbody>${health.map(x=>`<tr><td class="strong">${escapeHtml(x.source)}</td><td>${escapeHtml(x.scope)}</td><td>${badge(x.status,x.status)}${silenceNote(x)}</td><td>${val(x.captured_at,'capture time')}<div class="subtle">Imported ${escapeHtml(x.last)}</div></td><td>${escapeHtml(x.next)}<div class="subtle">${escapeHtml(x.execution_mode||'snapshot')}</div></td><td>${escapeHtml(x.records)}</td></tr>`).join('')}</tbody></table></div></div>
   <div class="data-card flow"><div class="eyebrow">Offline bundle</div><h2 class="section-title" style="margin-top:4px">Snapshot contents</h2><div class="flow-step"><i>1</i><div><b>Corpus database</b><div class="subtle">Canonical facts + provenance</div></div></div><div class="flow-step"><i>2</i><div><b>Evidence cache</b><div class="subtle">Permitted source documents</div></div></div><div class="flow-step"><i>3</i><div><b>Manifest</b><div class="subtle">Source cutoffs, hashes, row counts</div></div></div><p class="subtle">Build and verify snapshots with <code>python3 -m mobile_observatory.snapshots</code>.</p></div></div>
   <h2 class="section-title">Collection preferences</h2><div class="data-card"><div class="form-grid"><label>Preferred cadence (no scheduler installed)<select id="cfgCadence"><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">Daily</option></select></label><label>Catalog scope<select id="cfgSupported"><option value="1">Supported devices only</option><option value="0">All devices</option></select></label></div><div class="validation-note"><b>Preferred regions</b> — validated codes; hover/select labels explain their scope.</div><div class="check-grid" id="cfgRegions">${(state.data.configOptions?.regions||[]).map(x=>`<label class="check-pill"><input type="checkbox" value="${escapeHtml(x.id)}" ${(cfg.preferredRegions||[]).includes(x.id)?'checked':''}> ${escapeHtml(x.id)} · ${escapeHtml(x.label)}</label>`).join('')}</div><div class="validation-note"><b>Enabled sources</b> — only installed source contracts can be selected.</div><div class="check-grid" id="cfgSources">${(state.data.configOptions?.sources||[]).map(x=>`<label class="check-pill"><input type="checkbox" value="${escapeHtml(x.id)}" ${(cfg.enabledSources||[]).includes(x.id)?'checked':''}> ${escapeHtml(x.label)}</label>`).join('')}</div><div class="toolbar"><button class="button primary" id="saveConfig">Save preferences</button><button class="button" id="exportConfig">Export config</button><label class="button">Import config<input id="importConfig" type="file" accept="application/json" hidden></label></div></div>
@@ -619,7 +669,7 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   }
   if(state.route==='admin') {
     const unresolved=state.data.productPage?.total||0, chips=state.data.chipPage?.total||0;
-    $('#app .notice').innerHTML=`<b>Collector operation:</b> ${state.data.health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length} source failures (includes advisory silence -- see the Status column). <b>Coverage debt:</b> ${state.data.productPage?.total||unresolved} unresolved product candidates; ${chips} canonical silicon parts; ${state.data.securityPage?.total||state.data.security.length} catalogued CVEs awaiting device applicability. A successful collector run does not mean coverage is complete.`;
+    $('#app .notice').innerHTML=`<b>Collector operation:</b> ${state.healthPending?'still loading':state.healthError?'unavailable':`${state.data.health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length} source failures (includes advisory silence -- see the Status column)`}. <b>Coverage debt:</b> ${state.data.productPage?.total||unresolved} unresolved product candidates; ${chips} canonical silicon parts; ${state.data.securityPage?.total||state.data.security.length} catalogued CVEs awaiting device applicability. A successful collector run does not mean coverage is complete.`;
     $('#app .admin-grid')?.insertAdjacentHTML('afterend',`<h2 class="section-title">Collect something now</h2><div class="data-card"><div class="form-grid"><label>Target hint<input id="collectionTarget" placeholder="e.g. SM-A055F / ILO or Redmi Note 14"><small>This is a matching hint for preserved artifacts, not an AI prompt or a live web query.</small></label><label>What to collect<select id="collectionScope"><option value="smart">Smart choice for each source</option><option value="latest_firmware">Latest firmware</option><option value="firmware_history">Firmware history</option><option value="device_profile">Device profile and silicon</option><option value="security">Security bulletins</option></select></label></div><div class="validation-note"><b>Sources (choose one or more)</b> — only installed captured-replay combinations are offered.</div><div class="check-grid" id="collectionSources"><label class="check-pill"><input type="checkbox" value="samsung"> Samsung FOTA</label><label class="check-pill"><input type="checkbox" value="xiaomi"> Xiaomi firmware</label><label class="check-pill"><input type="checkbox" value="tecno"> TECNO security</label></div><div class="toolbar"><button class="button primary" id="queueCollection">Queue collection request(s)</button><button class="button" id="runNextCollection">Run next captured replay</button><button class="button" id="recoverCollections">Recover interrupted jobs</button><span class="subtle">Smart maps Samsung→firmware history, Xiaomi→firmware history, TECNO→security. Incompatible explicit combinations are rejected before queueing.</span></div>${renderCollectionJobs()}${(state.data.collectionRequests||[]).length?`<div class="validation-note">Recent: ${(state.data.collectionRequests||[]).slice(0,3).map(x=>`${escapeHtml(x.target)} · ${escapeHtml(x.source)} · ${escapeHtml(x.scope)} · ${escapeHtml(x.status)}`).join(' | ')}</div>`:''}</div>`);
   }
   $('#crumb').textContent=state.route[0].toUpperCase()+state.route.slice(1);
@@ -677,7 +727,11 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   $('#proposalFile')?.addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;if(file.size>1000000){toast('Proposal file must be at most 1 MB');return;}$('#proposalJson').value=await file.text();});
   $('#importProposals')?.addEventListener('click',async()=>{try{const value=JSON.parse($('#proposalJson').value);const result=await api.importAgentProposals(value);await load();toast(`${result.count} proposals validated; canonical facts unchanged`);}catch{toast('Invalid proposal JSON or evidence references; check the assignment contract');}});
   document.querySelectorAll('.review-proposal').forEach(button=>button.addEventListener('click',async()=>{const row=button.closest('[data-proposal]'),rationale=row.querySelector('.proposal-rationale').value.trim();if(!rationale){toast('Add a review rationale');return;}try{await api.reviewAgentProposal(row.dataset.proposal,{decision:button.dataset.decision,rationale});await load();toast('Review remembered; canonical facts unchanged');}catch{toast('Could not record proposal review');}}));
-  $('#copyAgentPrompt')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(state.data.agentBundle?.pastePrompt||'');toast('Agent assignment copied');}catch{toast('Clipboard unavailable; download the bundle instead');}});
+  // The prompt is fetched here rather than carried by the bundle. Two failure
+  // modes are told apart deliberately: an empty prompt from the server means the
+  // review bundle is not on disk, which is not the same as a clipboard the
+  // browser would not let us write to.
+  $('#copyAgentPrompt')?.addEventListener('click',async e=>{const btn=e.currentTarget,was=btn.textContent;btn.disabled=true;btn.textContent='Preparing…';let text;try{text=(await api.agentPrompt()).pastePrompt||'';}catch{btn.disabled=false;btn.textContent=was;toast('Could not fetch the agent assignment');return;}btn.disabled=false;btn.textContent=was;if(!text){toast('No agent assignment available; the review bundle has not been generated');return;}try{await navigator.clipboard.writeText(text);toast('Agent assignment copied');}catch{toast('Clipboard unavailable; download the bundle instead');}});
   $('#downloadAgentBundle')?.addEventListener('click',()=>downloadJson('mobile-observatory-identity-candidates.json',state.data.agentBundle?.candidates||[]));
   $('#radarPrev')?.addEventListener('click',()=>loadRadarPage(Math.max(0,(state.data.updatePage?.offset||0)-50)).catch(()=>toast('Could not load Radar page')));
   $('#radarNext')?.addEventListener('click',()=>loadRadarPage(Number(state.data.updatePage?.nextCursor||0)).catch(()=>toast('Could not load Radar page')));
@@ -754,7 +808,11 @@ function downloadJson(name,value){const a=document.createElement('a');a.href=URL
 document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{if(!state.data)return;state.route=button.dataset.route;searchResults?.classList.remove('open');$('.rail').classList.remove('open');render();}));
 const searchBox=$('#globalSearch'),searchResults=$('#searchResults');
 searchBox.addEventListener('input',debounce(async event=>{state.filter=event.target.value;if(state.route==='radar'){try{await loadRadarPage(0);}catch{toast('Could not search Radar');}}else render();const q=event.target.value.trim();if(q.length<2){searchResults.classList.remove('open');return;}try{const payload=await api.search(q);const hits=items(payload);const totals=payload.totals||{};const matched=(totals.device||0)+(totals.chip||0)+(totals.release||0);const more=matched>hits.length?`<div class="search-more">Showing ${hits.length} of ${matched.toLocaleString()} matches — ${(totals.device||0).toLocaleString()} devices, ${(totals.chip||0).toLocaleString()} silicon, ${(totals.release||0).toLocaleString()} ROMs. Press Enter to filter the table.</div>`:'';searchResults.innerHTML=hits.length?hits.map((x,i)=>`<button class="search-hit" data-hit="${i}" data-type="${escapeHtml(x.type)}" data-label="${escapeHtml(x.label)}"><b>${escapeHtml(x.label)}</b><small>${escapeHtml(x.type)} · ${escapeHtml(x.detail)}</small></button>`).join('')+more:'<div class="empty">No canonical match across the whole catalogue. Coverage may be incomplete.</div>';searchResults.classList.add('open');searchResults.querySelectorAll('[data-hit]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.label;searchBox.value=b.dataset.label;state.route=b.dataset.type==='release'?'explore':b.dataset.type==='chip'?'explore':'explore';state.exploreMode=b.dataset.type==='release'?'releases':b.dataset.type==='chip'?'silicon':'devices';searchResults.classList.remove('open');render();});}catch{searchResults.innerHTML='<div class="empty">Search unavailable</div>';searchResults.classList.add('open');}},180));
-const theme=$('#themeSelect');theme.value=localStorage.getItem('observatory-theme')||'system';const applyTheme=v=>{document.documentElement.dataset.theme=v==='system'?'':v;localStorage.setItem('observatory-theme',v);};applyTheme(theme.value);theme.addEventListener('change',()=>applyTheme(theme.value));
+const theme=$('#themeSelect');theme.value=localStorage.getItem('observatory-theme')||'system';// "System" REMOVES the attribute rather than setting it to "". The CSS guard
+// matches both an absent and an empty data-theme, so blanking it was not broken,
+// but an empty attribute is a value that means "no value" and only works because
+// something downstream is written to tolerate it.
+const applyTheme=v=>{const root=document.documentElement;if(v==='system')root.removeAttribute('data-theme');else root.dataset.theme=v;localStorage.setItem('observatory-theme',v);};applyTheme(theme.value);theme.addEventListener('change',()=>applyTheme(theme.value));
 $('#refreshButton').addEventListener('click',()=>load().then(()=>toast('Data refreshed')));
 $('#helpButton').addEventListener('click',openHelp);
 $('.mobile-menu').addEventListener('click',()=>$('.rail').classList.toggle('open'));
@@ -976,17 +1034,58 @@ document.addEventListener('click', e => {
   openBrief(contextForGap(btn));
 });
 
-// --- keep one-line rows informative ---------------------------------------
-// The CSS collapses each row to a single line with an ellipsis. Anything that
-// overflows would otherwise be lost, so give every truncated cell a title. Run
-// it after any re-render rather than hooking a specific render function.
-function titleOverflowingCells() {
-  document.querySelectorAll('.data-table td').forEach(td => {
-    if (td.scrollWidth > td.clientWidth + 1) {
-      const text = td.textContent.replace(/\s+/g, ' ').trim();
-      if (text && td.title !== text) td.title = text;
-    } else if (td.title) {
-      td.removeAttribute('title');
+// --- a horizontal scroller a keyboard can reach --------------------------------
+// `.data-card` is `overflow-x:auto`, so a table wider than the viewport scrolls.
+// Chromium happens to put overflow containers in the tab order by itself, which is
+// why keyboard scrolling already worked -- but that is a browser default, not a
+// promise, and Firefox and Safari do not do it. The attribute has to be explicit.
+//
+// Applied to the cards that ACTUALLY overflow, not to all 24 of them. tabindex on
+// a container that fits adds a tab stop that does nothing, and twenty-odd of those
+// between a reader and the next control is a worse keyboard experience than the
+// one this fixes. So it is decided from layout, and removed again when a card
+// stops overflowing.
+//
+// This reads scrollWidth, which is the same kind of geometry read
+// titleOverflowingCells was deleted for, so it is worth being precise that the
+// swap is not free. Measured in the browser on the Explore grid at 1440x900,
+// medians of 25 passes, with a control proving the invalidating write actually
+// reflows (one read: 4.6ms dirty against 0.0ms clean):
+//
+//                                  elements    dirty    clean
+//   titleOverflowingCells (gone)        500    4.40ms   0.50ms
+//   markScrollableCards (this)            1    3.90ms   0.00ms
+//
+// The ~4ms is ONE forced reflow and is almost independent of element count, so
+// both passes pay the same when layout is dirty. The element work is the clean
+// column, and that is where this is cheaper. In practice both are debounced 60ms
+// and 150ms behind the mutation or resize, so layout has settled by the time they
+// run and the clean column is what is actually paid.
+function markScrollableCards() {
+  document.querySelectorAll('.data-card').forEach(card => {
+    const scrolls = card.scrollWidth > card.clientWidth + 1;
+    if (scrolls === card.hasAttribute('tabindex')) return;   // already correct
+    if (scrolls) {
+      // Walk BACK to the nearest heading rather than trusting the immediately
+      // preceding element: on Explore the section title is followed by the
+      // coverage strip, so an immediate-sibling check named every table
+      // "Table, scrollable horizontally" and the label carried no information.
+      let node = card.previousElementSibling, heading = null;
+      while (node && !heading) {
+        if (node.classList.contains('section-title') || /^H[1-6]$/.test(node.tagName)) heading = node;
+        else heading = node.querySelector?.(':scope > .section-title, :scope > h2, :scope > h3') || null;
+        node = node.previousElementSibling;
+      }
+      const label = heading
+        ? `${heading.textContent.trim()}, table scrollable horizontally`
+        : 'Table, scrollable horizontally';
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'region');
+      card.setAttribute('aria-label', label);
+    } else {
+      card.removeAttribute('tabindex');
+      card.removeAttribute('role');
+      card.removeAttribute('aria-label');
     }
   });
 }
@@ -995,13 +1094,49 @@ if (appRoot) {
   let pending = null;
   new MutationObserver(() => {
     clearTimeout(pending);
-    pending = setTimeout(titleOverflowingCells, 60);
+    pending = setTimeout(markScrollableCards, 60);
   }).observe(appRoot, { childList: true, subtree: true });
 }
 window.addEventListener('resize', () => {
-  clearTimeout(window.__titleTimer);
-  window.__titleTimer = setTimeout(titleOverflowingCells, 150);
+  clearTimeout(window.__cardScrollTimer);
+  window.__cardScrollTimer = setTimeout(markScrollableCards, 150);
 });
+
+// --- titleOverflowingCells() removed -------------------------------------------
+// It gave every clipped table cell a title attribute, because the CSS collapsed
+// each row to one line with an ellipsis and text past the edge was otherwise
+// lost. `.data-table td` is now `white-space:normal; overflow-wrap:break-word`
+// (styles.css) -- cells WRAP, so nothing is clipped and nothing needs a title.
+//
+// Verified in a real browser on the rendered device grid before deleting it:
+// 500 cells, 0 with scrollWidth past clientWidth, 0 carrying a title attribute
+// after the observer's debounce had fired. The function had stopped being able to
+// set a title at all.
+//
+// It ran on a MutationObserver over the whole #app subtree after every re-render
+// AND on every resize. What that cost is smaller than it looks, and the honest
+// numbers are worth recording because the obvious ones are wrong:
+//
+// Total layout time across a fixed script of 12 resizes and 6 re-renders could
+// NOT tell the two builds apart. Medians over three runs each: 253ms with the
+// function, 277ms with it removed, 264ms with markScrollableCards in its place --
+// a run-to-run spread of +/-40ms swamping any difference, and exactly 36 `Layout`
+// events in every arm. So this deletion is NOT a measured reduction in layout
+// passes, and claiming one would be inventing a number.
+//
+// The measurable cost is the pass itself: 0.50ms median of geometry reads and
+// string work over the 500 cells when layout is already clean, plus one ~4.4ms
+// forced reflow if it happens to run while layout is dirty. Because it was
+// debounced 60ms/150ms behind the thing that triggered it, layout had almost
+// always settled first -- which is why the per-cell reads were cheap and why the
+// "forces a synchronous layout every time" reading of this code was too
+// pessimistic.
+//
+// It is removed because it was DEAD, not because it was slow.
+//
+// tests/test_web_styles_invariants.py asserts the pairing: cells that wrap must
+// not be accompanied by a scrollWidth probe, so reintroducing one without
+// reintroducing clipping fails.
 
 // ===========================================================================
 // DEEP-LINKABLE VIEWS

@@ -27,7 +27,10 @@ export const api = {
   updates: filters => request(`/updates${params(filters)}`),
   acknowledge: id => request(`/updates/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }),
   acknowledgeMany: ids => request('/updates/acknowledge-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
-  acknowledgements: () => request('/updates/acknowledgements'),
+  // Paginated like every other list endpoint. Not called by the app: the Radar
+  // feed seeds the acknowledged set from the rows on screen, which is why the
+  // whole-table form (5,785 ids, 220KB) left the boot path.
+  acknowledgements: filters => request(`/updates/acknowledgements${params(filters)}`),
   // Same query string, two methods: the count the confirm step shows comes from
   // the query the POST then runs, so it cannot describe a different set of rows.
   unwatchedPending: filters => request(`/updates/unwatched-pending${params(filters)}`),
@@ -50,6 +53,11 @@ export const api = {
   reviewAgentProposal: (id,value) => request(`/identity/agent-proposals/${encodeURIComponent(id)}/review`, {method:'POST',body:JSON.stringify(value)}),
   identityHistory: () => request('/identity/history'),
   agentBundle: () => request('/identity/agent-bundle'),
+  // The paste text is 314,700 characters, 313,159 of which are the candidates
+  // agentBundle() already returns. Fetched when Copy is pressed instead of on
+  // every Admin visit. Assembled server-side so the copied bytes are the same
+  // bytes as before -- see ObservatoryService.agent_review_bundle.
+  agentPrompt: () => request('/identity/agent-bundle/prompt'),
   securityDetail: cve => request(`/security/cves/${encodeURIComponent(cve)}`),
   security: filters => request(`/security/findings${params(filters)}`),
   securityCoverage: () => request('/security/coverage'),

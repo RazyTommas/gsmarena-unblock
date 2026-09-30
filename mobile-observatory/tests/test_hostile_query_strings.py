@@ -74,6 +74,11 @@ SWEPT_PAGE_METHODS = (
     "updates_page", "devices_page", "chips_page", "chip_products_page",
     "product_source_builds_page", "source_records_page", "source_products_page",
     "releases_page", "product_releases_page", "product_security_page", "security_page",
+    # /api/v1/updates/acknowledgements used to return the whole table -- 5,785 ids,
+    # 231,411 bytes -- and so was the one list route with no _pagination call and
+    # nothing here to sweep. It reads the LOCAL database rather than the corpus,
+    # which is why it was missed; the bound applies the same.
+    "acknowledgements_page",
 )
 
 

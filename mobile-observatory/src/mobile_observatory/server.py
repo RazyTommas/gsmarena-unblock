@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import sqlite3
@@ -1255,12 +1256,19 @@ class ObservatoryService:
     def security(self, query: dict[str, list[str]]) -> list[dict]:
         return self.security_page(query).items
 
-    def agent_review_bundle(self) -> dict:
+    IMPORT_CONTRACT = "\n\nImport contract: return a JSON array. confidence must be low, medium, or high. Every evidence entry must include note and at least one of url (HTTP/HTTPS), artifact_id, observation_id (existing captured IDs). No additional fields. Submit to POST /api/v1/identity/agent-proposals; every output is a proposal only. Approval remembers a review; it never promotes model codes, aliases, silicon, security, or firmware facts. Previously reviewed targets must not be proposed again.\n"
+
+    def _agent_review_candidates(self) -> tuple[list, list, str]:
+        """(candidates, remembered reviews, prompt template) or ([], [], "").
+
+        The one place that reads the review bundle off disk, so the panel payload
+        and the paste text cannot disagree about which candidates are outstanding.
+        """
         root = self.data_dir / "agent-review"
         prompt = root / "agent-review-prompt.md"
         candidates = root / "identity-candidates.json"
         if not prompt.is_file() or not candidates.is_file():
-            return {"candidateCount": 0, "pastePrompt": "", "candidates": []}
+            return [], [], ""
         candidate_data = json.loads(candidates.read_text(encoding="utf-8"))
         with self.local_lock:
             memory = [dict(r) for r in self.local.execute("SELECT product_id,status,reviewer,rationale,json_extract(payload_json,'$.canonical_name') canonical_name,json_extract(payload_json,'$.model_codes') model_codes FROM agent_proposals WHERE status!='pending' GROUP BY target_key")]
@@ -1268,10 +1276,39 @@ class ObservatoryService:
         candidate_data = [c for c in candidate_data if c.get("id",c.get("product_id")) not in remembered_products]
         for candidate in candidate_data:
             candidate["remembered_reviews"] = [r for r in memory if r["product_id"] == candidate.get("id",candidate.get("product_id"))]
-        prompt_text = prompt.read_text(encoding="utf-8")
-        prompt_text += "\n\nImport contract: return a JSON array. confidence must be low, medium, or high. Every evidence entry must include note and at least one of url (HTTP/HTTPS), artifact_id, observation_id (existing captured IDs). No additional fields. Submit to POST /api/v1/identity/agent-proposals; every output is a proposal only. Approval remembers a review; it never promotes model codes, aliases, silicon, security, or firmware facts. Previously reviewed targets must not be proposed again.\n"
-        paste = prompt_text + "\n\n# Candidate data\n```json\n" + json.dumps(candidate_data, indent=2) + "\n```\n"
-        return {"candidateCount": len(candidate_data), "pastePrompt": paste, "candidates": candidate_data, "rememberedReviews": memory}
+        return candidate_data, memory, prompt.read_text(encoding="utf-8") + self.IMPORT_CONTRACT
+
+    def agent_review_bundle(self) -> dict:
+        """What the Admin handoff panel renders.
+
+        `pastePrompt` is deliberately NOT here any more. It was 314,700 characters
+        of a 615,142-byte response, and 313,159 of those characters were the same
+        628 candidates this response already returns under `candidates`, re-encoded
+        as indented JSON inside the prompt text. The actual prompt is 1,541
+        characters. The panel renders a count and a candidate list and never
+        displayed the paste text at all, so the response carried its largest field
+        for a button that had not been pressed: 615,142 -> 265,518 bytes, -57%.
+
+        The paste text still exists, byte for byte, at
+        GET /api/v1/identity/agent-bundle/prompt, which the Copy button fetches
+        when it is clicked. Assembled on the SERVER rather than concatenated in the
+        browser on purpose: Python's json.dumps escapes non-ASCII and JavaScript's
+        JSON.stringify does not, so a client-side join of the same two pieces would
+        produce a DIFFERENT prompt for any candidate carrying a non-ASCII character
+        -- a quietly corrupted agent assignment, which is worse than a large
+        response.
+        """
+        candidate_data, memory, _template = self._agent_review_candidates()
+        return {"candidateCount": len(candidate_data), "candidates": candidate_data,
+                "rememberedReviews": memory}
+
+    def agent_review_prompt(self) -> dict:
+        """The complete paste text, fetched when the operator asks to copy it."""
+        candidate_data, _memory, template = self._agent_review_candidates()
+        if not template:
+            return {"pastePrompt": ""}
+        return {"pastePrompt": template + "\n\n# Candidate data\n```json\n"
+                + json.dumps(candidate_data, indent=2) + "\n```\n"}
 
     def integrity(self) -> dict:
         """Corpus invariant findings, and what the projection is serving.
@@ -1432,9 +1469,39 @@ class ObservatoryService:
         return {"acknowledged": len(ids)}
 
     def acknowledgements(self) -> list[str]:
+        """Every acknowledged event id. Complete, and used as such internally."""
         with self.local_lock:
             return [row[0] for row in self.local.execute(
                 "SELECT event_id FROM acknowledgements ORDER BY acknowledged_at DESC").fetchall()]
+
+    def acknowledgements_page(self, query: dict[str, list[str]]) -> QueryPage:
+        """A bounded page of acknowledged event ids, with the total beside it.
+
+        The route used to return the whole table -- 5,785 bare UUIDs, 231,411
+        bytes, and it compresses only 1.8x because a UUID is already dense, so
+        this is a payload that has to get SMALLER rather than squeezed. It is the
+        last list endpoint that was unbounded; the other twelve all go through
+        _pagination, which exists because an uncapped limit turns one mistyped
+        query string into a full-table render.
+
+        Worth being exact about what this wins, because it is not what it looks
+        like: nothing fetches this. api.acknowledgements() is defined in api.js and
+        called from nowhere in app.js, and the boot waterfall is 22 calls of which
+        this is not one -- the Radar feed seeds the acknowledged set from the rows
+        actually on screen instead. So 231KB was never on the page-load path and
+        capping it removes a LATENT cost, not a measured one.
+
+        The page carries meta.page with the true total, so a truncated answer is
+        never presented as the complete list. acknowledgements() above still
+        returns everything and is what internal callers use.
+        """
+        limit, offset = _pagination(query)
+        with self.local_lock:
+            total = self.local.execute("SELECT count(*) FROM acknowledgements").fetchone()[0]
+            rows = self.local.execute(
+                "SELECT event_id FROM acknowledgements ORDER BY acknowledged_at DESC "
+                "LIMIT ? OFFSET ?", (limit, offset)).fetchall()
+        return QueryPage([row[0] for row in rows], total, limit, offset)
 
     # --- dismiss every unwatched item ----------------------------------------
     # Scoped to the tab and filters the operator currently has applied, NOT to
@@ -2123,7 +2190,7 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             routes = {
                 "/api/v1/radar/overview": service.overview,
                 "/api/v1/updates": lambda: _page_payload(service.updates_page(query), service.meta),
-                "/api/v1/updates/acknowledgements": lambda: {"items": service.acknowledgements()},
+                "/api/v1/updates/acknowledgements": lambda: _page_payload(service.acknowledgements_page(query), service.meta),
                 # The confirm step's count. A read, so it is not origin-checked;
                 # it takes the same query string the POST does.
                 "/api/v1/updates/unwatched-pending": lambda: service.unwatched_pending(query),
@@ -2151,6 +2218,7 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
                 "/api/v1/watchlist": lambda: {"items": service.watchlist()},
                 "/api/v1/identity/decisions": lambda: {"items": service.identity_decisions()},
                 "/api/v1/identity/agent-bundle": service.agent_review_bundle,
+                "/api/v1/identity/agent-bundle/prompt": service.agent_review_prompt,
                 "/api/v1/admin/collection-requests": lambda: {"items": service.collection_requests()},
             }
             if parsed.path.startswith('/api/v1/security/cves/'):
@@ -2349,9 +2417,36 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             if not target.is_file():
                 target = web_root / "index.html"
             body = target.read_bytes()
+            # A validator, so a reload does not re-send the frontend. Every load
+            # fetched all of it: index.html + styles.css + app.js + api.js =
+            # 192,230 bytes, with no ETag, no Last-Modified and no Cache-Control,
+            # so the browser had nothing to revalidate against and no choice but to
+            # ask again. Measured twice in one browser context: 192,230 bytes both
+            # times.
+            #
+            # Strong ETag over the bytes just read rather than an mtime: a checkout,
+            # a redeploy or a `cp -a` moves mtimes without changing content, and
+            # this is a tool people run from a fresh clone. Hashing 192KB per
+            # request is ~0.1ms and only happens for the four frontend files.
+            #
+            # no-cache, NOT a max-age: the file is the application, an operator
+            # editing app.js expects a reload to show it, and a max-age would serve
+            # a stale UI against a corpus that had moved on. no-cache means "always
+            # revalidate", so the 304 path is taken whenever the bytes are unchanged
+            # and the new bytes are taken the moment they are not.
+            etag = '"%s"' % hashlib.sha256(body).hexdigest()[:32]
+            content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(HTTPStatus.NOT_MODIFIED)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
             self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(body)
 

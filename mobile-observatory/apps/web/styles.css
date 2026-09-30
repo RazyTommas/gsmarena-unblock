@@ -373,6 +373,13 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    never `hidden`, at any viewport. overflow-x is named explicitly so
    overflow-y stays visible and no phantom vertical scrollbar appears. */
 .data-card{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow-x:auto;max-width:100%}
+/* app.js gives a card tabindex="0" only while it actually overflows, so a keyboard
+   can scroll it in browsers that do not focus overflow containers by themselves.
+   A focusable element with no visible focus ring is its own defect, so the ring is
+   defined here rather than left to the UA default, which is invisible against
+   --card in the dark palette. :focus-visible, so a mouse click on a table does not
+   draw one. */
+.data-card[tabindex]:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .data-table{width:100%;border-collapse:collapse}
 .data-table th{background:var(--th-bg);color:var(--th-fg);text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:11px 14px;border-bottom:1px solid var(--line)}
 .data-table td{padding:13px 14px;border-bottom:1px solid var(--row-line)}

@@ -44,6 +44,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 
+from .adjudication import UNRESOLVABLE
+from .source_dates import ISO_DATE_GLOB, STATED_DATE_FIELDS
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -263,6 +266,84 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     if bad_patch:
         findings.append(Finding("malformed_or_unattributed_patch_level", "error", bad_patch,
                                 "a patch level is shown without a publisher, or is not a date"))
+
+    # -- a source states a non-date where a date belongs ----------------------
+    # The captured payload is the archive and is never rewritten, so this defect
+    # stays in the corpus by design; what must not stay is it reaching a reader as
+    # a date. Reported the way firmware_build_names_a_sibling_model reports its
+    # class: name the number, attribute it to the source, and let the reader see it
+    # is a source's mistake rather than the corpus's.
+    #
+    # WARNING, not error. The distinction this module uses is "would the corpus make
+    # the UI state something false". Since migration 0031 it would not: the derived
+    # columns read a non-date as absence and the value falls through to the capture
+    # time exactly as a JSON null already did. Before 0031 this was an error-class
+    # fault and it was live -- `observations.effective_at` published the word `null`
+    # as the effective date of six Xiaomi builds and `releases_page` printed it
+    # unguarded. It is reported at all because a source that has started writing
+    # `"null"` where it used to write a date is a change in that source worth
+    # seeing, and because absence that a source SPELLS is different from absence it
+    # leaves empty. The companion error-severity check is the next one.
+    sentinel_dates = _scalar(connection, f"""
+        SELECT count(*) FROM observations
+         WHERE {' OR '.join(
+             f"(json_extract(payload_json,'{field}') IS NOT NULL"
+             f" AND json_extract(payload_json,'{field}') NOT GLOB '{ISO_DATE_GLOB}*')"
+             for field in STATED_DATE_FIELDS)}""")
+    if sentinel_dates:
+        findings.append(Finding("source_states_a_non_date_where_a_date_belongs", "warning",
+                                sentinel_dates,
+                                "these observations carry a value in a release/publish date field "
+                                "that is not a date -- the source wrote absence as a value. The "
+                                "payload keeps it because the payload is the archive; the derived "
+                                "columns read it as absence (see source_dates.py)"))
+
+    # -- a derived date column must never hold a non-date ---------------------
+    # The error-severity half. source_dates is the single rule and it is applied
+    # where these values are PRODUCED, so a non-date here cannot be a source's
+    # doing: it means a write bypassed the rule, or migration 0031's redefinition of
+    # observations.effective_at was reverted. Either way a reader is being shown a
+    # non-date labelled as a date, which is the definition this module uses for an
+    # error.
+    derived_non_dates = _scalar(connection, f"""
+        SELECT (SELECT count(*) FROM observations
+                 WHERE effective_at IS NOT NULL
+                   AND effective_at NOT GLOB '{ISO_DATE_GLOB}*')
+             + (SELECT count(*) FROM product_firmware_releases
+                 WHERE vendor_released_at IS NOT NULL
+                   AND vendor_released_at NOT GLOB '{ISO_DATE_GLOB}*')
+             + (SELECT count(*) FROM product_security_publications
+                 WHERE published_at IS NOT NULL
+                   AND published_at NOT GLOB '{ISO_DATE_GLOB}*')""")
+    if derived_non_dates:
+        findings.append(Finding("derived_date_column_holds_a_non_date", "error", derived_non_dates,
+                                "a derived date column holds a value that is not a date, so a "
+                                "reader is shown a non-date under a date label; every writer of "
+                                "these columns is supposed to go through source_dates"))
+
+    # -- an adjudicated product must record why -------------------------------
+    # `unresolvable_on_captured_evidence` is a terminal state an agent rule sets
+    # without a human, so a row carrying it with no recorded basis is a conclusion
+    # nobody can re-check -- and re-checkability is the whole reason migration 0029
+    # exists.
+    #
+    # ONE store, asked one way. A rationale row is normally keyed on one of the
+    # product's identities, and is keyed on the product itself (identity_id NULL)
+    # for the two products that have no identity to key it on. Written as a single
+    # NOT EXISTS over `product_id` rather than as a CASE choosing between two
+    # stores, because a check with two branches is a check whose untaken branch is
+    # never exercised.
+    unrecorded = _scalar(connection, f"""
+        SELECT count(*) FROM source_products sp
+         WHERE sp.review_state='{UNRESOLVABLE}'
+           AND NOT EXISTS (SELECT 1 FROM identity_resolution_rationales r
+                            WHERE r.product_id = sp.id
+                              AND r.outcome='adjudicated_unresolvable')""")
+    if unrecorded:
+        findings.append(Finding("adjudicated_product_without_recorded_basis", "error", unrecorded,
+                                "these products rest in a terminal state an agent set, with no "
+                                "recorded basis for it, so nobody can re-check the decision or "
+                                "tell it from a human's"))
 
     # -- approved evidence must not be stranded -------------------------------
     # An approved product carries firmware. If it never reached a device, that
@@ -607,15 +688,84 @@ def review_queue(connection) -> list[dict]:
     Still not Findings. Both are pending work rather than faults, and the
     distinction this module is built on -- "never looked" vs "looked and found
     nothing" vs "held behind a review" -- needs three answers, not a bigger one.
+
+    A THIRD WAY TO BE HELD, and the one that could never be cleared.
+    `observations_awaiting_review` used to be `review_state <> 'approved'`, which
+    put 20,955 observations in a column the UI labels "awaiting review" -- against
+    626 products whose own recorded conclusion says the captured evidence cannot
+    resolve them (465 with no independent identifier at all, 161 naming several
+    candidates and nothing to choose between them). No reviewer could clear one of
+    them. That is not pending work; it is a false promise of future work, and
+    counting it as pending is the same mistake as reporting Apple's 4,450 held
+    observations as a silent zero -- an honest number given a meaning it does not
+    have.
+
+    So those products now rest in `unresolvable_on_captured_evidence` (see
+    adjudication.py) and this function keeps the three answers it argues for above
+    apart, rather than folding a fourth into one of them:
+
+      observations_awaiting_review            review_state='proposed' -- nobody has
+                                              looked. Exactly what the UI tooltip
+                                              claims it is, which it was not before:
+                                              a REJECTED product's observations also
+                                              counted, and a reviewer had already
+                                              looked at those.
+      observations_held_by_link_review        the product IS approved; the identity
+                                              the observation arrived under is not
+      observations_adjudicated_unresolvable   looked at, and no evidence can resolve
+                                              it. NOT pending, and not hidden either
+      observations_pending_review             the sum of the first two -- the work a
+                                              human could actually do
+      observations_not_serving                everything not serving, unchanged
+
+    And the two sub-populations are reported separately, because "the sources are
+    silent" and "the sources disagree" are different claims about the world and only
+    the first means there is nothing to find:
+
+      unresolvable_no_identifier          no independent identifier exists
+      unresolvable_several_candidates     candidates exist, none discriminates
+      unresolvable_without_identity       adjudicated with no registry identity at
+                                          all, so the basis could not be keyed on
+                                          one and was recorded product-level
+                                          (2 products; see adjudication.py)
     """
-    return [dict(row) for row in connection.execute("""
+    return [dict(row) for row in connection.execute(f"""
         SELECT sp.manufacturer AS vendor,
                count(DISTINCT sp.id) AS products,
                sum(sp.review_state='approved') AS approved,
+               sum(sp.review_state='{UNRESOLVABLE}') AS unresolvable,
+               -- Read from identity_conclusions, which is where the difference
+               -- between the two populations already lives. A second copy on
+               -- source_products would be a second thing to keep in step.
+               (SELECT count(*) FROM source_products s7
+                  JOIN identity_conclusions ic7 ON ic7.product_id = s7.id
+                 WHERE s7.manufacturer = sp.manufacturer
+                   AND s7.review_state = '{UNRESOLVABLE}'
+                   AND ic7.conclusion = 'insufficient_evidence') AS unresolvable_no_identifier,
+               (SELECT count(*) FROM source_products s8
+                  JOIN identity_conclusions ic8 ON ic8.product_id = s8.id
+                 WHERE s8.manufacturer = sp.manufacturer
+                   AND s8.review_state = '{UNRESOLVABLE}'
+                   AND ic8.conclusion = 'ambiguous') AS unresolvable_several_candidates,
+               (SELECT count(*) FROM source_products s9
+                 WHERE s9.manufacturer = sp.manufacturer
+                   AND s9.review_state = '{UNRESOLVABLE}'
+                   AND NOT EXISTS (SELECT 1 FROM source_identity_registry sir9
+                                    WHERE sir9.product_id = s9.id)) AS unresolvable_without_identity,
                (SELECT count(*) FROM observation_product_links opl
                   JOIN source_products s2 ON s2.id = opl.product_id
                  WHERE s2.manufacturer = sp.manufacturer
-                   AND s2.review_state <> 'approved') AS observations_awaiting_review,
+                   AND s2.review_state = 'proposed') AS observations_awaiting_review,
+               (SELECT count(*) FROM observation_product_links opl
+                  JOIN source_products sA ON sA.id = opl.product_id
+                 WHERE sA.manufacturer = sp.manufacturer
+                   AND sA.review_state = '{UNRESOLVABLE}') AS observations_adjudicated_unresolvable,
+               (SELECT count(*) FROM observation_product_links opl
+                  JOIN source_products sB ON sB.id = opl.product_id
+                 WHERE sB.manufacturer = sp.manufacturer
+                   AND (sB.review_state = 'proposed'
+                        OR (sB.review_state = 'approved'
+                            AND opl.link_state <> 'approved'))) AS observations_pending_review,
                -- The product is through review; the LINK is not. Invisible in
                -- every column this function had, and invisible in the corpus: no
                -- counter, no finding, nothing in the UI.
@@ -673,17 +823,31 @@ def main() -> None:
             print(f"  [{finding.severity}] {finding.check}: {finding.count} — {finding.detail}")
         print()
         print("review queue (captured evidence not yet serving):")
-        # Both gates, separately. One column could not tell a product nobody has
+        # Every gate, separately. One column could not tell a product nobody has
         # reviewed from an approved product whose identity is still proposed, and
-        # the second kind held 8,332 observations while reading as zero.
-        print("  %-10s %9s %9s %8s %11s %13s %13s %11s" % (
-            "vendor", "products", "approved", "devices", "evidence-only",
-            "held:product", "held:link", "not serving"))
+        # the second kind held 8,332 observations while reading as zero. The third --
+        # adjudicated unresolvable -- is printed in its own column and never folded
+        # into a pending one: it is not work anybody can do, and it is not hidden.
+        print("  %-10s %8s %8s %7s %9s %11s %9s %13s %11s" % (
+            "vendor", "products", "approved", "devices", "evid-only",
+            "await:prod", "held:link", "adjudicated", "not serving"))
         for row in review_queue(db.connection):
-            print("  %-10s %9d %9d %8d %11d %13d %13d %11d" % (
+            print("  %-10s %8d %8d %7d %9d %11d %9d %13d %11d" % (
                 row["vendor"], row["products"], row["approved"], row["canonical_devices"],
                 row["approved_evidence_only"], row["observations_awaiting_review"],
-                row["observations_held_by_link_review"], row["observations_not_serving"]))
+                row["observations_held_by_link_review"],
+                row["observations_adjudicated_unresolvable"],
+                row["observations_not_serving"]))
+        print()
+        print("adjudicated unresolvable (looked at; captured evidence cannot resolve):")
+        print("  %-10s %13s %13s %16s %14s" % (
+            "vendor", "products", "no identifier", "several candid.", "no identity"))
+        for row in review_queue(db.connection):
+            if not row["unresolvable"]:
+                continue
+            print("  %-10s %13d %13d %16d %14d" % (
+                row["vendor"], row["unresolvable"], row["unresolvable_no_identifier"],
+                row["unresolvable_several_candidates"], row["unresolvable_without_identity"]))
         if args.strict and any(f.severity == "error" for f in findings):
             raise SystemExit(1)
     finally:

@@ -1,6 +1,6 @@
 import { api, API_BASE } from './api.js';
 
-const state = { route: 'radar', data: null, fixtureMode: false, filter: '', acknowledged: new Set(), lastBulkDismissal: null, radarTab:'new', radarTabPinned:false, radarRegion:'all', radarChange:'all', exploreMode:'devices', exploreSort:{devices:'name_asc',silicon:'mobile_desc',releases:'latest_desc',sources:'latest_desc'}, productMode:'firmware', productQuery:'', productMaker:'', productRegion:'', productSort:'released_desc', maker:'all', chipVendor:'all', chipFamily:'all', chipPart:'all', android:'all', region:'all', support:'all', sourcePage:0, sourceQuery:'', sourceKind:'', sourceName:'', config:null };
+const state = { route: 'radar', data: null, fixtureMode: false, filter: '', acknowledged: new Set(), lastBulkDismissal: null, radarTab:'new', radarTabPinned:false, radarRegion:'all', radarChange:'all', exploreMode:'devices', exploreSort:{devices:'name_asc',silicon:'mobile_desc',releases:'latest_desc',sources:'latest_desc'}, productMode:'firmware', productQuery:'', productMaker:'', productRegion:'', productSort:'released_desc', maker:'all', chipVendor:'all', chipFamily:'all', chipPart:'all', android:'all', region:'all', support:'all', sourcePage:0, sourceQuery:'', sourceKind:'', sourceName:'', productState:'not_approved', config:null };
 state.securityFilters = {};
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -23,6 +23,50 @@ const val = (v, field) => isGap(v)
   ? `<button type="button" class="gap" data-field="${escapeHtml(field || '')}" title="Not captured - click for a research brief">${GAP}</button>`
   : escapeHtml(v);
 const badge = (text, kind = text) => `<span class="badge ${escapeHtml(kind)}">${escapeHtml(text)}</span>`;
+
+// --- what a review_state MEANS -------------------------------------------
+// One vocabulary, because a bare enum is not a sentence a reader can act on and
+// four places used to render review_state raw. `unresolvable_on_captured_evidence`
+// is the one that most needs this: it is neither approved nor rejected, and a
+// reader seeing the identifier would guess "rejected" -- which would be the corpus
+// claiming the identity was judged WRONG when what happened is that it could not be
+// judged at all.
+//
+// `note` is the whole claim, in one sentence, including what it does NOT say and
+// what would change it. It is a title= attribute rather than a tooltip we build,
+// so it survives copy-paste and screen readers.
+const REVIEW_STATES = {
+  approved: { label: 'Identity approved', tone: 'good',
+    note: 'The captured source identity belongs to this product. Final by design.' },
+  proposed: { label: 'Awaiting identity review', tone: 'Unknown',
+    note: 'Nobody has reviewed this product yet. A reviewer can still resolve it.' },
+  rejected: { label: 'Identity rejected', tone: 'high',
+    note: 'A reviewer judged the source identity wrong. Its hardware claim is withdrawn.' },
+  unresolvable_on_captured_evidence: { label: 'No identifier to resolve', tone: 'Adjudicated',
+    note: 'Adjudicated: the captured sources carry nothing that can resolve this '
+        + 'product’s identity, so no reviewer can resolve it from available '
+        + 'evidence. It is NOT rejected — no identity was judged wrong — and '
+        + 'nothing is hidden or deleted: the product goes on serving from the '
+        + 'evidence layer. It returns to review automatically if a capture later '
+        + 'supplies an identifier.' },
+};
+// The two sub-populations behind that state. They are different claims about the
+// world and must not read as one label: only the first says the sources are silent.
+const UNRESOLVABLE_BECAUSE = {
+  insufficient_evidence: 'no independent identifier exists in any captured source',
+  ambiguous: 'captured evidence names several candidates and nothing discriminates',
+};
+const reviewState = value => REVIEW_STATES[value]
+  || { label: value || 'State not recorded', tone: 'Unknown',
+       note: 'This state is not one the UI has a description for; it is shown as the '
+           + 'corpus recorded it rather than being relabelled.' };
+const reviewStateBadge = row => {
+  const s = reviewState(row.review_state);
+  const because = row.review_state === 'unresolvable_on_captured_evidence'
+    ? UNRESOLVABLE_BECAUSE[row.conclusion] : '';
+  return `<span class="badge ${escapeHtml(s.tone)}" title="${escapeHtml(s.note)}">${escapeHtml(s.label)}</span>`
+    + (because ? `<div class="subtle" title="${escapeHtml(row.conclusion_method||'')}">${escapeHtml(because)}</div>` : '');
+};
 // Advisory silence label -- see docs/SOURCE_SILENCE_DETECTION.md. Never
 // hides the underlying run status; only adds "this source is overdue for
 // its NEXT run," which can be true even when the last run succeeded.
@@ -178,7 +222,7 @@ async function loadRest() {
       await Promise.all([
         api.devices({limit:pageSize()}), api.chips({limit:500}), api.releases({limit:pageSize()}),
         api.productReleases({limit:pageSize()}), api.productSecurity({limit:pageSize()}),
-        api.sourceRecords({limit:pageSize()}), api.sourceProducts({limit:pageSize(),state:'proposed'}),
+        api.sourceRecords({limit:pageSize()}), api.sourceProducts({limit:pageSize(),state:state.productState}),
         api.security({limit:pageSize()}), api.securityCoverage(), api.configOptions(),
         api.realSample(), api.reviewProfiles(), api.identityDecisions(),
         api.collectionRequests(), api.agentProposals(), api.identityHistory()
@@ -256,7 +300,7 @@ async function loadSourcePage(offset=0) {
   const payload=await api.sourceRecords({limit:pageSize(),offset,q:state.sourceQuery,source:state.sourceName,kind:state.sourceKind,sort:state.exploreSort.sources});
   state.data.sourceRecords=items(payload);state.data.sourcePage=payload.meta?.page||{};state.sourcePage=offset;render();
 }
-async function loadProductPage(offset=0) {const payload=await api.sourceProducts({limit:pageSize(),offset,state:'proposed'});state.data.sourceProducts=items(payload);state.data.productPage=payload.meta?.page||{};render();}
+async function loadProductPage(offset=0) {const payload=await api.sourceProducts({limit:pageSize(),offset,state:state.productState});state.data.sourceProducts=items(payload);state.data.productPage=payload.meta?.page||{};render();}
 async function loadCanonicalPage(kind,offset=0){const method=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const filters={limit:pageSize(),offset,q:state.filter,vendor:state.chipVendor==='all'?'':state.chipVendor,family:state.chipFamily==='all'?'':state.chipFamily,part:state.chipPart==='all'?'':state.chipPart,sort:state.exploreSort[kind]};if(kind!=='silicon'){filters.maker=state.maker==='all'?'':state.maker;filters.region=state.region==='all'?'':state.region;}if(kind==='devices'){filters.max_android=state.android==='all'?'':state.android;filters.support=state.support==='all'?'':state.support;}const payload=await api[method](filters);const dataKey=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const pageKey=kind==='devices'?'devicePage':kind==='silicon'?'chipPage':'releasePage';state.data[dataKey]=items(payload);state.data[pageKey]=payload.meta?.page||{};render();}
 async function loadProductEvidencePage(offset=0){const firmware=state.productMode==='firmware';const filters={limit:pageSize(),offset,q:state.productQuery,maker:state.productMaker,region:firmware?state.productRegion:'',sort:state.productSort};const payload=await (firmware?api.productReleases(filters):api.productSecurity(filters));state.data[firmware?'productReleases':'productSecurity']=items(payload);state.data[firmware?'productReleasePage':'productSecurityPage']=payload.meta?.page||{};render();}
 function heading(kicker, title, body, action = '') { return `<div class="page-head"><div><div class="eyebrow">${kicker}</div><h1>${title}</h1><p>${body}</p></div>${action}${state.fixtureMode ? '<span class="demo-flag" title="API unavailable">DEMO DATA</span>' : ''}</div>`; }
@@ -324,22 +368,35 @@ const coverageStrip = () => {
 // Promotion needs the PRODUCT approved and the LINK approved, so an observation on
 // an already-approved product whose identity is still proposed appeared in neither
 // the device count nor the pending count: 8,332 Xiaomi observations read as
-// "all captured evidence reviewed" while serving nothing. The headline is now the
-// real stalled population and the tooltip says which gate holds which part, because
-// the two are cleared by different work.
+// "all captured evidence reviewed" while serving nothing. The tooltip says which
+// gate holds which part, because the two are cleared by different work.
+//
+// A THIRD state, which is why the headline is no longer the not-serving total:
+// 20,955 of those observations belong to products whose captured evidence cannot
+// resolve them AT ALL, and calling those "awaiting review" promised a reviewer who
+// could never arrive. The headline now counts only what somebody can act on
+// (observations_pending_review), and the adjudicated number gets its own line in the
+// same tile -- so it stays visible, with its own sentence, without being counted as
+// pending work. "nothing awaiting review" replaces "all captured evidence reviewed"
+// for the same reason: Apple's 4,450 are not reviewed, they are unresolvable.
   return `<div class="coverage" role="group" aria-label="Catalogue coverage by vendor">${queue.map(v => {
     const byProduct = v.observations_awaiting_review;
     const byLink = v.observations_held_by_link_review || 0;
-    const pending = v.observations_not_serving != null ? v.observations_not_serving : byProduct;
+    const adjudicated = v.observations_adjudicated_unresolvable || 0;
+    const pending = v.observations_pending_review != null ? v.observations_pending_review : (byProduct + byLink);
     const why = [
-      byProduct ? `${byProduct.toLocaleString()} belong to ${v.products - v.approved} products that have not been reviewed` : '',
+      byProduct ? `${byProduct.toLocaleString()} belong to products nobody has reviewed yet` : '',
       byLink ? `${byLink.toLocaleString()} belong to reviewed products but arrived under a source identity that has not been approved for them` : '',
     ].filter(Boolean).join('; ');
+    const adjWhy = `${adjudicated.toLocaleString()} observations belong to ${v.unresolvable || 0} products that were looked at and cannot be resolved from captured evidence`
+      + ` (${v.unresolvable_no_identifier || 0} have no independent identifier at all; ${v.unresolvable_several_candidates || 0} name several candidates with nothing to choose between them).`
+      + ` Nothing here is waiting on a reviewer, and nothing is hidden: they still serve from the evidence layer.`;
     return `<div class="cov${v.canonical_devices ? '' : ' cov-none'}">
       <b>${escapeHtml(v.vendor)}</b>
       <span class="cov-n">${v.canonical_devices} device${v.canonical_devices === 1 ? '' : 's'}</span>
       ${pending ? `<small title="${escapeHtml(why)}. They are not missing; they are not yet promoted.">${pending.toLocaleString()} obs awaiting review</small>`
-                : `<small>all captured evidence reviewed</small>`}
+                : `<small>nothing awaiting review</small>`}
+      ${adjudicated ? `<small title="${escapeHtml(adjWhy)}">${adjudicated.toLocaleString()} obs no identifier can resolve</small>` : ''}
     </div>`;
   }).join('')}</div>`;
 };
@@ -370,7 +427,15 @@ const sourceIdentity = x => {
   return `<b>${escapeHtml(label)}</b>`;
 };
 const sourceRows = rows => rows.map(x=>`<tr><td>${sourceIdentity(x)}<div class="subtle">${escapeHtml(x.source_key)}</div></td><td>${escapeHtml(x.source)}<div class="subtle">${externalLink(x.download_url,'download','Download ROM')||externalLink(x.source_url,'source')}</div></td><td>${badge(x.kind,'Unknown')}</td><td>${escapeHtml(x.build||x.patch||'—')}<div class="subtle">${x.android?`Android ${escapeHtml(x.android)}`:''}</div></td><td>${val(x.region,'region')}</td><td>${badge(x.identity_state||x.validation_state,x.identity_state?'Unknown':'good')}</td><td><b>${escapeHtml(x.effective_at)}</b><div class="subtle">observed ${escapeHtml(x.observed_at)}</div></td></tr>`).join('');
-const productRows = rows => rows.map(x=>`<tr><td><b>${escapeHtml(x.name)}</b><div class="subtle">${escapeHtml(x.maker)}</div></td><td>${x.identities}</td><td>${x.observations}</td><td>${escapeHtml(x.chipset||'Awaiting specification match')}<div class="subtle">${escapeHtml(x.launch_os||'')}</div></td><td>${badge(x.review_state,x.review_state==='approved'?'good':'Unknown')}</td><td><button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="approved">Approve</button> <button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="rejected">Reject</button></td></tr>`).join('');
+// The Decision column depends on the state, because offering "Approve / Reject" on
+// an adjudicated row invites a reviewer to assert an identity the corpus has just
+// recorded as unassertable. What an adjudicated row offers instead is Reopen --
+// which is the manual half of the reversibility the state depends on to be honest,
+// and which returns it to 'proposed' without asserting anything.
+const productDecision = x => x.review_state === 'unresolvable_on_captured_evidence'
+  ? `<button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="proposed" title="Return this product to the review queue. Use it when you have evidence the captured sources do not.">Reopen</button>`
+  : `<button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="approved">Approve</button> <button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="rejected">Reject</button>`;
+const productRows = rows => rows.map(x=>`<tr><td><b>${escapeHtml(x.name)}</b><div class="subtle">${escapeHtml(x.maker)}</div></td><td>${x.identities}</td><td>${x.observations}</td><td>${escapeHtml(x.chipset||'Awaiting specification match')}<div class="subtle">${escapeHtml(x.launch_os||'')}</div></td><td>${reviewStateBadge(x)}</td><td>${productDecision(x)}</td></tr>`).join('');
 
 function renderExplore() {
   const chipByPart=new Map(state.data.chips.map(x=>[x.part,x]));
@@ -426,7 +491,7 @@ async function openProductRemote(id) {
     if (request !== detailRequest) return;
     const p=payload.product, conclusion=payload.identityConclusion;
     const history = (page,firmware) => `<section class="detail-section"><h3>${firmware?'ROM history':'Security publications'} · ${page.meta.page.total}</h3>${firmware&&payload.regions.length?`<div class="toolbar"><select id="detailRegion" aria-label="Product ROM region"><option value="">All regions</option>${[...new Set(payload.regions.map(r=>r.region))].map(r=>`<option>${escapeHtml(r)}</option>`).join('')}</select><select id="detailChannel" aria-label="Product ROM channel"><option value="">All channels</option>${[...new Set(payload.regions.map(r=>r.channel))].map(r=>`<option>${escapeHtml(r)}</option>`).join('')}</select></div>`:''}<div id="${firmware?'productFirmware':'productPublications'}">${historyContent(page,firmware)}</div></section>`;
-    openDetail(`<div class="detail-head"><div><div class="eyebrow">Product evidence · ${escapeHtml(p.manufacturer)}</div><h2>${escapeHtml(p.canonical_name)}</h2>${watchButton('source_product',p.id)}<div class="subtle">Last observed ${escapeHtml(payload.lastObserved)}</div></div><button class="button detail-close">Close</button></div><div class="detail-body"><div class="notice"><b>Product identity: ${escapeHtml(p.review_state)}</b> · ${escapeHtml(conclusion?.confidence||payload.silicon?.confidence||GAP)} confidence.<br>Exact hardware identity and security applicability are not established by this product record.</div>${conclusion?`<p>${escapeHtml(conclusion.rationale)}</p>`:''}<section class="detail-section"><details><summary>Source names and codenames · ${payload.identities.length}</summary>${payload.identities.map(i=>`<div class="detail-fact"><b>${escapeHtml(i.source_value)}</b><small>${escapeHtml(i.namespace)} · ${escapeHtml(i.source_name)} · ${escapeHtml(i.confidence)} · ${escapeHtml(i.resolution_state)}</small></div>`).join('')||'<p>No source aliases captured.</p>'}${conclusion?.evidence?.some(e=>e.catalog_names)?`<details><summary>Captured catalog names</summary><p>${escapeHtml([...new Set(conclusion.evidence.flatMap(e=>e.catalog_names||[]))].join(' · '))}</p></details>`:''}${conclusion?.candidates?.length?`<details><summary>Identity candidates (not established aliases)</summary><p>${escapeHtml(conclusion.candidates.join(' · '))}</p></details>`:''}</details></section><section class="detail-section"><h3>Chipset and specification evidence</h3>${siliconEvidence(payload.silicon)}</section>${history(payload.firmware,true)}${payload.sourceBuilds?.meta?.page?.total?`<section class="detail-section"><details><summary>AOSP source-build evidence · ${payload.sourceBuilds.meta.page.total}</summary><div id="productSourceBuilds">${sourceBuildsContent(payload.sourceBuilds)}</div></details></section>`:''}<section class="detail-section"><h3>Android upgrades · ${payload.androidUpgrades.length}</h3>${payload.androidUpgrades.map(e=>`<div class="detail-fact"><b>Android ${escapeHtml(e.before.android)} → ${escapeHtml(e.after.android)}</b><small>${escapeHtml(e.after.region)} · ${escapeHtml(e.effective_at)}</small><small>${escapeHtml(e.before.build)} → ${escapeHtml(e.after.build)}</small></div>`).join('')||'<p>No upgrade event captured. Missing Android versions are not inferred from builds or launch specifications.</p>'}</section>${history(payload.security,false)}<p class="subtle">Security patch statements appear only when explicitly provided by the source. Modem/baseband coverage remains incomplete.</p><p class="subtle">Security publications are source statements, not CVE applicability or proof of safety. ROM history contains all captured releases accessible through the pages above; it does not imply complete vendor coverage.</p></div>`);
+    openDetail(`<div class="detail-head"><div><div class="eyebrow">Product evidence · ${escapeHtml(p.manufacturer)}</div><h2>${escapeHtml(p.canonical_name)}</h2>${watchButton('source_product',p.id)}<div class="subtle">Last observed ${escapeHtml(payload.lastObserved)}</div></div><button class="button detail-close">Close</button></div><div class="detail-body"><div class="notice"><b>Product identity: ${escapeHtml(reviewState(p.review_state).label)}</b> · ${escapeHtml(conclusion?.confidence||payload.silicon?.confidence||GAP)} confidence.<br>${escapeHtml(reviewState(p.review_state).note)}<br>Exact hardware identity and security applicability are not established by this product record.</div>${conclusion?`<p>${escapeHtml(conclusion.rationale)}</p>`:''}<section class="detail-section"><details><summary>Source names and codenames · ${payload.identities.length}</summary>${payload.identities.map(i=>`<div class="detail-fact"><b>${escapeHtml(i.source_value)}</b><small>${escapeHtml(i.namespace)} · ${escapeHtml(i.source_name)} · ${escapeHtml(i.confidence)} · ${escapeHtml(i.resolution_state)}</small></div>`).join('')||'<p>No source aliases captured.</p>'}${conclusion?.evidence?.some(e=>e.catalog_names)?`<details><summary>Captured catalog names</summary><p>${escapeHtml([...new Set(conclusion.evidence.flatMap(e=>e.catalog_names||[]))].join(' · '))}</p></details>`:''}${conclusion?.candidates?.length?`<details><summary>Identity candidates (not established aliases)</summary><p>${escapeHtml(conclusion.candidates.join(' · '))}</p></details>`:''}</details></section><section class="detail-section"><h3>Chipset and specification evidence</h3>${siliconEvidence(payload.silicon)}</section>${history(payload.firmware,true)}${payload.sourceBuilds?.meta?.page?.total?`<section class="detail-section"><details><summary>AOSP source-build evidence · ${payload.sourceBuilds.meta.page.total}</summary><div id="productSourceBuilds">${sourceBuildsContent(payload.sourceBuilds)}</div></details></section>`:''}<section class="detail-section"><h3>Android upgrades · ${payload.androidUpgrades.length}</h3>${payload.androidUpgrades.map(e=>`<div class="detail-fact"><b>Android ${escapeHtml(e.before.android)} → ${escapeHtml(e.after.android)}</b><small>${escapeHtml(e.after.region)} · ${escapeHtml(e.effective_at)}</small><small>${escapeHtml(e.before.build)} → ${escapeHtml(e.after.build)}</small></div>`).join('')||'<p>No upgrade event captured. Missing Android versions are not inferred from builds or launch specifications.</p>'}</section>${history(payload.security,false)}<p class="subtle">Security patch statements appear only when explicitly provided by the source. Modem/baseband coverage remains incomplete.</p><p class="subtle">Security publications are source statements, not CVE applicability or proof of safety. ROM history contains all captured releases accessible through the pages above; it does not imply complete vendor coverage.</p></div>`);
     const pages = {true:payload.firmware,false:payload.security};
     let historyRequest = 0;
     async function loadHistory(firmware, append) {
@@ -549,8 +614,9 @@ function integrityPanel() {
   // looking like a corpus with nothing to report.
   if (!state_ && state.healthPending) return `<div class="integrity integrity-ok">
     <div class="integrity-head"><b>Checking corpus invariants…</b></div>
-    <p class="subtle">Fourteen checks run against the corpus itself. Results appear here
-       when they finish.</p></div>`;
+    <p class="subtle">The corpus invariants are being checked against the corpus itself.
+       Results appear here when they finish. (No count is named here: the one that was
+       went stale at fourteen, and a wrong number is worse than none.)</p></div>`;
   if (!state_ && state.healthError) return `<div class="integrity integrity-warn">
     <div class="integrity-head"><b>Corpus invariants were not checked</b></div>
     <p class="subtle">${escapeHtml(state.healthError)} This is not a statement that the
@@ -591,7 +657,7 @@ function renderAdmin() {
   <div class="data-card flow"><div class="eyebrow">Offline bundle</div><h2 class="section-title" style="margin-top:4px">Snapshot contents</h2><div class="flow-step"><i>1</i><div><b>Corpus database</b><div class="subtle">Canonical facts + provenance</div></div></div><div class="flow-step"><i>2</i><div><b>Evidence cache</b><div class="subtle">Permitted source documents</div></div></div><div class="flow-step"><i>3</i><div><b>Manifest</b><div class="subtle">Source cutoffs, hashes, row counts</div></div></div><p class="subtle">Build and verify snapshots with <code>python3 -m mobile_observatory.snapshots</code>.</p></div></div>
   <h2 class="section-title">Collection preferences</h2><div class="data-card"><div class="form-grid"><label>Preferred cadence (no scheduler installed)<select id="cfgCadence"><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">Daily</option></select></label><label>Catalog scope<select id="cfgSupported"><option value="1">Supported devices only</option><option value="0">All devices</option></select></label></div><div class="validation-note"><b>Preferred regions</b> — validated codes; hover/select labels explain their scope.</div><div class="check-grid" id="cfgRegions">${(state.data.configOptions?.regions||[]).map(x=>`<label class="check-pill"><input type="checkbox" value="${escapeHtml(x.id)}" ${(cfg.preferredRegions||[]).includes(x.id)?'checked':''}> ${escapeHtml(x.id)} · ${escapeHtml(x.label)}</label>`).join('')}</div><div class="validation-note"><b>Enabled sources</b> — only installed source contracts can be selected.</div><div class="check-grid" id="cfgSources">${(state.data.configOptions?.sources||[]).map(x=>`<label class="check-pill"><input type="checkbox" value="${escapeHtml(x.id)}" ${(cfg.enabledSources||[]).includes(x.id)?'checked':''}> ${escapeHtml(x.label)}</label>`).join('')}</div><div class="toolbar"><button class="button primary" id="saveConfig">Save preferences</button><button class="button" id="exportConfig">Export config</button><label class="button">Import config<input id="importConfig" type="file" accept="application/json" hidden></label></div></div>
   <h2 class="section-title">Resolve and query one model</h2><div class="data-card"><div class="form-grid"><label>Model name, code, or alias<input id="modelQuery" placeholder="e.g. SM-S931B or Galaxy S25"></label><label>Query sources<select id="querySource"><option value="all">All enabled sources</option>${(cfg.enabledSources||[]).map(x=>`<option>${escapeHtml(x)}</option>`).join('')}</select></label></div><div id="modelMatch" class="query-match">Enter a model. Atlas will show the canonical identity before any source query is run.</div></div>
-  <h2 class="section-title">Identity review inbox · ${state.data.productPage?.total||0} product candidates</h2><div class="notice">Approving remembers the source-to-product relationship and marks all linked history ready for later exact hardware promotion. It does not invent a vendor model code.</div><div class="data-card"><table class="data-table"><thead><tr><th>Product candidate</th><th>Source identities</th><th>History rows</th><th>Specification evidence</th><th>State</th><th>Decision</th></tr></thead><tbody>${productRows(state.data.sourceProducts||[])}</tbody></table></div><div class="toolbar"><button class="button" id="productPrev" ${state.data.productPage?.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${(state.data.productPage?.total||0)?state.data.productPage.offset+1:0}-${(state.data.productPage?.offset||0)+(state.data.sourceProducts?.length||0)} of ${state.data.productPage?.total||0}</span><button class="button" id="productNext" ${state.data.productPage?.nextCursor?'':'disabled'}>Next →</button></div>
+  <h2 class="section-title">Identity review inbox · ${state.data.productPage?.total||0} product candidates</h2><div class="notice">Approving remembers the source-to-product relationship and marks all linked history ready for later exact hardware promotion. It does not invent a vendor model code.<br><b>Not every row here is waiting on you.</b> A product marked <i>No identifier to resolve</i> has been adjudicated: the captured sources carry nothing that could resolve its identity, so there is no review left to do and it is listed rather than queued. It is not rejected, nothing is hidden, and <i>Reopen</i> puts it back in the queue if you have evidence the sources do not.</div><div class="toolbar"><label class="subtle" for="productState">Show</label><select id="productState" aria-label="Product review state"><option value="not_approved"${state.productState==='not_approved'?' selected':''}>Not serving (awaiting review + adjudicated)</option><option value="proposed"${state.productState==='proposed'?' selected':''}>Awaiting identity review</option><option value="unresolvable_on_captured_evidence"${state.productState==='unresolvable_on_captured_evidence'?' selected':''}>Adjudicated: no identifier to resolve</option><option value="rejected"${state.productState==='rejected'?' selected':''}>Identity rejected</option><option value="approved"${state.productState==='approved'?' selected':''}>Identity approved</option><option value=""${state.productState===''?' selected':''}>All states</option></select></div><div class="data-card"><table class="data-table"><thead><tr><th>Product candidate</th><th>Source identities</th><th>History rows</th><th>Specification evidence</th><th>State</th><th>Decision</th></tr></thead><tbody>${productRows(state.data.sourceProducts||[])}</tbody></table></div><div class="toolbar"><button class="button" id="productPrev" ${state.data.productPage?.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${(state.data.productPage?.total||0)?state.data.productPage.offset+1:0}-${(state.data.productPage?.offset||0)+(state.data.sourceProducts?.length||0)} of ${state.data.productPage?.total||0}</span><button class="button" id="productNext" ${state.data.productPage?.nextCursor?'':'disabled'}>Next →</button></div>
   <div class="data-card flow"><div class="eyebrow">Agent handoff</div><h2 class="section-title" style="margin-top:4px">Resolve the remaining ${state.data.agentBundle?.candidateCount||0}</h2><p>This bundle includes remaining ambiguous or insufficient cases, the evidence rules, and the JSON proposal contract. Previously reviewed agent targets are remembered. An agent cannot silently change canonical facts.</p><div class="toolbar"><button class="button primary" id="copyAgentPrompt">Copy complete agent assignment</button><button class="button" id="downloadAgentBundle">Download candidate JSON</button></div></div>
   ${renderAgentProposals()}<h2 class="section-title">Remembered identity decisions</h2><div class="data-card">${state.data.decisions?.length?`<table class="data-table"><thead><tr><th>Source value</th><th>Canonical identity</th><th>Decision</th><th>When</th></tr></thead><tbody>${state.data.decisions.map(x=>`<tr><td>${escapeHtml(x.source_namespace)} · ${escapeHtml(x.source_value)}</td><td>${escapeHtml(x.canonical_id||'none')}</td><td>${badge(x.decision,x.decision==='same'?'good':'Unknown')}</td><td>${escapeHtml(x.decided_at)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No decisions yet. Both manual resolution and the local agent will consult this memory before proposing again.</div>'}</div>
   <details class="data-card"><summary>Identity decision history · ${(state.data.identityHistory||[]).length}</summary>${(state.data.identityHistory||[]).slice(0,50).map(x=>`<p>${escapeHtml(x.decided_at)} · ${escapeHtml(x.source_value)} → ${escapeHtml(x.canonical_id||'no target')} · <b>${escapeHtml(x.decision)}</b><br><small>${escapeHtml(x.rationale||'No rationale supplied')} · ${escapeHtml(x.author)}</small></p>`).join('')||'<p>No identity review history.</p>'}</details><h2 class="section-title">Real-source evaluation sample</h2><p class="subtle">${escapeHtml(state.data.realSample?.notice||'')}</p><div class="data-card"><table class="data-table"><thead><tr><th>Vendor / tier</th><th>Source identity</th><th>Region</th><th>Observed value</th><th>Effective</th><th>Source</th></tr></thead><tbody>${(state.data.realSample?.items||[]).map(x=>`<tr><td><b>${escapeHtml(x.vendor)}</b><div class="subtle">${escapeHtml(x.tier)}</div></td><td>${escapeHtml(x.device)}<div class="subtle">${escapeHtml(x.identity)}</div></td><td>${escapeHtml(x.region)}</td><td><b>${escapeHtml(x.value)}</b><div class="subtle">${escapeHtml(x.kind)}</div></td><td>${escapeHtml(x.effective)}</td><td>${escapeHtml(x.source)}</td></tr>`).join('')}</tbody></table></div>
@@ -669,7 +735,12 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   }
   if(state.route==='admin') {
     const unresolved=state.data.productPage?.total||0, chips=state.data.chipPage?.total||0;
-    $('#app .notice').innerHTML=`<b>Collector operation:</b> ${state.healthPending?'still loading':state.healthError?'unavailable':`${state.data.health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length} source failures (includes advisory silence -- see the Status column)`}. <b>Coverage debt:</b> ${state.data.productPage?.total||unresolved} unresolved product candidates; ${chips} canonical silicon parts; ${state.data.securityPage?.total||state.data.security.length} catalogued CVEs awaiting device applicability. A successful collector run does not mean coverage is complete.`;
+    const queue = state.data.reviewQueue || [];
+    const adjudicatedProducts = queue.reduce((n, v) => n + (v.unresolvable || 0), 0);
+    const pendingProducts = queue.length
+      ? queue.reduce((n, v) => n + (v.products - v.approved - (v.unresolvable || 0)), 0)
+      : (state.data.productPage?.total || unresolved);
+    $('#app .notice').innerHTML=`<b>Collector operation:</b> ${state.healthPending?'still loading':state.healthError?'unavailable':`${state.data.health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length} source failures (includes advisory silence -- see the Status column)`}. <b>Coverage debt:</b> ${pendingProducts} product candidates awaiting review${adjudicatedProducts?` (a further ${adjudicatedProducts.toLocaleString()} were reviewed and cannot be resolved from captured evidence — not pending work)`:''}; ${chips} canonical silicon parts; ${state.data.securityPage?.total||state.data.security.length} catalogued CVEs awaiting device applicability. A successful collector run does not mean coverage is complete.`;
     $('#app .admin-grid')?.insertAdjacentHTML('afterend',`<h2 class="section-title">Collect something now</h2><div class="data-card"><div class="form-grid"><label>Target hint<input id="collectionTarget" placeholder="e.g. SM-A055F / ILO or Redmi Note 14"><small>This is a matching hint for preserved artifacts, not an AI prompt or a live web query.</small></label><label>What to collect<select id="collectionScope"><option value="smart">Smart choice for each source</option><option value="latest_firmware">Latest firmware</option><option value="firmware_history">Firmware history</option><option value="device_profile">Device profile and silicon</option><option value="security">Security bulletins</option></select></label></div><div class="validation-note"><b>Sources (choose one or more)</b> — only installed captured-replay combinations are offered.</div><div class="check-grid" id="collectionSources"><label class="check-pill"><input type="checkbox" value="samsung"> Samsung FOTA</label><label class="check-pill"><input type="checkbox" value="xiaomi"> Xiaomi firmware</label><label class="check-pill"><input type="checkbox" value="tecno"> TECNO security</label></div><div class="toolbar"><button class="button primary" id="queueCollection">Queue collection request(s)</button><button class="button" id="runNextCollection">Run next captured replay</button><button class="button" id="recoverCollections">Recover interrupted jobs</button><span class="subtle">Smart maps Samsung→firmware history, Xiaomi→firmware history, TECNO→security. Incompatible explicit combinations are rejected before queueing.</span></div>${renderCollectionJobs()}${(state.data.collectionRequests||[]).length?`<div class="validation-note">Recent: ${(state.data.collectionRequests||[]).slice(0,3).map(x=>`${escapeHtml(x.target)} · ${escapeHtml(x.source)} · ${escapeHtml(x.scope)} · ${escapeHtml(x.status)}`).join(' | ')}</div>`:''}</div>`);
   }
   $('#crumb').textContent=state.route[0].toUpperCase()+state.route.slice(1);
@@ -721,6 +792,7 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   const canonicalPage=state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']||{};
   $('#canonicalPrev')?.addEventListener('click',()=>loadCanonicalPage(state.exploreMode,Math.max(0,(canonicalPage.offset||0)-100)).catch(()=>toast('Could not load page')));
   $('#canonicalNext')?.addEventListener('click',()=>{if(canonicalPage.nextCursor)loadCanonicalPage(state.exploreMode,Number(canonicalPage.nextCursor)).catch(()=>toast('Could not load page'));});
+  $('#productState')?.addEventListener('change',event=>{state.productState=event.target.value;loadProductPage(0).catch(()=>toast('Could not load candidates'));});
   $('#productPrev')?.addEventListener('click',()=>loadProductPage(Math.max(0,(state.data.productPage?.offset||0)-100)).catch(()=>toast('Could not load candidates')));
   $('#productNext')?.addEventListener('click',()=>loadProductPage(Number(state.data.productPage?.nextCursor)).catch(()=>toast('Could not load candidates')));
   document.querySelectorAll('.product-review').forEach(button=>button.addEventListener('click',async()=>{try{await api.reviewSourceProduct(button.dataset.id,button.dataset.decision);await loadProductPage(state.data.productPage?.offset||0);toast(`Product ${button.dataset.decision}`);}catch{toast('Could not save product decision');}}));

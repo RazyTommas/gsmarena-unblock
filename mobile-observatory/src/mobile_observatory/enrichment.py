@@ -9,6 +9,8 @@ import uuid
 from collections import defaultdict
 from pathlib import Path
 
+from .source_dates import stated_date
+
 _NS = uuid.UUID("a61652aa-f30a-40c4-9135-7e38dc86f330")
 _REGION = re.compile(r"\s+(EEA|Global|China|India|Indonesia|Japan|Russia|Taiwan|Turkey)$", re.I)
 _PROCESS = re.compile(r"\s*\(\d+(?:\.\d+)?\s*nm\)\s*$", re.I)
@@ -405,7 +407,12 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (release_id,row["product_id"],row["identity_id"],row["observation_id"],row["source_id"],
                    region,data["build"],data.get("branch") or "unknown",
-                   android,major,data.get("release_date") or None,data.get("delivery_method"),row["observed_at"]))
+                   # `or None` handled an empty string and nothing else: the string
+                   # 'null' is truthy, so six Xiaomi builds stored a four-character
+                   # word as their vendor release date. stated_date is the one rule
+                   # for reading a date a source stated -- see source_dates.py.
+                   android,major,stated_date(data.get("release_date")),
+                   data.get("delivery_method"),row["observed_at"]))
                 promoted_firmware += connection.total_changes > before
             elif data.get("aspl_month"):
                 publication_id = _id("product-security", row["observation_id"])
@@ -414,7 +421,8 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
                   (id,product_id,identity_id,observation_id,source_id,security_patch_month,published_at,title,created_at)
                   VALUES(?,?,?,?,?,?,?,?,?)""",
                   (publication_id,row["product_id"],row["identity_id"],row["observation_id"],row["source_id"],
-                   data["aspl_month"],data.get("publish_date"),data.get("title"),row["observed_at"]))
+                   data["aspl_month"],stated_date(data.get("publish_date")),
+                   data.get("title"),row["observed_at"]))
                 promoted_security += connection.total_changes > before
 
         # Only increasing Android majors on the same product, market and
@@ -876,6 +884,16 @@ def write_agent_review_bundle(connection: sqlite3.Connection, output_dir: Path) 
     review_state='approved'. Asking a reviewer to decide something the corpus has
     already decided spends their attention and invites them to contradict it, so
     the honest number is 626.
+
+    `review_state='proposed'` and not `<> 'approved'` for the same reason, one state
+    later: `unresolvable_on_captured_evidence` is also a settled outcome, and it is
+    settled on the finding that no reviewer -- human or agent -- can resolve the
+    product from captured evidence. Handing those 626 to an agent as "open
+    questions" would ask it to produce the corroboration the corpus has recorded as
+    absent, which is how a guess gets invented. They are not hidden: they are
+    listed, badged and counted under their own state in the Identity review inbox and
+    in integrity.review_queue. This bundle is the set somebody can still act on, and
+    on today's corpus that is 0.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = connection.execute("""SELECT sp.id,sp.manufacturer,sp.canonical_name,ic.conclusion,ic.confidence,
@@ -884,7 +902,7 @@ def write_agent_review_bundle(connection: sqlite3.Connection, output_dir: Path) 
       FROM source_products sp JOIN identity_conclusions ic ON ic.product_id=sp.id
       LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id
       LEFT JOIN observation_product_links opl ON opl.product_id=sp.id
-      WHERE ic.conclusion!='auto_approved' AND sp.review_state<>'approved'
+      WHERE ic.conclusion!='auto_approved' AND sp.review_state='proposed'
       GROUP BY sp.id ORDER BY sp.manufacturer,sp.canonical_name""").fetchall()
     candidates = [{**dict(r), "candidates": json.loads(r["candidates_json"]), "evidence": json.loads(r["evidence_json"])} for r in rows]
     for item in candidates:

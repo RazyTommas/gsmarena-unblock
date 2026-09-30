@@ -7,6 +7,63 @@ State: `main` at `f5da9a7`, clean, pushed. 347 tests pass under BOTH
 `python3 -m unittest discover -s tests` and `pytest` (291 before the robustness
 round below). Corpus: 0 errors, 1 warning.
 
+**Two data-honesty rounds since, on a branch: 478 tests under both runners,
+corpus 0 errors / 3 warnings. Migrations 0030 and 0031 have NOT been applied to
+`.observatory-data`; a human does that.** See below.
+
+## Data honesty, 2026-09-30
+
+### 626 products had a terminal state, and it was spelled "pending"
+
+`automate_identity_review` runs to a fixed point and leaves 626 of 2,367 products
+at `review_state='proposed'` — every one already concluded, and concluded as
+unresolvable: **465** with no independent identifier in any captured source
+(including all 66 Apple products, for the reason `integrity.review_queue`'s
+docstring gives) and **161** naming several candidates with nothing to discriminate
+between them. `proposed` means "waiting for a reviewer", so those 626 presented
+**20,955 observation links** as a queue no reviewer could ever clear.
+
+They now rest in `unresolvable_on_captured_evidence` — neither `approved` (which
+would assert the identity) nor `rejected` (which would assert it was judged wrong,
+withdraw the product's hardware claim and block the rules forever). Nothing is
+approved, asserted, promoted, deleted or hidden; the products go on serving from
+the evidence layer. It is **reopenable**: the adjudication fingerprints the basis
+it decided on and `reopen_stale_adjudications` withdraws it, dropping the frozen
+conclusion, the moment a capture changes that basis — never on the clock, so a
+rerun over unchanged inputs reopens nothing. Provenance goes in
+`identity_resolution_rationales` beside every other automated identity decision.
+
+Measured on a COPY of the live corpus: 626 → 0 `proposed`;
+`observations_awaiting_review` Xiaomi 14,996 → 0, Apple 4,450 → 0, TECNO 846 → 0,
+itel 573 → 0, Infinix 90 → 0, with the same observations reported as
+`observations_adjudicated_unresolvable`. `observations_not_serving` unchanged
+(they still do not serve), 845 devices served either way. The agent handoff bundle
+goes from 626 candidates to 0.
+
+`docs/AUTOMATED_IDENTITY_ENRICHMENT.md` has the contract;
+`src/mobile_observatory/adjudication.py` has the argument.
+
+### the corpus stored the four-character string 'null'
+
+Six `xiaomi.community.firmware_tracker` observations carry `"null"` as text in
+`$.data.release_date` — the only non-date value in that field across 96,319
+observations. `coalesce` treated it as present, so `observations.effective_at`
+published the word `null` as a date and it propagated to
+`product_firmware_releases.vendor_released_at`.
+
+The payload is untouched; the archive still says what the source said. The derived
+values now read a non-date as absence, through ONE rule
+(`src/mobile_observatory/source_dates.py`) applied where each value is produced —
+which replaced five reader-side `nullif(…,'null')` patches that had accumulated
+while both writers went on storing the sentinel. It is a shape test, not a sentinel
+list: measured, every value any source states in those three fields is either JSON
+null or ISO-date-prefixed, so it discards those six and nothing else.
+
+`check_corpus` now reports `source_states_a_non_date_where_a_date_belongs`
+(warning, 6 — the source's defect, still in the archive) and
+`derived_date_column_holds_a_non_date` (error, 0 — a write that bypassed the rule).
+The first is the third warning. `docs/SOURCE_INTERPRETATION_CORRECTIONS.md` has it.
+
 ## Robustness round, 2026-09-30
 
 Seven defects found by executing ~2,800 real requests against the running

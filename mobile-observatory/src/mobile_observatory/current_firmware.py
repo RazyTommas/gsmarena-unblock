@@ -62,10 +62,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from .database import Database
-
-# A real yyyy-mm-dd, not the literal string 'null' (6 rows carry that) and not a
-# partial date. Used to decide whether a stated date can be ranked on at all.
-_ISO_DATE = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+from .source_dates import ISO_DATE_GLOB as _ISO_DATE
 
 # Shred samsung.doc.aspl into a build -> patch level table. Cross-source by
 # construction: this publisher describes builds another publisher ships, so the
@@ -162,10 +159,17 @@ INSERT INTO device_current_firmware_staging
    effective_at,effective_at_basis,latest_basis,release_count)
 WITH dated AS (
   SELECT pfr.*,
-         -- NULLIF strips the 6 rows storing the literal string 'null', which is
-         -- absence written as a value and must not rank as a date.
-         CASE WHEN nullif(pfr.vendor_released_at,'null') GLOB '{_ISO_DATE}'
-              THEN nullif(pfr.vendor_released_at,'null') END AS stated_at
+         -- The nullif(...,'null') that used to sit inside this expression is gone.
+         -- It was one of five copies of a sentinel guard bolted onto READERS while
+         -- the two places that DERIVE the value went on storing the sentinel; the
+         -- rule now lives in source_dates and is applied where the value is written
+         -- (enrichment.promote_approved_product_observations) and where it is
+         -- generated (observations.effective_at, migration 0031), so
+         -- vendor_released_at is either a date or NULL. The shape test stays,
+         -- because a stated date must still be a FULL date to be ranked on -- a
+         -- '2024-05' would sort before every day in May.
+         CASE WHEN pfr.vendor_released_at GLOB '{_ISO_DATE}'
+              THEN pfr.vendor_released_at END AS stated_at
     FROM product_firmware_releases pfr
    WHERE pfr.hardware_model_id IS NOT NULL
      -- A build whose identifier names a LONGER model than the device it is

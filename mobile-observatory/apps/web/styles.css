@@ -361,6 +361,14 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
 .badge.high,.badge.Open,.badge.Critical{background:#fee6e3;color:#8f2f29}
 .badge.medium,.badge.Unknown,.badge.Delayed{background:#fff0d9;color:#7d4e0a}
 .badge.good,.badge.Supported,.badge.Verified,.badge.Healthy,.badge.Claimed{background:#e2f3e9;color:#1d5a3c}
+/* A NEUTRAL badge, for a state that is settled rather than alarming.
+   `unresolvable_on_captured_evidence` is neither good news nor a fault, and both
+   existing tones say the wrong thing: amber (.Unknown/.Delayed) reads as "needs
+   attention", which is exactly the false promise the state exists to remove, and
+   red would read as rejected. Built from --chip-bg and --ink, which are already
+   themed in all three palette blocks, so this adds no colour that could stay light
+   in dark mode -- the defect this stylesheet's header records five times. */
+.badge.Adjudicated{background:var(--chip-bg);color:var(--ink)}
 
 .change-row{display:flex;gap:7px;flex-wrap:wrap}
 .delta{font-size:12px;background:var(--chip-bg);border-radius:6px;padding:5px 8px}

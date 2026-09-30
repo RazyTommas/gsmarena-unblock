@@ -21,6 +21,7 @@ from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
 from .dedupe import merge_confirmed_duplicates
 from .collectors.promotion import SamsungFirmwarePromoter
+from .adjudication import adjudicate_unresolvable_products, reopen_stale_adjudications
 from .collectors.device_promotion import promote_approved_products_to_devices
 from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
@@ -145,6 +146,12 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
                 local.row_factory = sqlite3.Row
                 if local.execute("SELECT 1 FROM sqlite_schema WHERE name='identity_decisions'").fetchone():
                     decisions = [dict(r) for r in local.execute('SELECT * FROM identity_decisions')]
+        # BEFORE the identity rules, so anything a new capture has unblocked is
+        # decided again in THIS run rather than spending a night in 'proposed'. An
+        # adjudication is terminal, not closed: it is withdrawn the moment the basis
+        # it was taken on stops describing the corpus. See adjudication.py.
+        with db.connection:
+            results["adjudication_reopened"] = reopen_stale_adjudications(db.connection)
         results["identity_automation"] = automate_identity_review(
             db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml",
             specs_csv=legacy_root / "T004-gsmarena-slugs" / "gsm_specs.csv",
@@ -181,6 +188,12 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
         # sees a state a merge left behind.
         with db.connection:
             results["link_states_after_dedupe"] = refresh_observation_link_states(db.connection)
+        # AFTER every identity rule and after dedupe: a product is only unresolvable
+        # once everything that could resolve it has had its turn, and adjudicating
+        # before dedupe would record a basis for a product about to be merged away.
+        # It approves nothing, so promotion below is unaffected by it.
+        results["adjudication"] = adjudicate_unresolvable_products(
+            db.connection, decisions=decisions)
         results["product_promotion"] = promote_approved_product_observations(db.connection)
         results["device_promotion"] = vars(promote_approved_products_to_devices(db.connection))
         results["canonical_silicon"] = enrich_canonical_silicon(

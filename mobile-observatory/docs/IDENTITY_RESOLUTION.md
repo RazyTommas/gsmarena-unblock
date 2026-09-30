@@ -32,6 +32,17 @@ Those rules approve a *source identity against a source product*; none of them
 creates a canonical device, a hardware model or a model code, so they do not
 bypass the boundary described above.
 
+Since 2026-09-30 there is a fourth `review_state`,
+`unresolvable_on_captured_evidence`, for the 626 products those rules concluded
+and could not settle: 465 with no independent identifier in any captured source,
+161 naming several candidates with nothing to discriminate between them. It is
+**not** an approval and **not** a rejection — no identity is asserted and none is
+judged wrong — and it exists because `proposed` promised a reviewer who could
+bring nothing the rules could not. It is set only by
+`adjudication.adjudicate_unresolvable_products`, never by the review API, and it
+is withdrawn automatically when a later capture changes the basis it was taken on.
+See `docs/AUTOMATED_IDENTITY_ENRICHMENT.md`.
+
 ## Agent response inbox (local, proposal-only)
 
 Admin can import the response to **Copy complete agent assignment** as a JSON

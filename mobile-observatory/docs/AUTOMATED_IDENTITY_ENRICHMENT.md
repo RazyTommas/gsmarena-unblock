@@ -150,3 +150,87 @@ python3 tools/validate_product_batch.py \
 The output must be new. Validation backs up corpus and local state, checks exact
 preservation of canonical/history/security/conclusion records, enrichment
 idempotency, SQLite integrity and every product's complete paginated history.
+
+## The terminal state for what no rule and no reviewer can resolve
+
+Added 2026-09-30. `src/mobile_observatory/adjudication.py` carries the full
+argument; this is the contract.
+
+After every rule above has run to its fixed point, **626 of 2,367 products** are
+still `review_state='proposed'` — and every one already carries a recorded
+conclusion saying the captured evidence cannot settle its identity:
+
+| conclusion | method | products |
+|---|---|---:|
+| `insufficient_evidence` | `no_independent_identifier` | 465 |
+| `ambiguous` | `ranked_candidates` | 82 |
+| `ambiguous` | `google_play_model_code_multiple_names` | 63 |
+| `ambiguous` | `google_play_name_multiple_models` | 15 |
+| `ambiguous` | `google_play_model_code_names_several_devices` | 1 |
+
+`proposed` means "waiting for a reviewer", so those 626 presented **20,955
+observation links** as a queue — Xiaomi 14,996, Apple 4,450, TECNO 846, itel 573,
+Infinix 90 — that no reviewer could ever clear. Where the corroborating evidence
+does not exist, a human brings nothing an agent does not.
+
+They now rest in **`unresolvable_on_captured_evidence`** (migration 0030). A fourth
+state, and not one of the three, because:
+
+- `approved` would assert the identity belongs to the product — the exact thing
+  that could not be established;
+- `rejected` would assert the identity was judged *wrong*, would withdraw the
+  product's hardware claim (`server._apply_product_review`) and would block the
+  automated rules forever (`enrichment._conclude`'s `blocked`). Nothing was judged
+  wrong; it was not judgeable;
+- `proposed` names work nobody can do.
+
+The name keeps its qualifier on purpose. "unresolvable" alone is a claim about the
+future that no capture supports; `unresolvable_on_captured_evidence` says what was
+measured and names the thing that can change.
+
+**Nothing is asserted, promoted or deleted.** `source_identity_registry`,
+`observation_product_links`, `identity_conclusions` and every firmware row are
+untouched, and the products go on serving from the evidence layer.
+
+**It is reopenable, which is what makes it honest rather than a cover-up.** The
+adjudication stores a fingerprint of its basis — the product's registry identities
+plus its recorded conclusion. `reopen_stale_adjudications` runs *before* the rules
+each batch and returns a product to `proposed`, dropping the frozen conclusion so
+the rules decide again, whenever that basis stops describing the corpus. A batch
+over unchanged inputs reopens nothing, so the corpus still does not depend on when
+it last ran. A human can reopen one from the review inbox using the existing
+`proposed` decision; the API deliberately cannot *set* this state, so a human's
+"no evidence exists" can never be filed as an agent's.
+
+**The two sub-populations stay two.** "No independent identifier exists" and
+"several candidates exist and none discriminates" are different claims about the
+world, and only the first means the sources are silent. They are separated by
+`identity_resolution_rationales.reason` and reported as separate per-vendor columns
+by `integrity.review_queue` (`unresolvable_no_identifier` /
+`unresolvable_several_candidates`).
+
+**Provenance is in this same table**, not a second store:
+`outcome='adjudicated_unresolvable'`, `rule='unresolvable_on_captured_evidence'`
+with its version, and `evidence_json.decided_by='agent:unresolvable_adjudication'`
+— none of which any other writer uses, so an agent adjudication stays
+distinguishable from a human decision (`resolution_method='manual_product_review'`,
+history in `local.sqlite`) and from a source having proved the identity
+(`outcome='approved'` under a named rule). Migration 0030 makes `identity_id`
+nullable for the **2** products (Xiaomi "Redmi 1", itel "ACE2N") that carry no
+registry identity to key a decision on; they are counted as
+`unresolvable_without_identity` rather than exempted silently, and `check_corpus`
+raises `adjudicated_product_without_recorded_basis` (error) if any product rests in
+the state with no recorded basis.
+
+**The queue metric stops counting them without hiding them.**
+`observations_awaiting_review` is now `review_state='proposed'` — what the UI
+tooltip always claimed it was, and which a *rejected* product's observations used
+to fail — and the adjudicated population is reported beside it as
+`observations_adjudicated_unresolvable`. `observations_not_serving` is unchanged:
+they still do not serve. `write_agent_review_bundle` likewise narrows to
+`review_state='proposed'`, so the handoff stops offering an agent 626 questions the
+corpus has recorded as unanswerable.
+
+```sh
+python3 -m mobile_observatory.integrity --data-dir .observatory-data
+```

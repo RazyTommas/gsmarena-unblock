@@ -894,6 +894,14 @@ class ObservatoryService:
             if value:
                 if key == "region":
                     clauses.append(like_clause(expression)); params.append(like_contains(value))
+                elif key == "state" and value == "not_approved":
+                    # The review inbox's default. An exact-state filter could show
+                    # 'proposed' OR 'unresolvable_on_captured_evidence' but never
+                    # both, and the tab that exists to show what is not serving would
+                    # then hide 626 of its 626 rows the moment they were adjudicated.
+                    # Each row still carries and renders its OWN state, so the two
+                    # populations are together without being merged.
+                    clauses.append("sp.review_state <> 'approved'")
                 else:
                     clauses.append(f"{expression}=? COLLATE NOCASE"); params.append(value)
         q = _first(query, "q").strip()
@@ -903,11 +911,17 @@ class ObservatoryService:
             params.extend([like_contains(q)] * 2)
         where = " AND ".join(clauses)
         base = f"""FROM source_products sp LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id
-                   LEFT JOIN observation_product_links opl ON opl.product_id=sp.id WHERE {where}"""
+                   LEFT JOIN observation_product_links opl ON opl.product_id=sp.id
+                   LEFT JOIN identity_conclusions ic ON ic.product_id=sp.id WHERE {where}"""
         total = self.corpus.connection.execute(f"SELECT count(DISTINCT sp.id) {base}", params).fetchone()[0]
         limit, offset = _pagination(query)
+        # conclusion/method ride along because review_state alone cannot tell the two
+        # unresolvable populations apart -- "no independent identifier exists" and
+        # "several candidates exist and none discriminates" are different claims
+        # about the world, and the row is where a reader meets them.
         rows = self.corpus.connection.execute(f"""SELECT sp.id,sp.manufacturer maker,sp.canonical_name name,
-          sp.review_state, json_extract(sp.specification_json,'$.chipset') chipset,
+          sp.review_state, ic.conclusion, ic.method conclusion_method,
+          json_extract(sp.specification_json,'$.chipset') chipset,
           json_extract(sp.specification_json,'$.os') launch_os,
           count(DISTINCT sir.id) identities,count(DISTINCT opl.observation_id) observations,
           min(sir.first_seen_at) first_seen,max(sir.last_seen_at) last_seen,
@@ -1057,18 +1071,18 @@ class ObservatoryService:
             """SELECT pfr.id, sp.manufacturer maker, sp.canonical_name device,
                       ? model, pfr.region_code region, pfr.build_id build,
                       pfr.android_version android, NULL patch, NULL baseband,
-                      nullif(pfr.vendor_released_at,'null') released,
+                      pfr.vendor_released_at released,
                       pfr.created_at observed, pfr.channel,
                       s.base_url source_url, NULL build_derived_month,
-                      CASE WHEN nullif(pfr.vendor_released_at,'null') IS NULL
+                      CASE WHEN pfr.vendor_released_at IS NULL
                            THEN 'not_captured' ELSE 'vendor_stated_date' END date_basis,
                       NULL evidence_id, pfr.source_id source
                  FROM product_firmware_releases pfr
                  JOIN source_products sp ON sp.id = pfr.product_id
                  LEFT JOIN sources s ON s.id = pfr.source_id
                 WHERE pfr.hardware_model_id = ?
-                ORDER BY nullif(pfr.vendor_released_at,'null') IS NULL,
-                         nullif(pfr.vendor_released_at,'null') DESC,
+                ORDER BY pfr.vendor_released_at IS NULL,
+                         pfr.vendor_released_at DESC,
                          pfr.created_at DESC, pfr.id DESC
                 LIMIT 50""", (model, hardware_model_id)).fetchall()
         total = self.corpus.connection.execute(
@@ -1161,11 +1175,11 @@ class ObservatoryService:
         where = " AND ".join(clauses)
         limit, offset = _pagination(query)
         sort = _first(query, "sort", "released_desc")
-        order = {"released_desc": "NULLIF(pfr.vendor_released_at,'null') IS NULL,NULLIF(pfr.vendor_released_at,'null') DESC",
-                 "released_asc": "NULLIF(pfr.vendor_released_at,'null') IS NULL,NULLIF(pfr.vendor_released_at,'null') ASC",
+        order = {"released_desc": "pfr.vendor_released_at IS NULL,pfr.vendor_released_at DESC",
+                 "released_asc": "pfr.vendor_released_at IS NULL,pfr.vendor_released_at ASC",
                  "product_asc": "sp.canonical_name COLLATE NOCASE ASC",
                  "android_desc": "CAST(pfr.android_version AS INTEGER) DESC"}.get(
-                     sort, "NULLIF(pfr.vendor_released_at,'null') IS NULL,NULLIF(pfr.vendor_released_at,'null') DESC")
+                     sort, "pfr.vendor_released_at IS NULL,pfr.vendor_released_at DESC")
         if order.startswith("sp."):
             needed.add("sp")
         selection_joins = product_release_joins(needed)
@@ -1221,10 +1235,10 @@ class ObservatoryService:
         total = self.corpus.connection.execute(f"SELECT count(*) {joins} WHERE {where}",params).fetchone()[0]
         limit,offset = _pagination(query)
         sort = _first(query, "sort", "released_desc")
-        order = {"released_desc": "NULLIF(psp.published_at,'null') IS NULL,NULLIF(psp.published_at,'null') DESC,psp.security_patch_month DESC",
-                 "released_asc": "NULLIF(psp.published_at,'null') IS NULL,NULLIF(psp.published_at,'null') ASC,psp.security_patch_month ASC",
+        order = {"released_desc": "psp.published_at IS NULL,psp.published_at DESC,psp.security_patch_month DESC",
+                 "released_asc": "psp.published_at IS NULL,psp.published_at ASC,psp.security_patch_month ASC",
                  "product_asc": "sp.canonical_name COLLATE NOCASE ASC"}.get(
-                     sort, "NULLIF(psp.published_at,'null') IS NULL,NULLIF(psp.published_at,'null') DESC,psp.security_patch_month DESC")
+                     sort, "psp.published_at IS NULL,psp.published_at DESC,psp.security_patch_month DESC")
         rows = self.corpus.connection.execute(f"""SELECT psp.id,sp.id product_id,
           sp.manufacturer maker,sp.canonical_name device,sir.source_value source_identity,
           psp.security_patch_month patch,psp.published_at,psp.title,psp.source_id source,

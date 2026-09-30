@@ -338,9 +338,18 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
 .segmented button.active{background:var(--card);color:var(--ink);box-shadow:var(--tab-shadow)}
 
 .feed{display:grid;gap:10px}
-/* the first track was minmax(220px,1.15fr) against 3-6 character device names
-   and left ~320px of empty card per Radar row at 1920 */
-.update-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:17px 18px;display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr) minmax(0,1.35fr) auto;align-items:center;gap:18px;transition:.16s}
+/* The first track was minmax(220px,1.15fr) and computed to 401px at 1920 while
+   the identity block used 93px, leaving ~308px of empty card on every Radar
+   row. Measured across all 84 rows of the current corpus: the block uses 89px
+   at the narrowest, 111px median, 159px at the widest. .5fr gives it ~198px at
+   1920 -- roughly 40px of headroom past the widest row rather than 240.
+
+   It stays a FRACTION rather than becoming max-content: each card is its own
+   grid, so a content-sized track would be 89px on one row and 159px on the
+   next and the list would lose its columns. A fraction keeps them aligned, and
+   because the cell wraps rather than clips, a corpus with longer names costs a
+   second line instead of a truncated one. */
+.update-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:17px 18px;display:grid;grid-template-columns:minmax(0,.5fr) minmax(0,1fr) minmax(0,1.35fr) auto;align-items:center;gap:18px;transition:.16s}
 .update-card>*{min-width:0}
 .update-card:hover{border-color:#bfc8c1;box-shadow:var(--shadow)}
 .device-title{display:flex;gap:12px;align-items:center;min-width:0}

@@ -44,6 +44,56 @@ def _silence_fields(finding: dict | None) -> dict:
             "overdueHours": finding["overdue_hours"], "silenceAdvisory": True}
 
 
+# --- the product-releases join set, in one place -------------------------------
+# Named because product_releases_page no longer runs all of it for every step, and
+# the split is only row-equivalent while these joins are LOSSLESS: every one of
+# them must match exactly one row for each product_firmware_releases row, never
+# zero and never two.
+#
+# That holds structurally today -- each join is on the target's PRIMARY KEY
+# (source_products.id, source_identity_registry.id, observations.id, artifacts.id,
+# observed_product_silicon.product_id), and each referencing column is NOT NULL
+# with a foreign key -- and it holds on the corpus: 27,841 rows in, 27,841 out.
+# Neither fact is assumed. tests/test_product_release_joins_are_lossless.py
+# asserts it against real rows and fails if a join is added that can duplicate or
+# an orphan makes one drop.
+PRODUCT_RELEASE_SELECTION_JOINS = {
+    # alias -> (join SQL, aliases it needs joined first)
+    "sp": ("JOIN source_products sp ON sp.id=pfr.product_id", ()),
+    "sir": ("JOIN source_identity_registry sir ON sir.id=pfr.identity_id", ()),
+}
+PRODUCT_RELEASE_PAYLOAD_JOINS = {
+    "o": ("JOIN observations o ON o.id=pfr.observation_id", ()),
+    "ar": ("JOIN artifacts ar ON ar.id=o.artifact_id", ("o",)),
+    "ops": ("LEFT JOIN observed_product_silicon ops ON ops.product_id=sp.id", ("sp",)),
+}
+PRODUCT_RELEASE_JOIN_ORDER = ("sp", "sir", "o", "ar", "ops")
+PRODUCT_RELEASE_ALL_JOINS = {**PRODUCT_RELEASE_SELECTION_JOINS, **PRODUCT_RELEASE_PAYLOAD_JOINS}
+
+
+def product_release_joins(aliases) -> str:
+    """The FROM clause joining only `aliases`, plus whatever those depend on.
+
+    Emitted in a fixed order so the SQL text for a given alias set is stable and
+    a plan test can be written against it.
+    """
+    wanted = set(aliases)
+    for alias in list(wanted):
+        wanted.update(PRODUCT_RELEASE_ALL_JOINS[alias][1])
+    # A dependency pulled in by the loop above may itself depend on something.
+    changed = True
+    while changed:
+        changed = False
+        for alias in list(wanted):
+            for need in PRODUCT_RELEASE_ALL_JOINS[alias][1]:
+                if need not in wanted:
+                    wanted.add(need)
+                    changed = True
+    return "FROM product_firmware_releases pfr" + "".join(
+        "\n          " + PRODUCT_RELEASE_ALL_JOINS[alias][0]
+        for alias in PRODUCT_RELEASE_JOIN_ORDER if alias in wanted)
+
+
 @dataclass(frozen=True)
 class QueryPage:
     items: list[dict]
@@ -1066,26 +1116,48 @@ class ObservatoryService:
         return QueryPage(result, total, limit, offset)
 
     def product_releases_page(self, query: dict[str, list[str]]) -> QueryPage:
+        """A page of product firmware evidence.
+
+        Two steps, because the ORDER BY was the entire cost of this route. A
+        temp b-tree sorted all 27,841 JOINED rows to return 100: dropping the
+        ORDER BY took the row query from 86.5ms to 0.9ms, while dropping all four
+        json_extract calls took it from 86.5ms to 77.8ms -- so payload parsing was
+        never the cost, the sort was. The count over the same join set was another
+        76.0ms. Measured on the live corpus, warm disk.
+
+        So: decide WHICH releases with the narrowest join set the filters and the
+        sort actually name, then join the payload tables to those. The big sort
+        and the count now run over product_firmware_releases plus at most
+        source_products, instead of over the full six-table join.
+
+        This is row-equivalent ONLY because the payload joins are lossless -- one
+        row in, one row out, never zero and never two. That is asserted, against
+        real rows and against the live corpus, by
+        tests/test_product_release_joins_are_lossless.py, which fails if a join is
+        added that can duplicate or an orphan makes one drop. If it ever stops
+        holding, this endpoint starts reporting a total that is not a count of
+        releases and pages that render short -- a different answer, not a faster
+        one.
+        """
         clauses = ["1=1"]
         params: list[object] = []
+        # Which aliases the SELECTION step needs: an alias is only joined for the
+        # count and the sort if a filter or the ORDER BY actually mentions it.
+        needed: set[str] = set()
         for key, expression in (("maker", "sp.manufacturer"), ("region", "pfr.region_code"),
                                 ("channel", "pfr.channel"), ("product", "sp.id")):
             value = _first(query, key).strip()
             if value:
                 clauses.append(f"{expression}=? COLLATE NOCASE"); params.append(value)
+                if expression.startswith("sp."):
+                    needed.add("sp")
         q = _first(query, "q").strip()
         if q:
             clauses.append("(" + " OR ".join(like_clause(column) for column in (
                 "sp.canonical_name", "pfr.build_id", "sir.source_value")) + ")")
             params.extend([like_contains(q)] * 3)
+            needed.update(("sp", "sir"))
         where = " AND ".join(clauses)
-        joins = """FROM product_firmware_releases pfr
-          JOIN source_products sp ON sp.id=pfr.product_id
-          JOIN source_identity_registry sir ON sir.id=pfr.identity_id
-          JOIN observations o ON o.id=pfr.observation_id
-          JOIN artifacts ar ON ar.id=o.artifact_id
-          LEFT JOIN observed_product_silicon ops ON ops.product_id=sp.id"""
-        total = self.corpus.connection.execute(f"SELECT count(*) {joins} WHERE {where}", params).fetchone()[0]
         limit, offset = _pagination(query)
         sort = _first(query, "sort", "released_desc")
         order = {"released_desc": "NULLIF(pfr.vendor_released_at,'null') IS NULL,NULLIF(pfr.vendor_released_at,'null') DESC",
@@ -1093,6 +1165,21 @@ class ObservatoryService:
                  "product_asc": "sp.canonical_name COLLATE NOCASE ASC",
                  "android_desc": "CAST(pfr.android_version AS INTEGER) DESC"}.get(
                      sort, "NULLIF(pfr.vendor_released_at,'null') IS NULL,NULLIF(pfr.vendor_released_at,'null') DESC")
+        if order.startswith("sp."):
+            needed.add("sp")
+        selection_joins = product_release_joins(needed)
+        total = self.corpus.connection.execute(
+            f"SELECT count(*) {selection_joins} WHERE {where}", params).fetchone()[0]
+        # The page's ids, ordered. `pfr.id DESC` is the tiebreaker the payload
+        # query repeats, so the two agree on the order within an equal sort key.
+        page_ids = [row[0] for row in self.corpus.connection.execute(
+            f"SELECT pfr.id {selection_joins} WHERE {where} "
+            f"ORDER BY {order},pfr.id DESC LIMIT ? OFFSET ?",
+            [*params, limit, offset]).fetchall()]
+        if not page_ids:
+            return QueryPage([], total, limit, offset)
+        joins = product_release_joins(PRODUCT_RELEASE_JOIN_ORDER)
+        placeholders = ",".join("?" * len(page_ids))
         rows = self.corpus.connection.execute(f"""SELECT pfr.id,sp.id product_id,
           sp.manufacturer maker,sp.canonical_name device,sir.source_value source_identity,
           pfr.region_code region,pfr.build_id build,pfr.channel,pfr.android_version android,
@@ -1103,10 +1190,11 @@ class ObservatoryService:
           json_extract(o.payload_json,'$.data.download_url') download_url,
           ar.source_url source_url,o.observed_at observed,
           coalesce(json_extract(ops.evidence_json,'$[0].slug'),json_extract(sp.specification_json,'$.slug')) spec_slug
-          {joins} WHERE {where}
-          ORDER BY {order},pfr.id DESC LIMIT ? OFFSET ?""",
-          [*params,limit,offset]).fetchall()
-        return QueryPage([dict(row) for row in rows],total,limit,offset)
+          {joins} WHERE pfr.id IN ({placeholders})""", page_ids).fetchall()
+        # Ordered by the selection step, not by a second ORDER BY over the joined
+        # set -- which is the sort this rewrite exists to avoid paying twice.
+        by_id = {row["id"]: dict(row) for row in rows}
+        return QueryPage([by_id[i] for i in page_ids if i in by_id], total, limit, offset)
 
     def product_security_page(self, query: dict[str, list[str]]) -> QueryPage:
         clauses = ["1=1"]

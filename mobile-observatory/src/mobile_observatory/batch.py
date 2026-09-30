@@ -26,7 +26,8 @@ from .database import Database
 from .repository import CanonicalRepository, normalize_identifier
 from .current_firmware import ProjectionError, build as build_current_firmware
 from .integrity import check_corpus, summarise
-from .identity_backfill import approve_catalog_confirmed_identities
+from .identity_backfill import (approve_catalog_confirmed_identities,
+                                approve_stem_corroborated_identities)
 from .identity_bridge import rebuild_identity_registry, refresh_observation_link_states
 from .silence import STATUS_SILENT, detect_silence
 from .worker_lock import exclusive_worker
@@ -158,6 +159,15 @@ def run_batch(*, data_dir: Path, legacy_root: Path, fixture_root: Path) -> dict:
         # identities against today's captured devices.yml -- see the module
         # docstring for the measured reason and for why it is wired in anyway.
         results["identity_backfill"] = approve_catalog_confirmed_identities(
+            db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
+        # Second, and only for what the first one cannot reach: the catalog is keyed
+        # by regional codename variants and the mifirm archive publishes the bare
+        # stem, so an exact-key test can never match one. This approves a stem only
+        # when the product's OWN recorded conclusion carries a captured Google Play
+        # device code equal to it, and refuses (with the reason recorded) otherwise.
+        # It runs after the exact-key rule, never instead of it: anything the
+        # vendor's own word settles should be settled on the vendor's own word.
+        results["identity_stem_rule"] = approve_stem_corroborated_identities(
             db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
         # Must run on EVERY batch: the TECNO source re-emits both spellings each time,
         # so a merge done once is undone by the next ingest.

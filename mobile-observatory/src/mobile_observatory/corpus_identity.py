@@ -79,19 +79,41 @@ def _digest(text: str) -> str:
 # component differ always -- the always-fires failure again. `rationale` and the
 # evidence JSON are narrative that can be reworded without the decision moving.
 _COMPONENTS = (
+    # KEYED BY THE PRODUCT'S IDENTITY, NOT ITS ROW ID.
+    #
+    # `product_id` was the obvious key and it is wrong. Measured on two
+    # consecutive batches over the same fresh corpus: 464 conclusions
+    # "forgotten" and 464 "added", with the total unchanged at 2,335, and 464
+    # registry rows "changed" -- because `merge_confirmed_duplicates` repoints
+    # duplicate products at a survivor, so a conclusion ABOUT THE SAME DEVICE
+    # moves to a different id. Keyed by id, a routine merge reads as mass
+    # amnesia; the check would have fired on an ordinary night and been switched
+    # off, which is the exact failure this whole design is built to avoid.
+    #
+    # `(manufacturer, normalized_name)` is `source_products`' own UNIQUE
+    # constraint -- what the product IS rather than which row currently holds
+    # it -- so it survives a merge and still moves when a conclusion is actually
+    # withdrawn or re-decided.
     ("identity_conclusions",
      "what the corpus concluded about each source product's identity, and under "
      "which frozen rule version",
-     """SELECT product_id,
-               conclusion || '|' || confidence || '|' || method || '|' || rule_version
-          FROM identity_conclusions"""),
+     """SELECT sp.manufacturer || '|' || sp.normalized_name,
+               ic.conclusion || '|' || ic.confidence || '|' || ic.method
+                 || '|' || ic.rule_version
+          FROM identity_conclusions ic
+          JOIN source_products sp ON sp.id = ic.product_id"""),
     ("source_identity_registry",
      "which product each captured source identity resolves to -- the mapping that "
      "decides which device an observation describes",
-     """SELECT source_id || '|' || namespace || '|' || normalized_value,
-               ifnull(product_id,'-') || '|' || resolution_state || '|'
-                 || resolution_method || '|' || rule_version
-          FROM source_identity_registry"""),
+     # The VALUE names the product by identity too, for the same reason: a merge
+     # changes which id a source identity points at without changing which
+     # device it means.
+     """SELECT r.source_id || '|' || r.namespace || '|' || r.normalized_value,
+               ifnull(sp.manufacturer || '|' || sp.normalized_name, '-') || '|'
+                 || r.resolution_state || '|' || r.resolution_method
+                 || '|' || r.rule_version
+          FROM source_identity_registry r
+          LEFT JOIN source_products sp ON sp.id = r.product_id"""),
     ("hardware_models",
      "the published device catalogue: the 865 model codes a reader sees, which is "
      "where the measured 201-devices-differ divergence shows up",

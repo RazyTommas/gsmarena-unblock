@@ -203,6 +203,13 @@ it reports · a failing phase logging nothing.
 `hardware_models` (865) and `artifacts` (21). 19ms to compute, 0.44 MB, 3ms to
 compare.
 
+Keyed by `(manufacturer, normalized_name)` and not by row id. That was caught by
+running two consecutive batches rather than by reading: keyed by `product_id`,
+`merge_confirmed_duplicates` made an ordinary night report **464 conclusions
+forgotten and 464 added with the total unchanged**. Keyed by identity, a normal
+batch reports **0 errors** (measured, batch N+1 against a baseline from N) and a
+real rebuild still reports 3,542.
+
 **The test is containment, not equality**, and that is the design. A nightly
 batch adds; an equality test would fire every night and be switched off within a
 week. What a batch never does is *forget* — a concluded identity is final by

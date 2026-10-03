@@ -77,6 +77,14 @@ that went missing. `PYTHONPATH=src python3 -m mobile_observatory.corpus_identity
 --identity-baseline <path>` asks the question directly — point it at the baseline
 from the corpus you believe you reproduced.
 
+Keyed by **what a product IS** -- `(manufacturer, normalized_name)`, which is
+`source_products`' own UNIQUE constraint -- and not by its row id. The row id was
+the obvious key and was wrong: `merge_confirmed_duplicates` runs every batch and
+repoints duplicates at a survivor, so a conclusion about the same device moves to
+a different id. Measured on two consecutive batches over one fresh corpus, keyed
+by id: **464 conclusions "forgotten" and 464 "added" with the total unchanged** --
+an ordinary night reading as mass amnesia. Keyed by identity: **0 errors**.
+
 **The test is containment, not equality,** and that is the whole design. A
 nightly batch legitimately adds conclusions, registry rows and devices; an
 equality test would fire every night and be switched off within a week. What a

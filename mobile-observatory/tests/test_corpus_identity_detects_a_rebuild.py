@@ -107,6 +107,43 @@ class ItStaysSilentOnACorpusThatOnlyGrew(CorpusUnderTest):
                          "growth is not divergence; reporting it would make this fire "
                          "every night and get it disabled")
 
+    def test_a_merged_product_is_not_mass_amnesia(self) -> None:
+        """The defect this file was nearly shipped with.
+
+        `merge_confirmed_duplicates` runs on EVERY batch and repoints duplicate
+        products at a survivor, so a conclusion about the same device moves to a
+        different row id. Keyed by `product_id`, two consecutive batches over one
+        fresh corpus reported **464 conclusions forgotten and 464 added** with
+        the total unchanged at 2,335 -- an ordinary night reading as mass
+        amnesia, on a check whose whole premise is that it stays quiet on
+        ordinary nights. Keyed by `(manufacturer, normalized_name)` -- what the
+        product IS, and `source_products`' own UNIQUE constraint -- a merge is
+        invisible and a withdrawn conclusion is not.
+        """
+        self.conclude("p-old")
+        baseline = self.record()
+        # The same product, same manufacturer and name, a new row id.
+        self.db.connection.execute("DELETE FROM identity_conclusions WHERE product_id='p-old'")
+        self.db.connection.execute("DELETE FROM source_products WHERE id='p-old'")
+        self.db.connection.commit()
+        self.conclude("p-old")        # canonical_name/normalized_name are the id here
+        report = ci.compare(baseline, ci.fingerprint(self.db.connection))
+        self.assertEqual(0, report["forgotten"])
+        self.assertEqual(0, report["changed"])
+        self.assertEqual([], self.identity_findings())
+
+    def test_a_conclusion_about_the_same_product_that_CHANGED_still_fires(self) -> None:
+        """The companion assertion: keying by identity must not also hide a real
+        re-decision of the same device."""
+        self.conclude("p-1", method="exact_model_code")
+        self.record()
+        self.db.connection.execute(
+            "UPDATE identity_conclusions SET method='rebuilt_in_a_different_order'")
+        self.db.connection.commit()
+        found = self.identity_findings()
+        self.assertEqual(1, len(found))
+        self.assertIn("changed:Acme|p-1", found[0].detail)
+
     def test_growth_is_still_counted_as_growth(self) -> None:
         """Silent is not the same as blind: the comparison reports what arrived
         even when it reports no fault."""
@@ -131,7 +168,7 @@ class ItFiresWhenTheCorpusForgetsSomethingItConcluded(CorpusUnderTest):
         self.assertEqual(1, len(found))
         self.assertEqual("corpus_no_longer_matches_its_recorded_identity", found[0].check)
         self.assertEqual("error", found[0].severity)
-        self.assertIn("forgotten:p-2", found[0].detail,
+        self.assertIn("forgotten:Acme|p-2", found[0].detail,
                       "the finding has to name the subject; a bare count is a number "
                       "somebody then has to reproduce by hand")
 
@@ -151,7 +188,7 @@ class ItFiresWhenTheCorpusForgetsSomethingItConcluded(CorpusUnderTest):
         self.assertEqual(before, after, "the counts are equal; only the decision moved")
         found = self.identity_findings()
         self.assertEqual("error", found[0].severity)
-        self.assertIn("changed:p-1", found[0].detail)
+        self.assertIn("changed:Acme|p-1", found[0].detail)
 
     def test_a_device_the_baseline_published_and_this_corpus_does_not(self) -> None:
         """The 106-only-in-the-live-corpus half of the measured divergence, in

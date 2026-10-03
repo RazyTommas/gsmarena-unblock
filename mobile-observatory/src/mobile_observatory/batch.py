@@ -5,6 +5,7 @@ import csv
 import json
 import sqlite3
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from .collectors.adapters.tecno_security import TecnoSecurityPatchAdapter
 from .collectors.adapters.xiaomi_tracker import XiaomiFirmwareTrackerAdapter
 from .collectors.importer import IngestionImporter
 from .collectors.pipeline import CollectorPipeline
-from . import changesets, search_index
+from . import changesets, retention, search_index
 from .dedupe import merge_confirmed_duplicates
 from .collectors.promotion import SamsungFirmwarePromoter
 from .adjudication import adjudicate_unresolvable_products, reopen_stale_adjudications
@@ -333,6 +334,73 @@ def _ingest(db: Database, *, data_dir: Path, legacy_root: Path, fixture_root: Pa
     return results
 
 
+def _prune(logger, *, data_dir: Path, log_path: Path, args) -> dict:
+    """Bounded retention over the ledger and batch.log, inside the batch lock.
+
+    ORDER IS LOAD-BEARING, twice over.
+
+    It runs INSIDE `exclusive_worker(batch.lock)`: the manual collection worker
+    takes a different lock (`local.collection.lock`) and writes `ledger/staging`,
+    so pruning outside the batch lock could delete a staging file under a
+    collection that is mid-write. Running it before `run_batch` also means the
+    plan sees the previous run's output, which is what the minimum age is
+    measured against.
+
+    And `configure_batch_logging` holds `batch.log` open for the whole process,
+    so a rotation renames the file under a live handle and this process would go
+    on writing to `batch.log.1` -- silently, for the next ten minutes. The logger
+    is therefore reattached to the fresh file BEFORE anything is logged about the
+    rotation, which is also what puts the retention line in the new generation
+    rather than the archived one.
+    """
+    from .batch_logging import configure_batch_logging
+
+    if args.retention_off:
+        logger.info("retention off: nothing pruned, nothing rotated (--retention-off)")
+        return {"off": True,
+                "reason": "disabled on the command line with --retention-off"}
+    plan = retention.plan(
+        data_dir,
+        policy=retention.default_policy(max_age_days=args.retention_days,
+                                        min_age_hours=args.retention_min_age_hours),
+        max_bytes=int(args.retention_max_mb * 1024 * 1024),
+        log_path=log_path,
+        log_max_bytes=int(args.log_max_mb * 1024 * 1024),
+        log_keep=args.log_keep,
+        now=time.time())
+    report = retention.apply(plan, data_dir, dry_run=args.retention_dry_run)
+    if report["log"].get("rotated"):
+        # Same Logger object (logging keys them by name); its handlers are what
+        # get closed and reopened, so the caller's reference follows along.
+        configure_batch_logging(log_path)
+        logger.info("batch.log rotated to %s.1; the lines before this one are in it",
+                    log_path.name)
+    # `logger.info(template, *fields)`, never `logger.info(*log_fields(...))`.
+    # logging unwraps a single MAPPING argument and nothing else, so handing it
+    # the tuple whole makes `msg % self.args` see one argument for fourteen %s
+    # and raise inside the handler. That is reported on stderr as a "Logging
+    # error" and swallowed: the run carries on, and the line simply never
+    # appears in batch.log. Found by running the batch, not by reading it.
+    template, fields = retention.log_fields(report)
+    logger.info(template, *fields)
+    if report["refused_code"] == retention.REFUSED_NO_CORPUS:
+        # Not an ALARM. A first build has no corpus until run_batch makes one, and
+        # an alarm on the normal first-run state teaches a reader to ignore the
+        # real one. tests/test_batch_logging.py holds that line.
+        logger.info("retention pruned nothing: %s", report["refused"])
+    elif report["refused"]:
+        logger.warning("ALARM retention refused and pruned nothing: %s", report["refused"])
+    elif report["residual_bytes"]:
+        # Only when the budget was actually applied: under a refusal the refusal
+        # line already says why nothing moved, and two reasons for one fact is
+        # how the second one gets believed on its own.
+        logger.warning("ALARM retention could not meet its byte budget: %s",
+                       report["residual_reason"])
+    for error in report["errors"]:
+        logger.warning("ALARM retention could not remove a file: %s", error)
+    return report
+
+
 def main() -> None:
     from .batch_logging import configure_batch_logging
 
@@ -342,6 +410,36 @@ def main() -> None:
     parser.add_argument("--legacy-root", default=str(root.parent / "crawler" / "relay" / "results"))
     parser.add_argument("--log-file", default=None,
                          help="Defaults to <data-dir>/batch.log. See docs/SOURCE_SILENCE_DETECTION.md.")
+    # Retention. Every default is measured rather than picked -- see
+    # retention.py's module docstring and docs/SCHEDULING.md "Log growth".
+    parser.add_argument("--retention-days", type=float, default=retention.DEFAULT_MAX_AGE_DAYS,
+                        help="Prune a managed ledger file this many days after it was last "
+                             "written. Default %(default)s: fourteen consecutive nightly runs "
+                             "in which this run id was not re-emitted.")
+    parser.add_argument("--retention-max-mb", type=float, default=retention.DEFAULT_MAX_MB,
+                        help="Total byte budget for ledger/staging, ledger/quarantine and "
+                             "ledger/raw together. Default %(default)s MiB, 2.4x the measured "
+                             "108.2 MiB; it reports an honest residual rather than deleting a "
+                             "cited or current-run file to reach the number.")
+    parser.add_argument("--retention-min-age-hours", type=float,
+                        default=retention.DEFAULT_MIN_AGE_HOURS,
+                        help="No managed file younger than this can be pruned by the byte "
+                             "budget. Default %(default)s, two nightly cadences, which is what "
+                             "makes it impossible to take a file the current or previous run "
+                             "wrote.")
+    parser.add_argument("--log-max-mb", type=float, default=retention.DEFAULT_LOG_MAX_MB,
+                        help="Rotate batch.log at this size. Default %(default)s MiB; at the "
+                             "measured 232 B per run it will not fire for decades, so this is a "
+                             "bound against a verbosity regression, not against today's growth.")
+    parser.add_argument("--log-keep", type=int, default=retention.DEFAULT_LOG_KEEP,
+                        help="How many rotated batch.log generations to keep. Default "
+                             "%(default)s, so at most 5x --log-max-mb of log on disk. Below 1 "
+                             "rotation is refused rather than deleting the live log.")
+    parser.add_argument("--retention-dry-run", action="store_true",
+                        help="Report what retention would prune and rotate, and do neither.")
+    parser.add_argument("--retention-off", action="store_true",
+                        help="Skip retention entirely. The log says so rather than reporting a "
+                             "run that pruned nothing.")
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
     log_path = Path(args.log_file) if args.log_file else data_dir / "batch.log"
@@ -363,8 +461,12 @@ def main() -> None:
     # moment it ends.
     try:
         with exclusive_worker(data_dir / "batch.lock", holder="An ingest batch"):
+            # Inside the lock, before the ingest. See _prune's docstring: both
+            # halves of that ordering are load-bearing.
+            retention_report = _prune(logger, data_dir=data_dir, log_path=log_path, args=args)
             results = run_batch(data_dir=data_dir, legacy_root=Path(args.legacy_root),
                                 fixture_root=root / "fixtures")
+            results["retention"] = retention_report
     except ValueError as exc:
         # exclusive_worker raises ValueError when the lock is already held.
         logger.error("batch refused to start: %s", exc)

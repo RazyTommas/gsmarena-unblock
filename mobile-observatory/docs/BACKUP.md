@@ -56,6 +56,27 @@ what keeps this correct when a new source starts writing somewhere new. A backup
 that silently stops covering a source is worse than no backup, because it
 reports success either way.
 
+### Retention asks the same question, and asks it differently on purpose
+
+The batch prunes `ledger/` on an age and a byte budget now
+(`src/mobile_observatory/retention.py`, `docs/SCHEDULING.md`). It never prunes a
+file this tool would back up, and it does **not** reuse
+`irreplaceable_files()` to decide that.
+
+`irreplaceable_files()` drops a row whose bytes are absent or whose `sha256` no
+longer matches -- it records a problem and moves on. That is right for a
+manifest and exactly wrong as a veto basis: a cited-but-corrupt artifact is the
+file that must not be deleted and is the one missing from this function's
+output. Retention builds its veto from the raw `artifacts.storage_uri` and
+`artifacts.sha256` columns, a strict superset, and uses this function only to
+report.
+
+Measured across a real prune on a copy of the live corpus, with retention set as
+aggressively as it can be set (`--retention-days 0 --retention-max-mb 0.000001`):
+the cited set is **identical before and after** -- 20 files, 20,630,209 B,
+`problems == []` both sides -- while 8 staging/quarantine files and 2,370,293 B
+went.
+
 ## Running it
 
 ```sh

@@ -10,7 +10,11 @@ estimates instead:
   - "ledger/raw grows without bound" is about the filesystem, not the database,
     and the two were being discussed as one growth problem. They are different
     sizes with different causes, so `directory_sizes()` reports the tree beside
-    `measure()`'s pages.
+    `measure()`'s pages. The tree half is bounded now -- `retention.py` prunes it
+    on an age and a byte budget and uses `directory_sizes()` for its own
+    before/after numbers -- and the item named the wrong directory twice over:
+    `ledger/staging` is 4.9x larger, and `ledger/raw` turns out to hold nothing
+    prunable at all (all 13 of its digests are cited by `artifacts`).
 
 The instrument is checked, not trusted: `measure()` returns `unaccounted_bytes`,
 the residual between the file's own page count and what dbstat attributes to a
@@ -160,6 +164,9 @@ def directory_sizes(data_dir: str | Path, *, depth: int = 2) -> list[dict]:
     names `ledger/raw` as the tree that "grows without bound" -- it is 19 MB,
     and `ledger/staging` beside it is **90 MB**, 4.7x larger and unmentioned. A
     top-level total of 108 MB for `ledger` hides which half of it matters.
+
+    `retention.py` is what bounds them, and it calls this to report its own
+    before/after. Nothing here deletes anything.
     """
     root = Path(data_dir)
     if not root.is_dir():

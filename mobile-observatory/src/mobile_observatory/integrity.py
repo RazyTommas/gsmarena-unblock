@@ -636,6 +636,44 @@ def check_corpus(connection, *, deep: bool = True, identity_baseline=None) -> li
             f"name a product their identity row does not belong to; whether they are the "
             f"same device is an outstanding identity decision: {pairs}"))
 
+    # -- one ROM branch, two source products ---------------------------------
+    # DIFFERENT from the finding above, and the difference is the whole reason
+    # both exist. There, ONE registry row is reached from two products, because
+    # `source_identity_registry.id` has no product component. Here there are TWO
+    # rows -- one per publisher, so two different ids and no collision at all --
+    # and they name two products for what is one codename.
+    #
+    # Measured on the live corpus: 97 Xiaomi codenames. The tracker names the
+    # branch by its China marketing name ("Redmi Note 12 Turbo") and the mifirm
+    # archive by the whole slash list ("Redmi Note 12 Turbo / POCO F5"), so the
+    # region strip produces two `source_products` rows for one ROM.
+    #
+    # Reported and not repaired, deliberately: merging them is an identity
+    # judgement about whether two publishers' names are one thing, and
+    # `rom_branch` approves each side on its own publisher's evidence precisely
+    # so it does not have to take that judgement. Nothing serves a falsehood --
+    # each product serves only the observations its own publisher filed -- but a
+    # reader counting Xiaomi branches should know the number is inflated, and
+    # dedupe cannot see this at all (it requires the name to appear in Google
+    # Play's Marketing Name column, which a slash-joined branch name never does).
+    twinned = connection.execute("""
+        SELECT sir.normalized_value, count(DISTINCT sir.product_id) products,
+               group_concat(DISTINCT sp.canonical_name) names
+          FROM source_identity_registry sir
+          JOIN source_products sp ON sp.id = sir.product_id
+         WHERE sir.namespace = 'codename'
+         GROUP BY sir.normalized_value
+        HAVING count(DISTINCT sir.product_id) > 1
+         ORDER BY sir.normalized_value""").fetchall()
+    if twinned:
+        examples = "; ".join(f"{row[0]}: {row[2]}" for row in twinned[:3])
+        findings.append(Finding(
+            "rom_branch_held_as_two_source_products", "warning", len(twinned),
+            f"these captured codenames are filed under more than one source product, because "
+            f"two publishers name one ROM branch differently; each product serves only its own "
+            f"publisher's observations, so nothing is misreported, but whether they are one "
+            f"branch is an outstanding identity decision no rule here takes: {examples}"))
+
     # -- a build that names a sibling model ----------------------------------
     # Transsion build identifiers start with the model they were built for, so a
     # row whose build begins with the device's code PLUS MORE ("L9Plus-..." on

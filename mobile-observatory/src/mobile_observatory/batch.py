@@ -34,6 +34,7 @@ from .integrity import check_corpus, summarise
 from .identity_backfill import (approve_catalog_confirmed_identities,
                                 approve_stem_corroborated_identities)
 from .identity_bridge import rebuild_identity_registry, refresh_observation_link_states
+from .rom_branch import approve_branch_corroborated_identities
 from .silence import STATUS_SILENT, detect_silence
 from .worker_lock import exclusive_worker
 from .enrichment import (automate_identity_review, enrich_canonical_silicon,
@@ -327,6 +328,19 @@ def _ingest(db: Database, *, data_dir: Path, legacy_root: Path, fixture_root: Pa
     with progress.phase("identity:stem-corroborated") as phase:
         phase[0] = results["identity_stem_rule"] = approve_stem_corroborated_identities(
             db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml")
+    # Third, and only for what neither of the two above can reach: the product a
+    # Xiaomi source publishes is a ROM BRANCH, and the mifirm archive names it with
+    # a slash-joined list of marketed phones that no single catalog key ever equals.
+    # This compares the whole SET of marketed names on both sides -- the catalog's
+    # stem family against the archive's published name -- and approves only when two
+    # independently captured publishers name the same phones member for member. It
+    # runs after the Google Play stem rule for the same reason that one runs after
+    # the exact-key rule: the narrower evidence gets its turn first. See
+    # rom_branch.py, which also records why `enrichment.RULE_VERSION` is not bumped.
+    with progress.phase("identity:rom-branch-name-set") as phase:
+        phase[0] = results["identity_branch_rule"] = approve_branch_corroborated_identities(
+            db.connection, devices_yml=legacy_root / "xiaomi-tracker" / "devices.yml",
+            decisions=decisions)
     # Must run on EVERY batch: the TECNO source re-emits both spellings each time,
     # so a merge done once is undone by the next ingest.
     with progress.phase("dedupe:confirmed-duplicates") as phase:

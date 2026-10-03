@@ -151,6 +151,83 @@ The output must be new. Validation backs up corpus and local state, checks exact
 preservation of canonical/history/security/conclusion records, enrichment
 idempotency, SQLite integrity and every product's complete paginated history.
 
+## The ROM-branch rule (2026-10-04)
+
+`rom_branch.approve_branch_corroborated_identities` is the rule for the products
+whose name is a slash-joined list of marketed phones.
+
+**The stall.** The mifirm archive publishes firmware under a bare codename stem
+(`marble`) and names the thing it belongs to "Redmi Note 12 Turbo / POCO F5".
+`devices.yml`'s bare key names only the China phone (`marble` → "Redmi Note 12
+Turbo China"), so the exact-equality test in `enrichment._conclude` can never
+match, and the Google Play stem rule has no basis either: measured, **0 of the 63
+slash products carry a captured Google Play `device_codes` entry**. 54 concluded
+`ambiguous/ranked_candidates` and 9 `insufficient_evidence`, and all 63 ended in
+`unresolvable_on_captured_evidence` holding 10,628 observations.
+
+**The corroboration, and the two fields it is read from.**
+
+```
+crawler/relay/results/xiaomi-tracker/devices.yml
+  -> every key that is the stem or `stem_<suffix>`
+  -> that key's FIRST list entry (the marketing name; entry 1 is the internal code)
+```
+against
+```
+source_products.canonical_name
+  -> written by identity_bridge from mifirm's own $.data.source_device_name
+```
+
+Both sides are split on `/`, region-suffix stripped and normalised identically,
+and the two **sets must be equal**. Two independently captured publishers — the
+XiaomiFirmwareUpdater catalog and the mifirm.net archive — have to name the same
+phones member for member. `+` is preserved as a token, so "Pro" and "Pro+" are
+two phones; measured, that costs one approval and is the correct direction.
+
+**It refuses:**
+
+| reason | what it catches |
+| --- | --- |
+| `corroborating_source_is_the_same_publisher` | `devices.yml` ships in the tracker's own export, so a tracker identity corroborated by it is one source agreeing with itself |
+| `stem_absent_from_vendor_catalog` | the catalog states nothing about this codename |
+| `catalog_entry_shape_unexpected` | a key not shaped `[name, code]`, so which entry is the name is a guess |
+| `identity_linked_from_another_product` | ONE registry row reached from two products (`identity_bridge.LINK_LICENCE_CONDITION`) |
+| `vendor_catalog_names_a_phone_the_archive_does_not` | the branch covers more phones than the archive's name lists |
+| `archive_names_a_phone_the_vendor_catalog_does_not` | the slash is two names for ONE phone ("Mi 8 Lite/Youth"), and nothing captured says which reading applies |
+| `branch_name_sets_disagree` | the sets differ in both directions |
+| `several_products_share_this_branch` | two products carry the same marketed-name set for one codename. **Unreachable on today's corpus** — one publisher files a codename once, and the only other codename publisher is refused above — so it is driven from a fixture with two archives |
+
+**Measured on a copy of the live corpus, 2026-10-04.** 154 Xiaomi codename
+registry rows examined, **55 approved** and 99 refused, releasing **8,172**
+observations into `product_firmware_releases` (8,168 new rows; 4 collapse onto
+existing keys). 20 products leave `unresolvable_on_captured_evidence` (626 → 606);
+35 of the approvals are on products already approved and unstall **3,952** of the
+6,256 observations held behind the link-review gate.
+
+**A branch spanning three phones becomes neither one device nor three.** Measured:
+**0** new `hardware_models`, `device_variants`, `device_families` or
+`product_hardware_links`. Two layers hold that: `device_promotion._observed_model_code`
+refuses a Xiaomi codename (the load-bearing one, and somebody else's invariant),
+and this rule declines to write an `auto_approved` conclusion. The marketed phones
+are recorded as the branch's members in `identity_resolution_rationales.evidence_json`
+and read back by `rom_branch.branch_members` — a layer pointing at the branch, with
+no schema change.
+
+**`enrichment.RULE_VERSION` is deliberately not bumped,** and the measurement is
+stronger than the stem rule's: `_conclude` reopens only a conclusion whose
+`conclusion == 'insufficient_evidence'`, so a bump to `"3"` **cannot re-decide the
+54 `ambiguous` products that are the bulk of this item**, while rewriting the 465
+`insufficient_evidence` conclusions and then reopening them on the next batch for
+0 outcome changes. The rule stamps its own decisions `branch-1`.
+
+**What it does not resolve.** 606 products stay in
+`unresolvable_on_captured_evidence` holding 16,735 observations, and 2,304
+observations stay behind the link gate. And **97 Xiaomi codenames are filed under
+two source products** — the tracker names the branch by its China marketing name,
+mifirm by the whole slash list — which `check_corpus` now reports as
+`rom_branch_held_as_two_source_products` (warning). Merging them is an identity
+judgement no rule here takes.
+
 ## The terminal state for what no rule and no reviewer can resolve
 
 Added 2026-09-30. `src/mobile_observatory/adjudication.py` carries the full

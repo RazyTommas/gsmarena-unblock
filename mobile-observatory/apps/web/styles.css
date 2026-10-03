@@ -489,6 +489,20 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
 .search-hit{display:block;width:100%;border:0;background:transparent;color:var(--ink);text-align:left;padding:9px;border-radius:7px;cursor:pointer}
 .search-hit:hover{background:var(--paper)}
 .search-hit small{display:block;color:var(--muted)}
+/* The one rule the search box has, on demand and never before it is asked for.
+   A persistent banner, a coloured warning bar and always-visible help text were
+   all refused by name ("no angry buttons. Clean clean"), so the sentence is
+   revealed by title= for a mouse and by this line for a keyboard -- hover alone
+   has no keyboard route, so it is paired with :focus-within rather than replaced
+   by it, and the input carries aria-describedby so it is also read aloud.
+   Positioned, not in flow, so revealing it never moves the page; and it yields to
+   the results dropdown, which occupies the same 44px and is the more specific
+   answer whenever there is one. */
+.search-rule{display:none;position:absolute;left:0;right:0;top:44px;z-index:29;
+  background:var(--card);border:1px solid var(--line);border-radius:11px;
+  box-shadow:var(--shadow);padding:9px 12px;font-size:12px;line-height:1.45;color:var(--muted)}
+.search-wrap:focus-within .search-rule{display:block}
+.search-wrap:has(.search-results.open) .search-rule{display:none}
 .theme-select{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:8px;flex:0 0 auto;max-width:100%}
 .filters{grid-template-columns:repeat(auto-fit,minmax(min(135px,100%),1fr))}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:10px;padding:16px}

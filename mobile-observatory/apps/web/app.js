@@ -243,6 +243,14 @@ async function loadRest() {
     });
     state.pending = false;
     state.restError = null;
+    // Every table above was fetched UNFILTERED, because the boot does not know
+    // what the reader will type. If they typed while it was in flight, these rows
+    // answer a question they are no longer asking -- and painting them is the same
+    // stale-table defect as the one showRoute() exists to stop, arriving by timing
+    // instead of by a click. Measured: a browser driven to type 250ms after first
+    // paint got 100 rows for a query matching one. So the current view is reloaded
+    // rather than painted over.
+    if (state.filter.trim()) { loadRoute(); return; }
   } catch (error) {
     // Phase 1 already painted, so this must not blank the app. Record it and let
     // the affected views say so instead of showing empty tables that read as
@@ -303,8 +311,124 @@ async function loadSourcePage(offset=0) {
 async function loadProductPage(offset=0) {const payload=await api.sourceProducts({limit:pageSize(),offset,state:state.productState});state.data.sourceProducts=items(payload);state.data.productPage=payload.meta?.page||{};render();}
 async function loadCanonicalPage(kind,offset=0){const method=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const filters={limit:pageSize(),offset,q:state.filter,vendor:state.chipVendor==='all'?'':state.chipVendor,family:state.chipFamily==='all'?'':state.chipFamily,part:state.chipPart==='all'?'':state.chipPart,sort:state.exploreSort[kind]};if(kind!=='silicon'){filters.maker=state.maker==='all'?'':state.maker;filters.region=state.region==='all'?'':state.region;}if(kind==='devices'){filters.max_android=state.android==='all'?'':state.android;filters.support=state.support==='all'?'':state.support;}const payload=await api[method](filters);const dataKey=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const pageKey=kind==='devices'?'devicePage':kind==='silicon'?'chipPage':'releasePage';state.data[dataKey]=items(payload);state.data[pageKey]=payload.meta?.page||{};render();}
 async function loadProductEvidencePage(offset=0){const firmware=state.productMode==='firmware';const filters={limit:pageSize(),offset,q:state.productQuery,maker:state.productMaker,region:firmware?state.productRegion:'',sort:state.productSort};const payload=await (firmware?api.productReleases(filters):api.productSecurity(filters));state.data[firmware?'productReleases':'productSecurity']=items(payload);state.data[firmware?'productReleasePage':'productSecurityPage']=payload.meta?.page||{};render();}
+// ===========================================================================
+// SWITCHING A VIEW AND LOADING IT ARE ONE ACT
+//
+// render() paints state.data. It never fetches. So a caller that moved the view
+// and then called render() showed whatever the LAST fetch happened to leave in
+// state.data -- which on a fresh boot is the unfiltered first page, and which the
+// grid then narrowed client-side to nothing. Clicking the search hit for "Galaxy
+// S26" landed on Explore with ZERO rows and ZERO requests while the server held
+// three, and the Devices tab beside it was the only control on the page that
+// fetched.
+//
+// Measured the same way on five call sites before this existed: the search hit,
+// the rail button, a #explore hash, Enter in the search box (which had no handler
+// at all, while the dropdown's own footer says "Press Enter to filter the table"),
+// and the boot's phase 2 overwriting a filtered table with the unfiltered page it
+// had asked for before the reader typed. The first four each measured
+// `calls=[] rows=0` against a server answering 3. That is why this is a function
+// and not the tab handler's two lines copied into the search handler.
+//
+// Browser Back is NOT on that list and was checked: the hash is written with
+// history.replaceState, so history.length stays 2 and Back leaves the page
+// entirely. It is not a route path here, and making it one is a different change.
+// ===========================================================================
+
+// What each route needs fetched before it can be painted. `watchlist` and `admin`
+// are absent ON PURPOSE and named below rather than left implicit, because "this
+// route has nothing to fetch" and "somebody forgot to wire this route up" must not
+// look the same to the next reader.
+const ROUTE_LOADERS = {
+  radar: offset => loadRadarPage(offset),
+  explore: offset => state.exploreMode === 'sources' ? loadSourcePage(offset)
+                                                     : loadCanonicalPage(state.exploreMode, offset),
+  products: offset => loadProductEvidencePage(offset),
+  security: offset => loadSecurityPage(offset),
+};
+const ROUTES_WITH_NOTHING_TO_FETCH = ['watchlist', 'admin'];
+// Only these two read state.filter. Reloading a route that does not read it would
+// spend a request answering the question it already answered.
+const ROUTES_THE_SEARCH_BOX_FILTERS = ['radar', 'explore'];
+
+// Load the data the CURRENT route needs, then paint. The loaders each end in
+// render(), so the failure branch is the only one that has to say so -- and it
+// paints too, because a view left unpainted after a failed fetch is the stale
+// table this whole section exists to stop.
+function loadRoute(failureMessage, offset = 0) {
+  const loader = ROUTE_LOADERS[state.route];
+  if (!loader) {
+    // A route with no loader has to be one of the two that genuinely has nothing
+    // to fetch. A NEW route arriving here is a wiring omission, and the way this
+    // whole family of defects stayed invisible was that the omission looked
+    // exactly like the design -- a painted view with no request behind it.
+    if (!ROUTES_WITH_NOTHING_TO_FETCH.includes(state.route))
+      console.warn(`no loader for route "${state.route}": it will paint whatever state.data already holds`);
+    render();
+    return Promise.resolve();
+  }
+  return loader(offset).catch(() => { if (failureMessage) toast(failureMessage); render(); });
+}
+
+// Move to a view AND load it. The chrome moves synchronously and the table is
+// replaced when the server answers: the deep-link router clicks a rail button and
+// reads `.active` on the very next statement, so that much cannot wait for a
+// fetch, and repainting the whole table first would flash the empty state that is
+// precisely the wrong answer here.
+function showRoute(route, exploreMode, failureMessage) {
+  state.route = route;
+  if (exploreMode) state.exploreMode = exploreMode;
+  searchResults?.classList.remove('open');
+  markRoute();
+  return loadRoute(failureMessage);
+}
+
+// The search box changed. ONE rule, shared by typing and by Enter.
+function applySearchFilter(value, failureMessage = 'Could not apply the search') {
+  state.filter = value;
+  if (!ROUTES_THE_SEARCH_BOX_FILTERS.includes(state.route)) { render(); return Promise.resolve(); }
+  return loadRoute(failureMessage);
+}
+
+// Crumb + rail, the two bits of chrome that say which view you are on. Extracted
+// because render() already wrote these same two lines twice, and showRoute() needs
+// exactly them without a full repaint.
+function markRoute() {
+  $('#crumb').textContent = state.route[0].toUpperCase() + state.route.slice(1);
+  document.querySelectorAll('.nav-item').forEach(x => x.classList.toggle('active', x.dataset.route === state.route));
+}
+
+// --- what the search syntax IS -------------------------------------------
+// Measured on the live corpus: matching is case-insensitive SUBSTRING matching
+// with no wildcards at all. `S26` = `s26` = 3 devices, `SM-S94` = 3 (mid-string),
+// and `s26*`, `S26%`, `s26_`, `*`, `%` every one returns 0, because every
+// character is literal.
+//
+// `%` and `_` being literal is deliberate and hard-won -- unescaped they were live
+// LIKE wildcards and `q=_` reported 865 devices / 452 chips / 3,443 releases as
+// "matching". Making them literal was the correct fix (database.like_clause), and
+// it is NOT being undone here. What it created was a trap: a reader who types
+// `s26*` gets 0 and reads it as "no such device" rather than "your asterisk was
+// searched for". So the rule is discoverable on demand -- title= for the mouse,
+// the focus line for the keyboard -- and a zero result that contains one of those
+// characters says what happened, inside the empty state that is already there.
+const SEARCH_RULE = 'Case-insensitive, and matches anywhere in the name — s26 finds Galaxy S26 Ultra. '
+  + 'There are no wildcards: * % _ ? and every other punctuation mark is searched for as itself.';
+const WILDCARD_LOOKING = /[*%_?]/g;
+// ONE note, used by every empty state a query can reach: the dropdown and the
+// three Explore tables are four places a zero result is shown, and four copies of
+// this sentence is how three of them would end up saying something else.
+const literalMatchNote = query => {
+  const used = [...new Set(String(query || '').match(WILDCARD_LOOKING) || [])];
+  if (!used.length) return '';
+  const plain = String(query).replace(WILDCARD_LOOKING, ' ').trim().replace(/\s+/g, ' ');
+  return `<p class="subtle">The ${used.map(escapeHtml).join(' ')} was searched for literally — this search has no wildcards.`
+    + ` Matching is case-insensitive and matches anywhere in the name`
+    + (plain ? `, so <b>${escapeHtml(plain)}</b> on its own already matches wherever it appears.` : '.')
+    + `</p>`;
+};
+
 function heading(kicker, title, body, action = '') { return `<div class="page-head"><div><div class="eyebrow">${kicker}</div><h1>${title}</h1><p>${body}</p></div>${action}${state.fixtureMode ? '<span class="demo-flag" title="API unavailable">DEMO DATA</span>' : ''}</div>`; }
-function matches(row) { const q = state.filter.trim().toLowerCase(); return !q || Object.values(row).some(v => String(v).toLowerCase().includes(q)); }
 
 // On the Watched tab the answer is zero by construction, and a button that always
 // reports zero reads as broken. It stays visible and disabled, saying why.
@@ -441,16 +565,25 @@ function renderExplore() {
   const chipByPart=new Map(state.data.chips.map(x=>[x.part,x]));
   const contains=(value,query)=>!query||query==='all'||String(value||'').toLowerCase().includes(String(query).toLowerCase());
   const chipMatch=x=>{const c=chipByPart.get(x.part)||{};return contains(c.vendor,state.chipVendor)&&contains(c.family,state.chipFamily)&&contains(x.part,state.chipPart)};
-  const devices=state.data.devices.filter(matches).filter(x=>state.maker==='all'||x.maker===state.maker).filter(chipMatch).filter(x=>state.android==='all'||(x.android!=='Unknown'&&x.android<=Number(state.android))).filter(x=>state.region==='all'||x.region.toLowerCase().includes(state.region)).filter(x=>state.support==='all'||x.support===state.support);
-  const chips=state.data.chips.filter(matches).filter(x=>contains(x.vendor,state.chipVendor)).filter(x=>contains(x.family,state.chipFamily)).filter(x=>contains(x.part,state.chipPart));
-  const releases=state.data.releases.filter(matches).filter(x=>state.maker==='all'||x.maker===state.maker).filter(x=>state.region==='all'||String(x.region).toLowerCase().includes(state.region));
+  // No client-side re-filtering by state.filter. loadCanonicalPage sends `q` to the
+  // server for all three tabs, and the server matches brand, variant, model code,
+  // CODENAME, chip marketing name and part number -- while the row it returns
+  // carries no codename column, so re-running the query over the row's own values
+  // discarded rows the server had just said match. Measured on the live corpus: 88
+  // devices carry a codename that appears nowhere else on their row, and
+  // `q=lisa_tw_global` answers 1 device which the client filter then dropped to 0.
+  // Same defect as the one above -- the grid disagreeing with the server -- in a
+  // second mechanism, and the counters beside the table were always the server's.
+  const devices=state.data.devices.filter(x=>state.maker==='all'||x.maker===state.maker).filter(chipMatch).filter(x=>state.android==='all'||(x.android!=='Unknown'&&x.android<=Number(state.android))).filter(x=>state.region==='all'||x.region.toLowerCase().includes(state.region)).filter(x=>state.support==='all'||x.support===state.support);
+  const chips=state.data.chips.filter(x=>contains(x.vendor,state.chipVendor)).filter(x=>contains(x.family,state.chipFamily)).filter(x=>contains(x.part,state.chipPart));
+  const releases=state.data.releases.filter(x=>state.maker==='all'||x.maker===state.maker).filter(x=>state.region==='all'||String(x.region).toLowerCase().includes(state.region));
   const sourceRecords=state.data.sourceRecords||[], sourcePage=state.data.sourcePage||{};
   const families=[...new Set(state.data.chips.filter(x=>state.chipVendor==='all'||x.vendor.toLowerCase()===state.chipVendor).map(x=>x.family))].sort();
   const parts=[...new Set(state.data.chips.filter(x=>(state.chipVendor==='all'||x.vendor.toLowerCase()===state.chipVendor)&&(state.chipFamily==='all'||x.family===state.chipFamily)).map(x=>x.part))].sort();
   return heading('Device & Silicon Explorer','Find the exact hardware','Filter devices by identity, Android version, region, and exact silicon part.') + `
   <div class="filters"><label>Manufacturer<select id="makerFilter"><option value="all">All manufacturers</option>${[...new Set(state.data.devices.map(x=>x.maker))].sort().map(x=>`<option>${escapeHtml(x)}</option>`).join('')}</select></label><label>Chip vendor contains<input class="filter-input" id="chipFilter" list="vendorOptions" value="${escapeHtml(state.chipVendor==='all'?'':state.chipVendor)}" placeholder="Type Qualcomm, MediaTek…"><datalist id="vendorOptions">${[...new Set(state.data.chips.map(x=>x.vendor))].sort().map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Chip family contains<input class="filter-input" id="familyFilter" list="familyOptions" value="${escapeHtml(state.chipFamily==='all'?'':state.chipFamily)}" placeholder="Type Snapdragon, Dimensity…"><datalist id="familyOptions">${families.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Part contains<input class="filter-input" id="partFilter" list="partOptions" value="${escapeHtml(state.chipPart==='all'?'':state.chipPart)}" placeholder="Type SM8750, MT…"><datalist id="partOptions">${parts.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Android ceiling<select id="androidFilter"><option value="all">Any version</option><option value="17">17 or lower</option><option value="16">16 or lower</option><option value="15">15 or lower</option></select></label><label>Region<select id="regionFilter"><option value="all">Any region</option><option value="ilo">Israel / ILO</option><option value="mid">Middle East / MID</option><option value="global">Global</option></select></label><label>Support<select id="supportFilter"><option value="all">All statuses</option><option value="Supported">Officially supported</option><option value="Likely supported">Likely supported</option><option value="End announced">End announced</option><option value="Unsupported">Unsupported</option><option value="Unknown">Not stated by vendor</option></select></label></div>
   <div class="toolbar"><div class="segmented" id="exploreTabs"><button data-value="devices" class="${state.exploreMode==='devices'?'active':''}">Devices (${state.data.devicePage?.total||devices.length})</button><button data-value="silicon" class="${state.exploreMode==='silicon'?'active':''}">Silicon (${state.data.chipPage?.total||chips.length})</button><button data-value="releases" class="${state.exploreMode==='releases'?'active':''}">Canonical ROMs (${state.data.releasePage?.total||releases.length})</button><button data-value="sources" class="${state.exploreMode==='sources'?'active':''}">Source records (${sourcePage.total||0})</button></div><span class="subtle">${state.exploreMode==='sources'?`${sourcePage.offset+1}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}`:`${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+1}-${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+(state.exploreMode==='devices'?devices.length:state.exploreMode==='silicon'?chips.length:releases.length)} shown`}</span><span class="spacer"></span>${state.exploreMode!=='sources'?`<button class="button" id="canonicalPrev">←</button><button class="button" id="canonicalNext">→</button>`:''}${pageSizeControl('exploreRows')}<button class="button" id="exportView">Export CSV ↓</button></div>
-  ${state.exploreMode==='devices'?`<h2 class="section-title">Reviewed devices</h2>${coverageStrip()}<div class="data-card">${devices.length?`<table class="data-table"><thead><tr><th>Device identity</th><th>Silicon</th><th>Software state</th><th>Current firmware</th><th>Support</th></tr></thead><tbody>${deviceRows(devices)}</tbody></table>`:'<div class="empty"><b>No matching devices.</b><br>No result may also mean incomplete source coverage; check Admin health.</div>'}</div>`:state.exploreMode==='silicon'?`<h2 class="section-title">Silicon index</h2><div class="data-card">${chips.length?`<table class="data-table"><thead><tr><th>Chip</th><th>Exact part</th><th>Used by</th><th>Advisories</th><th>Attention</th></tr></thead><tbody>${chipRows(chips)}</tbody></table>`:'<div class="empty"><b>No matching silicon.</b><br>Try a broader chip filter.</div>'}</div>`:state.exploreMode==='releases'?`<h2 class="section-title">Canonical ROM versions</h2><div class="data-card">${releases.length?`<table class="data-table"><thead><tr><th>Model</th><th>Region</th><th>Build</th><th>OS</th><th>Security patch</th><th>Baseband</th><th>Released</th></tr></thead><tbody>${releaseRows(releases)}</tbody></table>`:'<div class="empty"><b>No observed ROMs match.</b><br>This is different from proof that no ROM exists.</div>'}</div>`:`<h2 class="section-title">All captured source records</h2><div class="notice">These rows are visible evidence awaiting or supporting canonical identity resolution. “Unresolved” is intentional—not missing data.</div><div class="toolbar"><input id="sourceQuery" value="${escapeHtml(state.sourceQuery)}" placeholder="Search name, codename, build…"><select id="sourceName"><option value="">All sources</option><option value="xiaomi.community.firmware_tracker">Xiaomi${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('xiaomi'))?.records||0})`}</option><option value="tecno.vendor.security_device_scope">Tecno${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('tecno'))?.records||0})`}</option><option value="samsung.fota">Samsung${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('samsung'))?.records||0})`}</option></select><select id="sourceKind"><option value="">All record types</option><option value="firmware_release">Firmware</option><option value="security_patch_publication">Security patch publication</option></select><button class="button primary" id="sourceSearch">Search</button></div><div class="data-card"><table class="data-table"><thead><tr><th>Source identity</th><th>Collector</th><th>Record type</th><th>Observed value</th><th>Region</th><th>Identity state</th><th>Observed</th></tr></thead><tbody>${sourceRows(sourceRecords)}</tbody></table></div><div class="toolbar"><button class="button" id="sourcePrev" ${sourcePage.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${sourcePage.total?sourcePage.offset+1:0}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}</span><button class="button" id="sourceNext" ${sourcePage.nextCursor?'':'disabled'}>Next →</button></div>`}`;
+  ${state.exploreMode==='devices'?`<h2 class="section-title">Reviewed devices</h2>${coverageStrip()}<div class="data-card">${devices.length?`<table class="data-table"><thead><tr><th>Device identity</th><th>Silicon</th><th>Software state</th><th>Current firmware</th><th>Support</th></tr></thead><tbody>${deviceRows(devices)}</tbody></table>`:`<div class="empty"><b>No matching devices.</b><br>No result may also mean incomplete source coverage; check Admin health.${literalMatchNote(state.filter)}</div>`}</div>`:state.exploreMode==='silicon'?`<h2 class="section-title">Silicon index</h2><div class="data-card">${chips.length?`<table class="data-table"><thead><tr><th>Chip</th><th>Exact part</th><th>Used by</th><th>Advisories</th><th>Attention</th></tr></thead><tbody>${chipRows(chips)}</tbody></table>`:`<div class="empty"><b>No matching silicon.</b><br>Try a broader chip filter.${literalMatchNote(state.filter)}</div>`}</div>`:state.exploreMode==='releases'?`<h2 class="section-title">Canonical ROM versions</h2><div class="data-card">${releases.length?`<table class="data-table"><thead><tr><th>Model</th><th>Region</th><th>Build</th><th>OS</th><th>Security patch</th><th>Baseband</th><th>Released</th></tr></thead><tbody>${releaseRows(releases)}</tbody></table>`:`<div class="empty"><b>No observed ROMs match.</b><br>This is different from proof that no ROM exists.${literalMatchNote(state.filter)}</div>`}</div>`:`<h2 class="section-title">All captured source records</h2><div class="notice">These rows are visible evidence awaiting or supporting canonical identity resolution. “Unresolved” is intentional—not missing data.</div><div class="toolbar"><input id="sourceQuery" value="${escapeHtml(state.sourceQuery)}" placeholder="Search name, codename, build…"><select id="sourceName"><option value="">All sources</option><option value="xiaomi.community.firmware_tracker">Xiaomi${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('xiaomi'))?.records||0})`}</option><option value="tecno.vendor.security_device_scope">Tecno${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('tecno'))?.records||0})`}</option><option value="samsung.fota">Samsung${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('samsung'))?.records||0})`}</option></select><select id="sourceKind"><option value="">All record types</option><option value="firmware_release">Firmware</option><option value="security_patch_publication">Security patch publication</option></select><button class="button primary" id="sourceSearch">Search</button></div><div class="data-card"><table class="data-table"><thead><tr><th>Source identity</th><th>Collector</th><th>Record type</th><th>Observed value</th><th>Region</th><th>Identity state</th><th>Observed</th></tr></thead><tbody>${sourceRows(sourceRecords)}</tbody></table></div><div class="toolbar"><button class="button" id="sourcePrev" ${sourcePage.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${sourcePage.total?sourcePage.offset+1:0}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}</span><button class="button" id="sourceNext" ${sourcePage.nextCursor?'':'disabled'}>Next →</button></div>`}`;
 }
 
 let securityPageRequest=0;
@@ -587,7 +720,7 @@ async function openChipRemote(part){
     while(cursor){const more=await api.chipProducts({vendor:c.vendor,part,limit:200,cursor});c.products.push(...items(more));cursor=more.meta.page.nextCursor;}
     if(request!==detailRequest)return;
     const previous=state.data.devices; state.data.devices=items(payload); openChip(part); state.data.devices=previous;
-    $('#chipAllFindings')?.addEventListener('click',()=>{closeDetail();state.route='security';state.securityFilters={part,silicon_vendor:c.vendor};loadSecurityPage(0).catch(()=>toast('Could not load linked CVEs'));});
+    $('#chipAllFindings')?.addEventListener('click',()=>{closeDetail();state.securityFilters={part,silicon_vendor:c.vendor};showRoute('security',null,'Could not load linked CVEs');});
   } catch { toast('Could not load the silicon relationships. Please retry.'); }
 }
 function bindEntities(root=document){bindWatches(root);root.querySelectorAll('[data-product]').forEach(x=>x.addEventListener('click',()=>openProductRemote(x.dataset.product)));root.querySelectorAll('[data-device]').forEach(x=>x.addEventListener('click',()=>openDeviceRemote(x.dataset.device)));root.querySelectorAll('[data-chip]').forEach(x=>x.addEventListener('click',()=>openChipRemote(x.dataset.chip)));}
@@ -712,8 +845,7 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
       <b>Loading ${escapeHtml(state.route)}…</b>
       <p class="subtle">Radar is ready now; this view needs the rest of the snapshot.</p>
     </div></div><div class="skeleton"></div><div class="skeleton"></div>`;
-    $('#crumb').textContent=state.route[0].toUpperCase()+state.route.slice(1);
-    document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.route===state.route));
+    markRoute();
     return;
   }
   if(state.restError && !CORE_ROUTES.includes(state.route)){
@@ -743,8 +875,7 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
     $('#app .notice').innerHTML=`<b>Collector operation:</b> ${state.healthPending?'still loading':state.healthError?'unavailable':`${state.data.health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length} source failures (includes advisory silence -- see the Status column)`}. <b>Coverage debt:</b> ${pendingProducts} product candidates awaiting review${adjudicatedProducts?` (a further ${adjudicatedProducts.toLocaleString()} were reviewed and cannot be resolved from captured evidence — not pending work)`:''}; ${chips} canonical silicon parts; ${state.data.securityPage?.total||state.data.security.length} catalogued CVEs awaiting device applicability. A successful collector run does not mean coverage is complete.`;
     $('#app .admin-grid')?.insertAdjacentHTML('afterend',`<h2 class="section-title">Collect something now</h2><div class="data-card"><div class="form-grid"><label>Target hint<input id="collectionTarget" placeholder="e.g. SM-A055F / ILO or Redmi Note 14"><small>This is a matching hint for preserved artifacts, not an AI prompt or a live web query.</small></label><label>What to collect<select id="collectionScope"><option value="smart">Smart choice for each source</option><option value="latest_firmware">Latest firmware</option><option value="firmware_history">Firmware history</option><option value="device_profile">Device profile and silicon</option><option value="security">Security bulletins</option></select></label></div><div class="validation-note"><b>Sources (choose one or more)</b> — only installed captured-replay combinations are offered.</div><div class="check-grid" id="collectionSources"><label class="check-pill"><input type="checkbox" value="samsung"> Samsung FOTA</label><label class="check-pill"><input type="checkbox" value="xiaomi"> Xiaomi firmware</label><label class="check-pill"><input type="checkbox" value="tecno"> TECNO security</label></div><div class="toolbar"><button class="button primary" id="queueCollection">Queue collection request(s)</button><button class="button" id="runNextCollection">Run next captured replay</button><button class="button" id="recoverCollections">Recover interrupted jobs</button><span class="subtle">Smart maps Samsung→firmware history, Xiaomi→firmware history, TECNO→security. Incompatible explicit combinations are rejected before queueing.</span></div>${renderCollectionJobs()}${(state.data.collectionRequests||[]).length?`<div class="validation-note">Recent: ${(state.data.collectionRequests||[]).slice(0,3).map(x=>`${escapeHtml(x.target)} · ${escapeHtml(x.source)} · ${escapeHtml(x.scope)} · ${escapeHtml(x.status)}`).join(' | ')}</div>`:''}</div>`);
   }
-  $('#crumb').textContent=state.route[0].toUpperCase()+state.route.slice(1);
-  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.route===state.route));
+  markRoute();
   document.querySelectorAll('.acknowledge').forEach(button=>button.addEventListener('click', async()=>{
     const id=button.dataset.id; state.acknowledged.add(id); render();
     if(!state.fixtureMode) try { await api.acknowledge(id); } catch { state.acknowledged.delete(id); render(); toast('Could not save acknowledgement'); return; }
@@ -753,23 +884,14 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   ['radarRows','exploreRows'].forEach(id=>{
     const el=$('#'+id); if(!el) return;
     el.value=String(pageSize());
-    el.addEventListener('change',async()=>{
-      setPageSize(el.value);
-      try{
-        if(state.route==='radar') await loadRadarPage(0);
-        else if(state.route==='explore') await (state.exploreMode==='sources'?loadSourcePage(0):loadCanonicalPage(state.exploreMode,0));
-        else if(state.route==='products') await loadProductEvidencePage(0);
-        else if(state.route==='security') await loadSecurityPage(0);
-        else render();
-      }catch{toast('Could not change rows per page');}
-    });
+    el.addEventListener('change',()=>{setPageSize(el.value);loadRoute('Could not change rows per page');});
   });
-  const bindSelect=(id,key)=>{const el=$(`#${id}`);if(!el)return;if(el.tagName==='SELECT')el.value=state[key];const apply=async()=>{state[key]=el.value||'all';if(state.route==='radar')await loadRadarPage(0);else if(state.route==='explore'&&state.exploreMode!=='sources')await loadCanonicalPage(state.exploreMode,0);else render();};if(el.tagName==='INPUT'){el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();apply().catch(()=>toast('Could not apply filter'));}});el.addEventListener('change',()=>apply().catch(()=>toast('Could not apply filter')));}else el.addEventListener('change',()=>apply().catch(()=>toast('Could not apply filter')));};
+  const bindSelect=(id,key)=>{const el=$(`#${id}`);if(!el)return;if(el.tagName==='SELECT')el.value=state[key];const apply=()=>{state[key]=el.value||'all';return loadRoute('Could not apply filter');};if(el.tagName==='INPUT'){el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();apply().catch(()=>toast('Could not apply filter'));}});el.addEventListener('change',()=>apply().catch(()=>toast('Could not apply filter')));}else el.addEventListener('change',()=>apply().catch(()=>toast('Could not apply filter')));};
   bindSelect('radarRegion','radarRegion'); bindSelect('radarChange','radarChange');
   bindSelect('makerFilter','maker'); bindSelect('chipFilter','chipVendor'); bindSelect('familyFilter','chipFamily'); bindSelect('partFilter','chipPart'); bindSelect('androidFilter','android'); bindSelect('regionFilter','region'); bindSelect('supportFilter','support');
-  $('#resetFilters')?.addEventListener('click',()=>{Object.assign(state,{filter:'',maker:'all',chipVendor:'all',chipFamily:'all',chipPart:'all',android:'all',region:'all',support:'all'});searchBox.value='';if(state.exploreMode==='sources')render();else loadCanonicalPage(state.exploreMode,0).catch(()=>render());});
+  $('#resetFilters')?.addEventListener('click',()=>{Object.assign(state,{filter:'',maker:'all',chipVendor:'all',chipFamily:'all',chipPart:'all',android:'all',region:'all',support:'all'});searchBox.value='';loadRoute('Could not reset the filters');});
   $('#radarTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.radarTab=x.dataset.value;state.radarTabPinned=true;loadRadarPage(0).catch(()=>toast('Could not load Radar'));}));
-  $('#exploreTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.exploreMode=x.dataset.value;if(state.exploreMode==='sources')loadSourcePage(0).catch(()=>render());else loadCanonicalPage(state.exploreMode,0).catch(()=>render());}));
+  $('#exploreTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>showRoute('explore',x.dataset.value,'Could not load this view')));
   if($('#exploreSort')){$('#exploreSort').value=state.exploreSort[state.exploreMode];$('#exploreSort').addEventListener('change',e=>{state.exploreSort[state.exploreMode]=e.target.value;if(state.exploreMode==='sources')loadSourcePage(0).catch(()=>toast('Could not sort records'));else loadCanonicalPage(state.exploreMode,0).catch(()=>toast('Could not sort view'));});}
   $('#productEvidenceTabs')?.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{state.productMode=x.dataset.value;loadProductEvidencePage(0).catch(()=>toast('Could not load product evidence'));}));
   const productEvidencePage=state.data[state.productMode==='firmware'?'productReleasePage':'productSecurityPage']||{};
@@ -856,7 +978,7 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   });
   $('#exportView')?.addEventListener('click',()=>{
     const rows=state.exploreMode==='devices'?state.data.devices:state.exploreMode==='silicon'?state.data.chips:state.exploreMode==='sources'?state.data.sourceRecords:state.data.releases;
-    const keys=Object.keys(rows[0]||{}), csv=[keys.join(','),...rows.filter(matches).map(row=>keys.map(k=>`"${String(row[k]??'').replaceAll('"','""')}"`).join(','))].join('\n');
+    const keys=Object.keys(rows[0]||{}), csv=[keys.join(','),...rows.map(row=>keys.map(k=>`"${String(row[k]??'').replaceAll('"','""')}"`).join(','))].join('\n');
     const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));link.download=`observatory-${state.exploreMode}.csv`;link.click();URL.revokeObjectURL(link.href);toast('CSV exported');
   });
   if($('#cfgCadence')){$('#cfgCadence').value=String(state.config.cadenceHours);$('#cfgSupported').value=state.config.supportedOnly?'1':'0';}
@@ -877,9 +999,26 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
 function debounce(fn,wait){let timer;return(...args)=>{clearTimeout(timer);timer=setTimeout(()=>fn(...args),wait);};}
 function downloadJson(name,value){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
 
-document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{if(!state.data)return;state.route=button.dataset.route;searchResults?.classList.remove('open');$('.rail').classList.remove('open');render();}));
+document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{if(!state.data)return;$('.rail').classList.remove('open');showRoute(button.dataset.route,null,'Could not load this view');}));
 const searchBox=$('#globalSearch'),searchResults=$('#searchResults');
-searchBox.addEventListener('input',debounce(async event=>{state.filter=event.target.value;if(state.route==='radar'){try{await loadRadarPage(0);}catch{toast('Could not search Radar');}}else render();const q=event.target.value.trim();if(q.length<2){searchResults.classList.remove('open');return;}try{const payload=await api.search(q);const hits=items(payload);const totals=payload.totals||{};const matched=(totals.device||0)+(totals.chip||0)+(totals.release||0);const more=matched>hits.length?`<div class="search-more">Showing ${hits.length} of ${matched.toLocaleString()} matches — ${(totals.device||0).toLocaleString()} devices, ${(totals.chip||0).toLocaleString()} silicon, ${(totals.release||0).toLocaleString()} ROMs. Press Enter to filter the table.</div>`:'';searchResults.innerHTML=hits.length?hits.map((x,i)=>`<button class="search-hit" data-hit="${i}" data-type="${escapeHtml(x.type)}" data-label="${escapeHtml(x.label)}"><b>${escapeHtml(x.label)}</b><small>${escapeHtml(x.type)} · ${escapeHtml(x.detail)}</small></button>`).join('')+more:'<div class="empty">No canonical match across the whole catalogue. Coverage may be incomplete.</div>';searchResults.classList.add('open');searchResults.querySelectorAll('[data-hit]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.label;searchBox.value=b.dataset.label;state.route=b.dataset.type==='release'?'explore':b.dataset.type==='chip'?'explore':'explore';state.exploreMode=b.dataset.type==='release'?'releases':b.dataset.type==='chip'?'silicon':'devices';searchResults.classList.remove('open');render();});}catch{searchResults.innerHTML='<div class="empty">Search unavailable</div>';searchResults.classList.add('open');}},180));
+searchBox.addEventListener('input',debounce(async event=>{await applySearchFilter(event.target.value);const q=event.target.value.trim();if(q.length<2){searchResults.classList.remove('open');return;}try{const payload=await api.search(q);const hits=items(payload);const totals=payload.totals||{};const matched=(totals.device||0)+(totals.chip||0)+(totals.release||0);const more=matched>hits.length?`<div class="search-more">Showing ${hits.length} of ${matched.toLocaleString()} matches — ${(totals.device||0).toLocaleString()} devices, ${(totals.chip||0).toLocaleString()} silicon, ${(totals.release||0).toLocaleString()} ROMs. Press Enter to filter the table.</div>`:'';searchResults.innerHTML=hits.length?hits.map((x,i)=>`<button class="search-hit" data-hit="${i}" data-type="${escapeHtml(x.type)}" data-label="${escapeHtml(x.label)}"><b>${escapeHtml(x.label)}</b><small>${escapeHtml(x.type)} · ${escapeHtml(x.detail)}</small></button>`).join('')+more:`<div class="empty">No canonical match across the whole catalogue. Coverage may be incomplete.${literalMatchNote(q)}</div>`;searchResults.classList.add('open');searchResults.querySelectorAll('[data-hit]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.label;searchBox.value=b.dataset.label;showRoute('explore',b.dataset.type==='release'?'releases':b.dataset.type==='chip'?'silicon':'devices','Could not load the view for that match');});}catch{searchResults.innerHTML='<div class="empty">Search unavailable</div>';searchResults.classList.add('open');}},180));
+// Enter is what the dropdown's own footer promises ("Press Enter to filter the
+// table"), and before this listener existed it did nothing at all: there was no
+// keydown handler on the search box, so the sentence was an instruction to press a
+// key with no effect. It goes through the same one rule as typing.
+searchBox.addEventListener('keydown',event=>{
+  if(event.key!=='Enter')return;
+  event.preventDefault();
+  searchResults.classList.remove('open');
+  applySearchFilter(searchBox.value);
+});
+// The rule, said once, in two places a reader can ask for it: the title for a
+// mouse, and the focus line (styles.css .search-rule) for a keyboard. Nothing
+// persistent is added to the chrome -- the line is display:none until the field
+// has focus, and it yields to the results dropdown.
+searchBox.title=SEARCH_RULE;
+const searchRule=$('#searchRule');
+if(searchRule)searchRule.textContent=SEARCH_RULE;
 const theme=$('#themeSelect');theme.value=localStorage.getItem('observatory-theme')||'system';// "System" REMOVES the attribute rather than setting it to "". The CSS guard
 // matches both an absent and an empty data-theme, so blanking it was not broken,
 // but an empty attribute is a value that means "no value" and only works because

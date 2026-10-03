@@ -1,26 +1,44 @@
 # Mobile Observatory Core
 
-## Download and run the complete reviewed snapshot
+## Build and run the corpus
 
-This repository includes the real **2026-09-17 portable snapshot**, databases and
-captured evidence. It requires **Python 3.11 or newer**; no pip install, Node,
-API key, external database, or network access is needed to run Mobile Observatory.
+Requires **Python 3.11 or newer**. No pip install, Node, API key, external
+database, or network access at runtime. All 16 captured inputs the batch needs
+are in git (24 MB), so it takes no flags.
 
-From the downloaded or cloned `mobile-observatory` directory:
+From the cloned `mobile-observatory` directory:
 
 ```sh
-python3 run.py
+PYTHONPATH=src python3 -m mobile_observatory.batch
+PYTHONPATH=src python3 -m mobile_observatory.server --data-dir .observatory-data
 ```
 
-On Windows:
+Open <http://127.0.0.1:8000/>. The batch runs for about ten minutes and logs per
+source as it goes; it prints a JSON summary when it finishes. Measured on a real
+clone, 2026-09-29: **854 devices / 94,969 observations, 9m50s**.
 
-```powershell
-py -3 run.py
-```
+On Windows, substitute `py -3` for `python3` and `set PYTHONPATH=src`.
 
-Open <http://127.0.0.1:8124/>. First launch verifies and extracts the packaged data;
-subsequent launches preserve your existing local database. See
+### Do not start from `python3 run.py`
+
+This README used to lead with it, and it is why this section exists. `run.py`
+extracts a **packaged historical snapshot**, which is a tenth of the above:
+measured **83 devices / 26,961 observations** from the 2026-09-17 bundle. Nothing
+downstream reported anything wrong — every page was internally consistent and
+answered from a corpus missing 771 phones.
+
+`python3 run.py` now refuses and names the two commands above. The snapshot is
+still reachable with `python3 run.py --bundle` for a box that genuinely has no
+captured inputs, and `python3 run.py --list-bundles` reports what each packaged
+snapshot states it holds. See
 [portable snapshot contents and migration instructions](docs/PORTABLE_RUN.md).
+
+**A rebuild is not a restore.** Rebuilding from the same inputs does not
+reproduce an existing corpus — measured, 201 of 865 devices resolve differently.
+If you need a specific corpus, copy its `.observatory-data/`; see
+[docs/BACKUP.md](docs/BACKUP.md). `PYTHONPATH=src python3 -m mobile_observatory.integrity`
+reports whether a corpus still matches the identity conclusions it was built
+with.
 
 
 Greenfield domain core for a local-first mobile device, firmware, silicon, and
@@ -43,7 +61,7 @@ work, never an API or schema constraint.
 
 ```sh
 cd mobile-observatory
-python -m unittest discover -s tests -v
+python3 -m unittest discover -s tests -v
 ```
 
 ## Run the demonstration end to end
@@ -91,7 +109,7 @@ product behavior.
 
 ## Batch ingest and scheduling
 
-`python3 -m mobile_observatory.batch` replays every captured source into the
+`PYTHONPATH=src python3 -m mobile_observatory.batch` replays every captured source into the
 corpus; until now it has only ever been run by hand. `scheduling/` has a
 ready-to-enable systemd timer and cron alternative (not installed or enabled
 by this repository) — see [docs/SCHEDULING.md](docs/SCHEDULING.md). Every

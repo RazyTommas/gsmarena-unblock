@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import sqlite3
 import sys
 import tarfile
@@ -176,12 +177,36 @@ def build(data_dir: Path, output: Path, *, stamp: str) -> dict:
                 "local.sqlite is absent from the data directory, so acknowledgements, "
                 "watches and collection requests are NOT in this archive")
 
+        # The corpus's identity baseline. Small (0.44 MB on the live corpus)
+        # and the only thing in the archive that can answer "is the corpus I
+        # rebuilt after this restore the corpus this backup came from?" -- see
+        # docs/BACKUP.md, "a rebuild is not a restore". Without it a restore
+        # puts the evidence back and takes the one record that could have
+        # checked the result with it.
+        #
+        # An optional key, so archives written before it still verify: every
+        # reader below uses .get().
+        baseline = data_dir / "corpus-identity.json"
+        baseline_entry = None
+        if baseline.is_file():
+            shutil.copy2(baseline, staging / "corpus-identity.json")
+            baseline_entry = {"relative": "corpus-identity.json",
+                              "sha256": _digest(baseline),
+                              "bytes": baseline.stat().st_size}
+        else:
+            problems.append(
+                "corpus-identity.json is absent from the data directory, so a corpus "
+                "rebuilt from this archive cannot be compared against the one it came "
+                "from. Run `PYTHONPATH=src python3 -m mobile_observatory.corpus_identity record` (the "
+                "batch does it every run) and back up again.")
+
         manifest = {
             "format": FORMAT,
             "created_at": stamp,
             "data_dir": str(data_dir.resolve()),
             "artifact_files": files,
             "local_database": local_entry,
+            "identity_baseline": baseline_entry,
             "total_bytes": sum(f["bytes"] for f in files) + (local_entry or {}).get("bytes", 0),
             "problems": problems,
             "note": ("This is NOT a backup of corpus.sqlite. The database is derived and "
@@ -195,6 +220,9 @@ def build(data_dir: Path, output: Path, *, stamp: str) -> dict:
             archive.add(staging / MANIFEST, arcname=MANIFEST)
             if local_entry:
                 archive.add(staging / "local.sqlite", arcname="local.sqlite")
+            if baseline_entry:
+                archive.add(staging / "corpus-identity.json",
+                            arcname="corpus-identity.json")
             for entry in files:
                 archive.add(data_dir / entry["relative"], arcname=f"data/{entry['relative']}")
     return manifest
@@ -213,6 +241,9 @@ def verify(archive_path: Path) -> dict:
         expected = [(f"data/{e['relative']}", e["sha256"]) for e in manifest["artifact_files"]]
         if manifest.get("local_database"):
             expected.append(("local.sqlite", manifest["local_database"]["sha256"]))
+        if manifest.get("identity_baseline"):
+            expected.append(("corpus-identity.json",
+                             manifest["identity_baseline"]["sha256"]))
         for name, want in expected:
             member = archive.extractfile(name)
             if member is None:
@@ -227,11 +258,23 @@ def verify(archive_path: Path) -> dict:
 
 
 def restore(archive_path: Path, data_dir: Path) -> dict:
-    """Unpack a backup into `data_dir`, verifying as it goes.
+    """Unpack a backup into `data_dir`, verifying as it goes, and REBASE.
 
     Existing files are overwritten: the archive's copy is the one whose hash the
     corpus recorded. Restoring is refused outright if anything in the archive
     fails verification, rather than leaving a half-restored directory.
+
+    The rebase is the part that was missing. `artifacts.storage_uri` is an
+    absolute path, so a restore into a different directory -- the disaster this
+    tool exists for -- left the corpus citing paths that no longer exist.
+    Measured on the documented command before this: 1 of 1 artifact restored,
+    and its URI still pointing at the original box's directory. It "worked" in
+    the rehearsal only because that directory still existed on the same machine.
+
+    The rebase is skipped, not failed, when there is no corpus to rebase: this
+    tool deliberately does not back up corpus.sqlite (derived, rebuildable), so
+    a restore onto an empty directory legitimately has nothing to repoint yet.
+    The report says which of those two happened.
     """
     report = verify(archive_path)
     if report["bad"]:
@@ -248,6 +291,11 @@ def restore(archive_path: Path, data_dir: Path) -> dict:
         local_restored = bool(manifest.get("local_database"))
         if local_restored:
             (data_dir / "local.sqlite").write_bytes(archive.extractfile("local.sqlite").read())
+        baseline_restored = bool(manifest.get("identity_baseline"))
+        if baseline_restored:
+            (data_dir / "corpus-identity.json").write_bytes(
+                archive.extractfile("corpus-identity.json").read())
+    rebase_report = _rebase_restored_paths(data_dir, manifest)
     # Report what was NOT restored as prominently as what was. "restored: 20"
     # read as complete success while the human-decision database was missing
     # from the archive entirely.
@@ -257,8 +305,38 @@ def restore(archive_path: Path, data_dir: Path) -> dict:
         "local_database_note": None if local_restored else
             "this archive contained no local.sqlite: acknowledgements, watches and "
             "collection requests were NOT restored",
+        "identity_baseline_restored": baseline_restored,
+        "identity_baseline_note": None if baseline_restored else
+            "this archive contained no corpus-identity.json: a corpus rebuilt here "
+            "cannot be compared against the one the backup came from",
+        "evidence_paths": rebase_report,
         "data_dir": str(data_dir),
     }
+
+
+def _rebase_restored_paths(data_dir: Path, manifest: dict) -> dict:
+    """Point the corpus at the bytes where they now are. One shared rule.
+
+    `src/mobile_observatory/evidence_paths.rebase` is the same rule run.py uses
+    for the portable bundle. It lived in one of the two paths and not the other,
+    which is how a restore onto a new box produced a corpus citing a directory
+    that did not exist.
+    """
+    corpus = data_dir / "corpus.sqlite"
+    if not corpus.is_file():
+        return {"skipped": "no corpus.sqlite in the data directory yet -- this tool "
+                           "does not back it up (derived, rebuildable). Rebase runs on "
+                           "the next restore, or run the batch and restore again.",
+                "rebased": 0, "unresolved_count": 0}
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from mobile_observatory import evidence_paths
+
+    connection = sqlite3.connect(corpus)
+    try:
+        return evidence_paths.rebase(
+            connection, data_dir, evidence_paths.entries_from_backup_manifest(manifest))
+    finally:
+        connection.close()
 
 
 def main() -> None:
@@ -267,6 +345,11 @@ def main() -> None:
     parser.add_argument("--output", type=Path, help="archive to write")
     parser.add_argument("--verify", type=Path, help="check an existing archive and exit")
     parser.add_argument("--restore", type=Path, help="restore an archive into --data-dir")
+    parser.add_argument("--rebase", action="store_true",
+                        help="Point this corpus's artifacts at the bytes already under "
+                             "--data-dir, by digest. For a data directory that was MOVED "
+                             "rather than restored: nothing else repoints an absolute "
+                             "storage_uri, so the corpus goes on citing the old box.")
     parser.add_argument("--stamp", default=None,
                         help="timestamp recorded in the manifest (default: now, UTC)")
     args = parser.parse_args()
@@ -280,8 +363,39 @@ def main() -> None:
         print(json.dumps(restore(args.restore, args.data_dir), indent=2))
         return
 
+    if args.rebase:
+        # Same rule as a restore and as run.py's portable bundle, over whatever
+        # is on disk rather than over an archive's manifest. The entries are
+        # derived from the corpus itself: every artifact row's path relative to
+        # the data directory it was written in -- which is the one thing the
+        # moved directory still knows.
+        corpus = args.data_dir / "corpus.sqlite"
+        if not corpus.is_file():
+            raise SystemExit(f"no corpus at {corpus}")
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+        from mobile_observatory import evidence_paths
+        connection = sqlite3.connect(corpus)
+        try:
+            entries = []
+            for row in connection.execute(
+                    "SELECT storage_uri, sha256 FROM artifacts").fetchall():
+                stored = str(row[0] or "")
+                # The tail after the LAST data-directory-shaped segment is not
+                # knowable in general, so use the recorded path's own tail
+                # relative to any ancestor that is also a prefix of ours. In
+                # practice both trees are `evidence/...` or `ledger/...`.
+                for anchor in ("evidence/", "ledger/", "history/", "legacy/"):
+                    if anchor in stored:
+                        entries.append((stored[stored.index(anchor):], row[1]))
+                        break
+            report = evidence_paths.rebase(connection, args.data_dir, entries)
+        finally:
+            connection.close()
+        print(json.dumps(report, indent=2))
+        raise SystemExit(1 if report["unresolved_count"] else 0)
+
     if not args.output:
-        parser.error("one of --output, --verify or --restore is required")
+        parser.error("one of --output, --verify, --restore or --rebase is required")
     stamp = args.stamp
     if stamp is None:
         from datetime import datetime, timezone

@@ -3,6 +3,266 @@
 Updated 2026-10-03. Supersedes the 2026-09-17 handoff entirely — that one
 described port 8124 and a `/tmp` snapshot that no longer exists.
 
+## Deploy-rehearsal blockers, 2026-10-03 (latest) — three P1s and three adjacent
+
+Found by a clean-clone deploy rehearsal and fixed here. Every one was reproduced
+before it was fixed.
+
+### P1-A — every documented `python3 -m mobile_observatory.*` failed on a fresh clone
+
+```
+$ python3 -m mobile_observatory.batch   # [FAILS] HANDOFF.md, verbatim
+ModuleNotFoundError: No module named 'mobile_observatory'     EXIT=1
+```
+
+Twenty sites across docs, source error messages and **the Admin page itself**
+(its "Build and verify snapshots with ..." line named the snapshots module
+the same way)
+omitted `PYTHONPATH=src`. All fixed.
+
+**Why 677 tests never caught it:** every test file does
+`sys.path.insert(0, ROOT/"src")`, so the suite manufactures the one condition an
+operator does not have. `tests/test_documented_commands_actually_run.py` closes
+that two ways — a scan over every doc and source string, and a SUBPROCESS with a
+clean environment that runs the documented form (must succeed) **and** the bare
+form (must fail, or the scan is guarding nothing). Three further sites were found
+by the new guard, not by me.
+
+### P1-B — the changeset lied, and the real cause was not the migrations
+
+```
+"changeset": {"error": "sqlite3session_changeset failed (rc=17)",
+              "reason": "sqlite3session via ctypes", "recorded": true}
+```
+with no `changesets/` directory on disk. Reproduced on a cold build.
+
+Two defects. **`recorded` was a hardcoded `True`** beside `**stored`, describing
+the code path rather than the artifact — now derived (`changeset_result`).
+
+And **rc=17 is `observations`, not the migrations.** Bisected phase by phase
+(the session survives `apply_migrations()` at rc=0 / 1,930 bytes and breaks at
+the first captured source) then table by table:
+`attach=observations -> rc=17`, every other table fine.
+`observations.effective_at` is a VIRTUAL GENERATED column and the session
+extension cannot produce a changeset for such a table — attaching it fails the
+WHOLE session.
+
+**This was never only a cold-build problem.** `INSERT OR IGNORE` means a
+steady-state night writes no new observation, so the changeset worked on exactly
+the runs with nothing to undo. The 285 KB nightly changesets were no-op runs.
+
+Fixed by attaching tables by name, excluding generated-column tables, and
+REPORTING the gap: `check_corpus` now says
+`table_cannot_be_in_a_changeset_generated_column` (warning, naming
+`observations`, 57% of the corpus). A first build is skipped deliberately with a
+stated reason. See `docs/CHANGESETS.md` limit **0**.
+
+### P1-C — the backup did not survive a different box
+
+After the documented `--restore ... --data-dir <new>`: the bytes arrive and
+`artifacts.storage_uri` still points at the ORIGINAL directory. It "worked" in
+the rehearsal only because that directory still existed on the same machine.
+
+`run.py` already solved this (`rebase_evidence` + `provenance-paths.json`) and
+the backup path did not — the same one-rule-in-one-place-only shape this codebase
+keeps paying for. Both now go through
+`src/mobile_observatory/evidence_paths.rebase`, keyed by **digest** (the only
+thing that survives a move), which reports `unresolved_count` so a partial
+relocation cannot read as a complete one. `--rebase` does it for a directory that
+was moved rather than restored.
+
+**And the drill in `docs/BACKUP.md` restored `/tmp/drill` into `/tmp/drill`**, so
+it could never detect this. It now restores into a different directory.
+
+### Adjacent, and closed while in there
+
+- **The server wrote the corpus outside `batch.lock`.** `batch.py` takes it;
+  `server.py` never referenced it, while running `apply_migrations()` and a
+  projection rebuild. A nightly timer plus any restart policy is two writers on
+  one SQLite file. Every startup write is now inside the lock, and a server
+  started mid-batch refuses with a message naming the batch.
+- **Migrations applied at startup, ungated and silent.** That is how
+  `.observatory-data` reached schema **33** while this handoff still said a human
+  had to apply 0033 — nobody did; a restart did. The server now names the count
+  and the versions **before** applying, says there is no backup, and reports
+  `schema=` in the posture banner. `run.py` says it too (the bundle is at schema
+  8 and is carried **23** versions forward). Not a refusal: a server that will
+  not start because its schema is behind is a worse outage than the one it
+  prevents.
+- **The rebuild/restore detector now reports the MECHANISM.** Independently
+  reproduced: live holds **1,209** conclusions frozen at `RULE_VERSION 1`
+  (not 1,111) against a rebuild that is 100% v2; v2 strips the brand prefix, so
+  **87 of the 106** codes only the live corpus has are literally
+  `<BRAND> <a code the rebuild does have>`; and a rebuild **GAINS 4,941**
+  `product_firmware_releases`. `docs/BACKUP.md` framed the divergence purely as
+  loss and no longer does.
+
+## Production-hardening round, 2026-10-03 (later) — five items
+
+Every number below was measured, on a **copy** of the live corpus and on real
+servers on spare ports; the live directory was never written and the batch never
+ran against it. Every guard passes clean **and** fails against a planted defect —
+**28 defects planted, 28 caught**, listed per item.
+
+### the two "un-closeable" deploy gaps are now detectable and loud
+
+The previous round called them un-closeable in code. They are. They were also
+**undetectable**, which is a different problem, and that one is fixed. Both
+exposures leave evidence *in the request*: a relay header
+(`X-Forwarded-For` / `-Proto` / `-Host` / `Forwarded`) or a non-loopback peer
+means it came from beyond this machine, and the absence of `proto=https` means
+nothing says the hop in front spoke TLS.
+
+`src/mobile_observatory/posture.py` raises two named alarms —
+`open_server_is_reachable_from_outside` and
+`access_token_travelled_in_cleartext` — on stderr (re-stated every 300s while
+true) **and** in `/api/v1/admin/health` under `posture`, where
+`posture.alarming` is the one boolean a monitor can gate on.
+
+It **warns and never refuses**, which was a decision: neither condition is
+knowable at startup (both are properties of a request, so a refusal could only
+fire on the thousandth one); the trigger is one header any client can send, so
+refusing hands every stranger an off switch; and a proxy in front is a legitimate
+deployment whose repair is a token in a unit file, applied by a human in
+daylight. `access.token_for_binding` already holds the ground where refusing is
+right — state known before the first byte.
+
+The banner, one line on stderr, every start — never the token's value:
+
+```
+posture: bind=0.0.0.0:8000 exposure=all-interfaces auth=token(environment) origin-check=active tls-in-front=unknown-until-a-request-arrives insecure-ok=unset
+```
+
+`tls-in-front` is honestly unknown there and says so; health reports it as
+measured once traffic exists. `MOBILE_OBSERVATORY_INSECURE_OK` takes **alarm
+names**, not a boolean, so waiving the cleartext reality of a LAN box does not
+also silence "this open server is reachable from the internet"; the environment
+is the authority and `<data-dir>/insecure-acknowledged.json` is the append-only
+record. A waived condition is still counted and dated (`status: acknowledged`,
+`waived: true` — two fields because they are two facts).
+
+Full posture table in `docs/ACCESS_CONTROL.md`. The dev posture (loopback, no
+token, nothing in front) stays silent, measured — if it did not, nobody would
+read the alarm on the box that matters.
+
+Planted and caught (7): observe() removed from the handler · relay headers
+ignored · the opt-out made a blanket boolean · `posture` dropped from health ·
+any `https` hop in a chain read as TLS to the client · an unresolvable peer
+treated as loopback · the banner stops naming the token's source.
+
+### `python3 run.py` refuses, and the README no longer leads with it
+
+It extracted a hardcoded 09-17 bundle: **83 devices / 26,961 observations**
+against 854 / 94,969 from the batch, with nothing downstream saying so. It could
+not be repointed — the only zip in `portable/` *is* the 09-17 one, and the 09-22
+manifest (236 devices) has no zip beside it.
+
+So: bare `python3 run.py` exits **2** with a refusal naming the two commands that
+build the real corpus, the bundle's own stated counts (read from its manifest,
+never hardcoded) and every manifest whose zip is missing. `--bundle` keeps the
+snapshot path for a box with no captured inputs, picks the **newest** manifest
+that has a zip rather than a typed-in date, and says what it chose and what it is
+not. `--list-bundles` reports the inventory. README and `docs/PORTABLE_RUN.md`
+both fixed; the README now also carries the rebuild-is-not-a-restore caveat,
+which had never reached the one document a new deployer opens.
+
+Proven by extraction, not by the manifest's word: `--bundle --restore-only` into
+a temp dir gives **hardware_models 83, observations 26,961** — exactly the
+numbers the refusal quotes.
+
+Planted and caught (5): the refusal removed · selection hardcoded to a date ·
+a manifest with no counts reported as `0 devices` · a manifest with no zip
+silently skipped · the README leading with `run.py` again.
+
+### the batch is no longer silent
+
+2 lines for a ten-minute run → **39**, one per phase, with counts and elapsed
+time. Plus a heartbeat for a phase still open after `--progress-heartbeat-seconds`
+(default 60, which no normal phase reaches), because a completion line cannot
+tell you the phase you are waiting on is still alive.
+
+It immediately found something nobody knew: **`identity:bridge-registry` is
+202.7s of a 218.1s run — 93% of the batch in one phase that had never once been
+visible.**
+
+No `4/37` denominator, deliberately: the total is not knowable when the first
+phase logs, so it would be a hand-maintained number that can be wrong. The count
+of phases run is reported once (`batch finished phases=36`). Before/after logs
+and the knob are in `docs/SCHEDULING.md`.
+
+Planted and caught (5): the sources stop being phases · the heartbeat never
+speaks · a missing count printed as `0` · the heartbeat re-arm shortening the age
+it reports · a failing phase logging nothing.
+
+### the rebuild/restore divergence is detected
+
+~~The rebuild/restore divergence is still not detected *as such*~~ — CLOSED.
+`src/mobile_observatory/corpus_identity.py` records
+`<data-dir>/corpus-identity.json` on every batch: a per-subject digest over
+`identity_conclusions` (2,367), `source_identity_registry` (3,733),
+`hardware_models` (865) and `artifacts` (21). 19ms to compute, 0.44 MB, 3ms to
+compare.
+
+Keyed by `(manufacturer, normalized_name)` and not by row id. That was caught by
+running two consecutive batches rather than by reading: keyed by `product_id`,
+`merge_confirmed_duplicates` made an ordinary night report **464 conclusions
+forgotten and 464 added with the total unchanged**. Keyed by identity, a normal
+batch reports **0 errors** (measured, batch N+1 against a baseline from N) and a
+real rebuild still reports 3,542.
+
+**The test is containment, not equality**, and that is the design. A nightly
+batch adds; an equality test would fire every night and be switched off within a
+week. What a batch never does is *forget* — a concluded identity is final by
+design — so a subject the baseline recorded and this corpus no longer has is the
+divergence, and an addition is counted as an addition.
+
+Measured on copies of the live corpus:
+
+| posture | finding |
+|---|---|
+| the same corpus, its own baseline | none |
+| 40 devices added, nothing forgotten | none |
+| 106 recorded devices gone, 95 new, 7 conclusions re-decided, 11 dropped, 6 input digests gone | **error**, 130 subjects, naming `21091116UI`, `2210129SG`, `24053PY09C`, … |
+| no baseline recorded | warning — reported, never silence |
+
+A sidecar and not a table, because a rebuild creates a new `corpus.sqlite` and a
+baseline inside it would be destroyed by the event it exists to detect. It is now
+in `tools/backup_evidence.py`'s archive too (optional manifest key, so older
+archives still verify) — without that, a restore puts the evidence back and takes
+the only record that could check the result. `check_corpus` reports it;
+`PYTHONPATH=src python3 -m mobile_observatory.corpus_identity compare --identity-baseline <path>`
+asks directly.
+
+The uniqueness guard in `fingerprint()` earned itself on the first real run:
+keying `artifacts` by `sha256` alone put 21 rows into 20 keys, which would have
+left the count honest while the comparison went blind.
+
+Planted and caught (6): additions counted as divergence · forgotten subjects not
+counted · an absent baseline reading as a pass · a clock folded into the identity
+· the batch recording before checking · the uniqueness guard removed.
+
+### Explore tab counters state no number rather than a wrong one
+
+`Devices (3) | Silicon (452)` — one right number and two for a query no longer on
+screen. Each page now records the **scope** it was fetched under and a count
+shows only while that scope is in force; otherwise the label stands alone with a
+`title` saying why. No extra fetches: measured, filtering makes **zero**
+`/api/v1/chips` and `/api/v1/releases` requests.
+
+Why not "unfiltered": the stored total is not the unfiltered total, it is the
+total for whatever query was last sent to *that* tab. Refine `S2` to `S26` and
+Silicon holds the total for `S2`; calling that "unfiltered" states something
+false. Omitting it cannot state a wrong number, and it returns the moment the
+reader opens the tab.
+
+The scope is per tab, which falls out for free and matters: the manufacturer
+filter is not part of the silicon query, so selecting a manufacturer hides the
+*releases* count and keeps the *silicon* one — a true number is not withheld.
+
+Planted and caught (5): the stale count shown again · one global "is anything
+filtered" flag · a stale scope falling back to the stored total · the boot's
+totals never stamped · a hidden count explaining nothing.
+
 ## This round, 2026-10-03 — **570 tests under both runners** (521 before)
 
 Four fixes, each at its root. Measured, not asserted; every guard was run against
@@ -118,16 +378,31 @@ Verified independently of the implementer: at the harshest policy the flags allo
 and the corpus's 20 cited artifacts were identical before and after with
 `problems == []`.
 
-State: 570 tests pass under BOTH `python3 -m unittest discover -s tests` and
-`pytest` (521 before the round above, 347 before the robustness round below).
-Corpus: **0 errors, 3 warnings** — measured 2026-10-03 on a read-only backup of
-the live corpus, which is at migration **32**.
+State: see the production-hardening round at the top for the current test count
+under BOTH `python3 -m unittest discover -s tests` and `pytest`; it was 570 before
+that round (521 before the round below, 347 before the robustness round).
+Corpus: **0 errors, 3 warnings on the FAST check set; 4 on the full scan.** Those
+are two different measurements of two different things and are not comparable --
+`check_corpus(deep=False)` is what `/api/v1/admin/health` runs on every page load,
+and `deep=True` adds the whole-database page scans, the search-index
+re-derivation and the corpus-identity comparison. Quoting one number for both is
+how "3 warnings" came to look like a regression against a scan that reports 4.
+Measured 2026-10-03 on a read-only backup of the live corpus. A corpus with no
+`corpus-identity.json` yet reports one more, naming that absence; the first batch
+after this round records one.
 
-**Migrations 0030, 0031 and 0032 ARE applied to `.observatory-data` — the lines
-that said otherwise were stale and are corrected here. Migration 0033 has NOT
-been applied; a human does that**, and until it is, a changeset revert still
-skips `identity_resolution_rationales` and `check_corpus` still reports the
-fourth warning.
+**The live corpus is at schema 33, not 32.** It got there because the server
+applies migrations at startup, ungated and silently -- which is also how it
+reached 33 while the lines below still said a human had to apply 0033. The server
+now says what it is about to apply, before it applies it, and does it inside the
+batch lock.
+
+**Migrations 0030-0033 ARE ALL applied to `.observatory-data`.** The line here
+previously said 0033 was not and that "a human does that". Nobody did: the server
+applies every pending migration at startup, with no prompt, no count and no
+backup, so the live corpus was carried to 33 by a restart. That is corrected both
+ways -- the claim above is now true, and the server states what it is about to
+apply before applying it (see the production-hardening round at the top).
 
 ## Three compiled-in SQLite capabilities, 2026-09-30
 
@@ -370,17 +645,18 @@ Verified end to end on a real clone on 2026-09-29; timings measured.
 ```sh
 git clone git@github.com:RazyTommas/gsmarena-unblock.git obs   # 12s, 120 MB
 cd obs/mobile-observatory
-python3 -m mobile_observatory.batch                            # 9m50s, no flags needed
+PYTHONPATH=src python3 -m mobile_observatory.batch                            # 9m50s, no flags needed
 PYTHONPATH=src python3 -m mobile_observatory.server --port 8000 --data-dir .observatory-data
 ```
 
 The batch needs no flags: its default `--legacy-root` resolves to
 `../crawler/relay/results`, and all 16 required inputs are in git (24 MB).
 
-**Do not start from `python3 run.py`** even though the README leads with it. It
-works, but extracts the 2026-09-17 bundle: measured at **83 devices / 26,961
-observations** against 854 / 94,969 from the batch. The README is wrong to lead
-with it and has not been fixed.
+`python3 run.py` **refuses** as of 2026-10-03, and the README no longer leads
+with it. It used to extract the 2026-09-17 bundle: measured at **83 devices /
+26,961 observations** against 854 / 94,969 from the batch, with nothing
+downstream saying so. `--bundle` still reaches the snapshot for a box with no
+captured inputs.
 
 ## The single most important caveat
 
@@ -428,11 +704,17 @@ written) and then refused. See `docs/ACCESS_CONTROL.md`.
   Both are needed — the browser sends the cookie automatically, which is what
   CSRF abuses.
 
-**Two gaps that cannot be closed in code** and must be handled at deploy time:
-a loopback-bound server behind a reverse proxy or SSH tunnel is remotely
-reachable while still counting as "open", and plain HTTP exposes a permanent
-bearer token. The online box must set `MOBILE_OBSERVATORY_TOKEN` explicitly
-even behind a proxy, and must terminate TLS.
+**Two gaps that cannot be CLOSED in code** — the proxy is somebody else's
+config and the TLS terminator is somebody else's daemon — but as of 2026-10-03
+they are **detected**: a loopback-bound server behind a reverse proxy or SSH
+tunnel is remotely reachable while still counting as "open", and plain HTTP
+exposes a permanent bearer token. Both now raise a named alarm on stderr and in
+`/api/v1/admin/health` (`posture.alarming`), with a one-line startup banner and a
+deliberate, recorded `MOBILE_OBSERVATORY_INSECURE_OK` opt-out per alarm. It warns
+and never refuses, for reasons stated at the top and in
+`docs/ACCESS_CONTROL.md`. The online box must still set
+`MOBILE_OBSERVATORY_TOKEN` explicitly even behind a proxy, and must still
+terminate TLS — what changed is that failing to is no longer invisible.
 
 ## Open, none blocking
 
@@ -443,16 +725,23 @@ even behind a proxy, and must terminate TLS.
 - `VACUUM` still runs nowhere. Now measured rather than estimated: it reclaims
   1.039 MB of 246.105 MB (0.42%), plus some repacking of two 47%-full btrees.
   Still not worth a batch step.
-- The batch emits two log lines for a ten-minute run.
-- `run.py` hardcodes the 2026-09-17 zip; the 09-22 bundle has a manifest but no
-  zip beside it.
-- The rebuild/restore divergence is still not detected *as such*. What exists now
-  is narrower and worth not confusing with it: every batch records exactly what
-  it changed, invertibly. That makes a **write** reversible and visible; it does
-  not compare a rebuild against this corpus.
+- ~~The batch emits two log lines for a ten-minute run~~ — CLOSED 2026-10-03,
+  see the progress section at the top. 2 lines → 39, and it found that
+  `identity:bridge-registry` is 93% of the run.
+- ~~`run.py` hardcodes the 2026-09-17 zip~~ — CLOSED: it refuses by default and
+  `--bundle` picks the newest manifest with a zip. **The 09-22 bundle still has a
+  manifest and no zip** — that is unchanged and now legible rather than silent:
+  `run.py --list-bundles` reports it, and the refusal names it. Packaging the
+  09-22 zip, or deleting its manifest, is still somebody's call.
+- ~~The rebuild/restore divergence is still not detected *as such*~~ — CLOSED
+  2026-10-03, see the corpus-identity section at the top. The changeset work is
+  still the narrower thing and still worth not confusing with it: a changeset
+  makes a **write** reversible; it does not compare a rebuild against this
+  corpus.
 - ~~`identity_resolution_rationales` is outside every changeset~~ — CLOSED by
-  migration 0033, see the top. **0033 is not applied to `.observatory-data` yet**,
-  so the blind spot is still open on the live corpus until a human applies it.
+  migration 0033, which IS applied to `.observatory-data` (verified 2026-10-03:
+  the live corpus reports schema 33). It was applied by a server restart, not by
+  a human, which was its own defect and is fixed above.
 
 ## Hard rules (from the original brief — still binding)
 

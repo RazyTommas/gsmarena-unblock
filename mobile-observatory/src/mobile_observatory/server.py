@@ -17,6 +17,8 @@ from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 from . import search_index
 from .access import COOKIE_NAME, AccessPolicy, token_for_binding
+from .posture import ExposureMonitor, Posture, posture_at_startup, token_provenance
+from .worker_lock import exclusive_worker
 
 from .watches import migrate_watches, list_watches, save_watch
 from .proposals import migrate_proposals, import_proposals, list_proposals, review_proposal, save_decision
@@ -1942,13 +1944,27 @@ class ObservatoryService:
         return item or {"status": "idle", "message": "No queued collection request."}
 
 
-def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPolicy):
-    # Required, with no default. It defaulted to an open policy so existing
-    # callers kept working, which meant any caller that embedded this server and
-    # forgot the argument served the whole corpus unauthenticated -- and did so
-    # silently, which is the property that makes a security default dangerous
-    # rather than merely wrong. A caller that genuinely wants no credential says
-    # AccessPolicy(None) and is readable as having chosen it.
+def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPolicy,
+                 monitor: ExposureMonitor | None = None):
+    # `policy` is required, with no default. It defaulted to an open policy so
+    # existing callers kept working, which meant any caller that embedded this
+    # server and forgot the argument served the whole corpus unauthenticated --
+    # and did so silently, which is the property that makes a security default
+    # dangerous rather than merely wrong. A caller that genuinely wants no
+    # credential says AccessPolicy(None) and is readable as having chosen it.
+    #
+    # `monitor` DOES get a default, and the asymmetry is deliberate rather than
+    # inconsistent: a forgotten policy opens a gate, while a forgotten monitor
+    # opens nothing -- the detector still runs, its counters are still readable
+    # through this handler's own health route, and only the process-wide startup
+    # banner is missing. Defaulting it to None and skipping detection would make
+    # "nobody passed one" and "nothing is exposed" the same observation, which is
+    # the exact confusion this module exists to end.
+    if monitor is None:
+        monitor = ExposureMonitor(Posture(
+            bind_host="unspecified", port=None,
+            token_source="unspecified-by-the-embedding-caller", open=policy.open,
+            acknowledged=frozenset()))
 
     class Handler(BaseHTTPRequestHandler):
         # Largest body any route may declare. The biggest a route actually
@@ -2093,8 +2109,28 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
             a stranger cannot. See the collection-request routes, where
             `invalid literal for int() with base 10: 'abc'` was being returned
             as API prose.
+
+            It is also where the exposure detector observes every request, for
+            the same reason the docstring above do_GET/do_POST gives: this is the
+            ONE place both verbs pass through, so a third verb added without
+            touching it would be a verb that neither answers safely nor is
+            watched. Inside the try on purpose -- a fault in the detector becomes
+            a logged 500 like any other, rather than a silently swallowed
+            exception in the instrument that is supposed to be telling us the
+            truth about our exposure.
             """
             try:
+                monitor.observe(
+                    headers=self.headers, client_address=self.client_address,
+                    # A credential only "travels" if one is configured to travel:
+                    # with no token, a Bearer header a client invented is not our
+                    # secret and reporting it as leaked would be a false alarm.
+                    # An INVALID token still counts -- it is somebody's.
+                    credential_presented=(not policy.open) and policy.presented(
+                        authorization=self.headers.get("Authorization"),
+                        cookie=self.headers.get("Cookie"),
+                        query_token=(parse_qs(urlparse(self.path).query).get("token")
+                                     or [None])[0]) is not None)
                 route()
             except Exception as exc:  # noqa: BLE001 -- the point is to catch everything
                 self.log_error("unhandled %s on %s %s: %s",
@@ -2234,7 +2270,13 @@ def make_handler(service: ObservatoryService, web_root: Path, policy: AccessPoli
                 "/api/v1/identity/products": lambda: _page_payload(service.source_products_page(query), service.meta),
                 "/api/v1/security/findings": lambda: _page_payload(service.security_page(query), service.meta),
                 "/api/v1/security/coverage": service.security_coverage,
+                # `posture` is here and not only in the startup log because the
+                # two exposures it reports are invisible to the process that
+                # caused them: whoever put the proxy in front is not the person
+                # tailing this server's stderr. A monitor can gate on
+                # posture.alarming alone.
                 "/api/v1/admin/health": lambda: {"items": service.health(), "meta": service.meta,
+                                                 "posture": monitor.report(),
                                                  **service.integrity()},
                 "/api/v1/search": lambda: {**service.search_payload(query), "meta": service.meta},
                 "/api/v1/admin/config": service.config,
@@ -2663,44 +2705,92 @@ def main() -> None:
     data_dir = Path(args.data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
     corpus_path = data_dir / "corpus.sqlite"
-    corpus = (
-        Database.migrated(corpus_path, check_same_thread=False)
-        if not corpus_path.exists()
-        else Database(corpus_path, check_same_thread=False)
-    )
-    corpus.apply_migrations()
-    if args.demo:
-        seed_demonstration(corpus, root / "fixtures" / "supported_catalog.sample.json")
-    elif corpus.connection.execute("SELECT count(*) FROM sources").fetchone()[0] == 0:
-        parser.error("empty corpus: pass --demo for synthetic data or provide an ingested corpus")
-    # Applying the migrations above CREATES the serving projections empty. On a
-    # corpus upgraded in place that means /devices and search would answer with
-    # an empty catalogue -- confidently, and with a 200 -- until someone happened
-    # to run a batch. That is the same shape of falsehood this whole read path
-    # was rebuilt to remove, so it is built here rather than served hollow.
-    if not args.demo:
-        catalogue = corpus.connection.execute("SELECT count(*) FROM hardware_models").fetchone()[0]
-        published = corpus.connection.execute("SELECT count(*) FROM device_catalog_flat").fetchone()[0]
-        if catalogue and published != catalogue:
-            print(f"projection covers {published} of {catalogue} devices; rebuilding before serving", flush=True)
-            try:
-                report = build_current_firmware(corpus)
-                print(f"  {report.summary()}", flush=True)
-            except ProjectionError as error:
-                parser.error(
-                    f"the device catalogue cannot be served: {error}. "
-                    "Run `python3 -m mobile_observatory.batch` to rebuild it; refusing to "
-                    "start rather than report an empty catalogue as the answer.")
+    corpus = Database(corpus_path, check_same_thread=False)
+    # EVERY startup WRITE below happens inside the BATCH LOCK, and nothing used
+    # to. `batch.py` takes `<data-dir>/batch.lock` around its whole run; the
+    # server never referenced it, while doing two writes of its own --
+    # apply_migrations() and a projection rebuild. Started during the nightly
+    # window, which a systemd restart policy will eventually do, that is two
+    # writers on one corpus.sqlite.
+    #
+    # Nonblocking, and a refusal rather than a wait: the condition clears by
+    # itself in minutes, a service manager will restart, and a server that waits
+    # silently is indistinguishable from one that hung.
+    schema_before = corpus.schema_version()
+    pending = corpus.pending_migrations()
+    try:
+        with exclusive_worker(data_dir / "batch.lock",
+                              holder="This server's startup migration"):
+            if pending:
+                # SAID BEFORE IT HAPPENS, because afterwards there is nothing to
+                # say it about. This moves somebody's corpus forward with no
+                # backup and no undo: the packaged bundle sits at schema 8 and
+                # was being carried 25 versions on first launch, and the live
+                # corpus reached 33 this way while the handoff still said a human
+                # had to apply 0033. An operator who learns of it from a schema
+                # number afterwards was never told.
+                print(f"applying {len(pending)} migration(s) to {corpus_path}: schema "
+                      f"{schema_before} -> {pending[-1]} ({', '.join(f'{v:04d}' for v in pending)}). "
+                      f"This changes the database in place and takes no backup. "
+                      f"Copy {data_dir} first if you need the version you have.",
+                      flush=True)
+            corpus.apply_migrations()
+            if args.demo:
+                seed_demonstration(corpus, root / "fixtures" / "supported_catalog.sample.json")
+            elif corpus.connection.execute(
+                    "SELECT count(*) FROM sources").fetchone()[0] == 0:
+                parser.error("empty corpus: pass --demo for synthetic data or provide "
+                             "an ingested corpus")
+            # Applying the migrations above CREATES the serving projections empty. On a
+            # corpus upgraded in place that means /devices and search would answer with
+            # an empty catalogue -- confidently, and with a 200 -- until someone happened
+            # to run a batch. That is the same shape of falsehood this whole read path
+            # was rebuilt to remove, so it is built here rather than served hollow.
+            if not args.demo:
+                catalogue = corpus.connection.execute(
+                    "SELECT count(*) FROM hardware_models").fetchone()[0]
+                published = corpus.connection.execute(
+                    "SELECT count(*) FROM device_catalog_flat").fetchone()[0]
+                if catalogue and published != catalogue:
+                    print(f"projection covers {published} of {catalogue} devices; "
+                          f"rebuilding before serving", flush=True)
+                    try:
+                        report = build_current_firmware(corpus)
+                        print(f"  {report.summary()}", flush=True)
+                    except ProjectionError as error:
+                        parser.error(
+                            f"the device catalogue cannot be served: {error}. "
+                            "Run `PYTHONPATH=src python3 -m mobile_observatory.batch` to "
+                            "rebuild it; refusing to start rather than report an empty "
+                            "catalogue as the answer.")
+    except ValueError as exc:
+        # exclusive_worker raises ValueError when the lock is already held.
+        parser.error(
+            f"{exc} This server WRITES at startup -- it applies migrations and may "
+            f"rebuild the device projection -- and two writers on one corpus.sqlite is "
+            f"how a half-written database happens. Start it again once the batch "
+            f"finishes.")
     service = ObservatoryService(corpus, data_dir / "local.sqlite", demonstration=args.demo,
                                  sample_path=root / "fixtures" / "real_source_sample.json",
                                  legacy_root=args.legacy_root)
     # Resolve the access token against the interface we are ABOUT to bind, not
     # against what is configured: binding somewhere reachable with no credential
     # is the case that must not pass quietly, and it is decided by --host alone.
+    # BEFORE token_for_binding, which is what mints a file. 'none' here and a
+    # token afterwards is the only way to tell "this deployment chose a
+    # credential" from "this process generated one because nobody had".
+    provenance = token_provenance(data_dir)
     token, note = token_for_binding(data_dir, args.host)
     policy = AccessPolicy(token)
+    if token is not None and provenance == "none":
+        provenance = "minted file"
+    posture = posture_at_startup(data_dir=data_dir, host=args.host, port=args.port,
+                                 token=token, token_source=provenance,
+                                 schema_version=corpus.schema_version(),
+                                 migrations_applied=pending)
+    monitor = ExposureMonitor(posture)
     server = ThreadingHTTPServer((args.host, args.port),
-                                 make_handler(service, root / "apps" / "web", policy))
+                                 make_handler(service, root / "apps" / "web", policy, monitor))
     print(f"Mobile Observatory: http://{args.host}:{args.port} ({service.meta['mode']})", flush=True)
     # `note` names the token's FILE and never its value -- printing the value
     # would put a live credential into terminal scrollback and journald.
@@ -2713,6 +2803,10 @@ def main() -> None:
     # WHERE the generated token is, and it would be swallowed exactly when it
     # is needed. run-batch.sh already passes -u for the same reason.
     print(f"  access: {note}", flush=True)
+    # One line stating the effective posture, so an operator reading a startup
+    # log does not have to reconstruct it from three other lines and a guess.
+    # Goes to stderr with the alarms it belongs beside -- see posture.py.
+    monitor.announce()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

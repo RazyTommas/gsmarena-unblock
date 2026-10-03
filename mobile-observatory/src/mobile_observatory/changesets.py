@@ -279,6 +279,13 @@ class Recording:
 
     changeset: bytes = b""
     tables_untracked: tuple[str, ...] = ()
+    #: Tables excluded because a generated column makes the WHOLE session
+    #: unobtainable (SQLITE_SCHEMA). Reported separately from "no primary key"
+    #: because the reason, and therefore the fix, is different.
+    tables_with_generated_columns: tuple[str, ...] = ()
+    #: Tables that did not exist when the session attached, so none of their
+    #: rows are in the diff.
+    tables_created_after_attach: tuple[str, ...] = ()
     schema_digest_before: str = ""
     schema_digest_after: str = ""
     error: str = ""
@@ -299,6 +306,8 @@ class Recording:
                 "tables_changed": len(summary),
                 "changes": summary,
                 "tables_untracked": list(self.tables_untracked),
+                "tables_with_generated_columns": list(self.tables_with_generated_columns),
+                "tables_created_after_attach": list(self.tables_created_after_attach),
                 "schema_changed": self.schema_changed,
                 "schema_digest_before": self.schema_digest_before,
                 "schema_digest_after": self.schema_digest_after,
@@ -349,14 +358,76 @@ def tables_invisible_to_a_changeset(connection) -> list[str]:
     return invisible
 
 
+def tables_with_a_generated_column(connection) -> list[str]:
+    """Tables the session extension refuses to produce a changeset FOR AT ALL.
+
+    MEASURED, and this is the rc=17 everybody was looking at from the wrong end.
+    `observations.effective_at` is a VIRTUAL GENERATED column (migration 0031).
+    `sqlite3session_attach` accepts the table happily; `sqlite3session_changeset`
+    then returns **SQLITE_SCHEMA (17) for the WHOLE SESSION** -- not for that
+    table, for everything. Bisected by attaching one table at a time against a
+    real first source phase:
+
+        attach=ALL              -> rc=17
+        attach=observations     -> rc=17
+        attach=ingestion_runs   -> ok bytes=209
+        attach=artifacts        -> ok bytes=586
+        attach=sources          -> ok bytes=141
+
+    It was blamed on the migrations, and it is not: a session survives
+    `apply_migrations()` intact (rc=0, 1,930 bytes). It breaks at the first
+    captured source -- on an INSERT into `observations`.
+
+    Why nobody noticed on a warm corpus: the ingest uses `INSERT OR IGNORE`, so a
+    steady-state run writes NO new observation and the session never touches this
+    table. The changeset therefore works on exactly the runs with nothing to undo
+    and fails on every run that captured something new.
+
+    So these tables are excluded from the session and REPORTED, the same way a
+    table with no PRIMARY KEY is. Losing `observations` from the diff is a real
+    loss -- it is 57% of the corpus -- and it is a named loss instead of a
+    silent total one.
+    """
+    names = []
+    for (name,) in connection.execute(
+            "SELECT name FROM sqlite_schema WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name"):
+        try:
+            info = connection.execute(f'PRAGMA table_xinfo("{name}")').fetchall()
+        except Exception:                                      # noqa: BLE001
+            continue
+        # The last column of table_xinfo is `hidden`: 2 = VIRTUAL generated,
+        # 3 = STORED generated. 1 is a virtual-table hidden column.
+        if any(row[-1] in (2, 3) for row in info):
+            names.append(name)
+    return names
+
+
 @contextmanager
-def record_changes(connection) -> Iterator[Recording]:
+def record_changes(connection, *, schema_digest_before: str | None = None) -> Iterator[Recording]:
     """Record every tracked row change made on `connection` inside this block.
 
+    `schema_digest_before` overrides the digest taken at entry, for a caller that
+    changed the schema BEFORE opening the session. It exists so `schema_changed`
+    can still report the truth for a run that migrated outside the block -- a
+    changeset carries rows and not DDL, so there is nothing to gain by holding
+    the migration inside it, and `run_batch` no longer does.
+
+    That reordering is HARDENING and was NOT the cause of
+
+        "changeset": {"error": "sqlite3session_changeset failed (rc=17)", ...}
+
+    which this module was blamed for. Measured: a session survives
+    `apply_migrations()` intact (rc=0, 1,930 bytes) and breaks at the FIRST
+    captured source. The cause is a generated column -- see
+    `tables_with_a_generated_column`, which is where the bisection lives.
+
     The recording is filled in on exit, so callers read `recording.changeset`
-    after the block. Attaches ALL tables, including tables created inside the
-    block -- `sqlite3session_attach(session, NULL)` is a standing instruction,
-    not a snapshot of the table list.
+    after the block. Tables are attached BY NAME rather than with
+    `sqlite3session_attach(session, NULL)`, so the one table that would make the
+    whole changeset unobtainable can be left out and named; the cost is that a
+    table created inside the block is not recorded, which is detected on exit
+    and reported.
 
     The changeset is captured even when the block raises, and the exception is
     then re-raised unchanged. A batch that dies half way is precisely the run
@@ -373,12 +444,38 @@ def record_changes(connection) -> Iterator[Recording]:
         raise ChangesetUnavailable(
             f"sqlite3session_create failed (rc={rc}): "
             f"{lib.sqlite3_errmsg(handle).decode(errors='replace')}")
-    recording = Recording(tables_untracked=tuple(tables_invisible_to_a_changeset(connection)),
-                          schema_digest_before=schema_digest(connection))
+    generated = tables_with_a_generated_column(connection)
+    recording = Recording(
+        tables_untracked=tuple(sorted(set(tables_invisible_to_a_changeset(connection))
+                                      | set(generated))),
+        tables_with_generated_columns=tuple(generated),
+        schema_digest_before=(schema_digest_before
+                              if schema_digest_before is not None
+                              else schema_digest(connection)))
     try:
-        rc = lib.sqlite3session_attach(session, None)
-        if rc != SQLITE_OK:
-            raise ChangesetUnavailable(f"sqlite3session_attach failed (rc={rc})")
+        # Per table, NOT sqlite3session_attach(session, NULL).
+        #
+        # NULL is a standing instruction that also covers tables created inside
+        # the block, which is why it was used -- but it also attaches the one
+        # table that makes the whole changeset unobtainable. A generated column
+        # anywhere in the attached set costs EVERYTHING, so the trade is a named
+        # blind spot against a total silent one.
+        #
+        # A table created inside the block is consequently not recorded; that is
+        # detected after the fact and reported on the Recording rather than left
+        # for somebody to discover during a revert.
+        excluded = set(generated)
+        attached = []
+        for (name,) in connection.execute(
+                "SELECT name FROM sqlite_schema WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name"):
+            if name in excluded:
+                continue
+            rc = lib.sqlite3session_attach(session, name.encode())
+            if rc != SQLITE_OK:
+                raise ChangesetUnavailable(
+                    f"sqlite3session_attach({name}) failed (rc={rc})")
+            attached.append(name)
         try:
             yield recording
         finally:
@@ -398,6 +495,16 @@ def record_changes(connection) -> Iterator[Recording]:
                 finally:
                     lib.sqlite3_free(buffer)
                 recording.schema_digest_after = schema_digest(connection)
+                # A table that appeared after the attaches above is not in the
+                # changeset. Named here rather than discovered during a revert.
+                now = {name for (name,) in connection.execute(
+                    "SELECT name FROM sqlite_schema WHERE type='table' "
+                    "AND name NOT LIKE 'sqlite_%'")}
+                arrived = sorted(now - set(attached) - excluded)
+                if arrived:
+                    recording.tables_untracked = tuple(sorted(
+                        set(recording.tables_untracked) | set(arrived)))
+                    recording.tables_created_after_attach = tuple(arrived)
     finally:
         lib.sqlite3session_delete(session)
 

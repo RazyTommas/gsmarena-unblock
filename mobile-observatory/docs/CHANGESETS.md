@@ -30,9 +30,42 @@ Measured on a copy of the live corpus, a full steady-state batch re-run:
 Inverting that changeset restores every tracked table to a byte-identical
 content digest — verified over all 57 tables, not sampled.
 
-## The three things it cannot do
+## The four things it cannot do
 
 Each is a measurement, not a caveat added for safety.
+
+**0. `observations` is in NO changeset, and this was found the hard way.**
+`observations.effective_at` is a VIRTUAL GENERATED column (migration 0031), and
+the session extension cannot produce a changeset for a table that has one.
+Attaching it does not merely lose that table — `sqlite3session_changeset` returns
+**SQLITE_SCHEMA (rc=17) for the WHOLE SESSION**, so the choice is "this table is
+missing" or "everything is missing".
+
+Bisected rather than guessed. Phase by phase against a real cold ingest the
+session survives `apply_migrations()` intact (rc=0, 1,930 bytes) and breaks at
+the first captured source; table by table:
+
+```
+attach=ALL              -> rc=17
+attach=observations     -> rc=17
+attach=ingestion_runs   -> ok bytes=209
+attach=artifacts        -> ok bytes=586
+attach=sources          -> ok bytes=141
+```
+
+**It was never only a cold-build problem.** The ingest uses `INSERT OR IGNORE`,
+so a steady-state night writes no new observation and never touches the table —
+the changeset worked on exactly the runs with nothing to undo and failed on every
+run that captured something new. The 285 KB nightly changesets quoted elsewhere
+were no-op runs, and the failures were reported as `"recorded": true`.
+
+`record_changes` now attaches tables **by name**, skipping any with a generated
+column, and `check_corpus` reports
+`table_cannot_be_in_a_changeset_generated_column` (warning) naming them. The cost
+of attaching by name rather than with `NULL` is that a table created inside the
+block is not recorded; that is detected on exit and reported as
+`tables_created_after_attach`. `observations` is 57% of the corpus, so this is a
+real gap — a named one instead of a total silent one.
 
 **1. Rows, not schema.** A changeset holds row changes. A migration that creates
 a table or drops an index is not in it and inverting will not undo it. Every

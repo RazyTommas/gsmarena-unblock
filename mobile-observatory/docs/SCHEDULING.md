@@ -1,7 +1,7 @@
 # Scheduled batch
 
 Every ingest this system has ever done was a person running
-`python3 -m mobile_observatory.batch` by hand. This document is a ready-to-use
+`PYTHONPATH=src python3 -m mobile_observatory.batch` by hand. This document is a ready-to-use
 way to run it on a schedule instead. **Nothing here is installed or enabled by
 this repository.** A human decides when to turn it on.
 
@@ -99,6 +99,41 @@ Turning the nonzero exit code into a page/email/Slack message is on you: it
 requires wiring `OnFailure=`/cron `MAILTO`/a monitoring check to something
 that actually notifies a person. See `docs/SOURCE_SILENCE_DETECTION.md` for
 why this is deliberately left advisory rather than silently escalated.
+
+## Watching a run
+
+The batch used to write **two lines for a ten-minute run** — `batch starting`
+and `batch finished totals=...` — so silence and a hang were the same
+observation, and an operator had no way to tell a slow source from a wedged one.
+
+It now writes **one line per phase**, when the phase ends, carrying the phase's
+own counts. Measured on a copy of the live corpus: 2 lines → 39.
+
+```
+phase 8 source:mifirm-archive-captured valid=44351 invalid=0 retired=0 took=3.6s elapsed=6.6s
+phase 15 identity:bridge-registry still running after 61s (elapsed 68s); no count yet -- this phase has not returned
+phase 15 identity:bridge-registry products=1904 identities=3265 links=59393 ids_repaired=0 specification_matches=64 took=202.7s elapsed=210.1s
+```
+
+The `still running` lines are the part that answers the actual question, and the
+first run with them on found something nobody knew: **`identity:bridge-registry`
+is 202.7s of a 218.1s run — 93% of the batch in one phase that had never once
+been visible.** A completion line cannot tell you the phase you are waiting on is
+still alive.
+
+| flag | default | why |
+|---|---|---|
+| `--progress-heartbeat-seconds` | `60` | No phase except `identity:bridge-registry` reaches it, so a normal run emits none and only a stall is audible. `0` turns the heartbeat off and keeps the one-line-per-phase log. |
+
+There is deliberately **no `4/37` denominator**: the total is not knowable when
+the first phase logs, so it would have to be a constant maintained by hand, and a
+progress display reading `4/12` on a run of thirteen states a number it cannot
+source. The count of phases run is reported once, on the finishing line
+(`batch finished phases=36 totals=...`).
+
+`run-batch.sh` passes `python3 -u` and `batch_logging` flushes every record, so
+these lines are on disk as they happen. That is the point — a buffered progress
+log describes a hang that is already over.
 
 ## Log growth and ledger growth
 

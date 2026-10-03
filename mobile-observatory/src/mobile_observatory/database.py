@@ -187,21 +187,51 @@ class Database:
         db.apply_migrations()
         return db
 
-    def apply_migrations(self) -> None:
-        """Apply every numbered migration not already recorded.
+    def pending_migrations(self) -> list[int]:
+        """Versions that applying migrations WOULD run, newest last.
 
-        Corpus databases are durable artifacts, so opening an existing corpus must
-        not leave its read-model contract behind the application version.
+        Separate from applying them so a caller can say what is about to happen
+        to somebody's data before it happens. `run.py`'s packaged bundle sits at
+        schema 8 and was being carried 25 versions forward on first launch with
+        no prompt, no count and no backup; the server does the same to an
+        existing corpus. Neither could say so, because nothing could ask.
         """
         root = Path(__file__).resolve().parents[2] / "migrations"
         applied: set[int] = set()
         if self.connection.execute(
             "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='schema_migrations'"
         ).fetchone():
-            applied = {int(row[0]) for row in self.connection.execute("SELECT version FROM schema_migrations")}
+            applied = {int(row[0]) for row in
+                       self.connection.execute("SELECT version FROM schema_migrations")}
+        return [int(m.name.split("_", 1)[0])
+                for m in sorted(root.glob("[0-9][0-9][0-9][0-9]_*.sql"))
+                if int(m.name.split("_", 1)[0]) not in applied]
+
+    def schema_version(self) -> int:
+        """The highest migration recorded as applied, or 0."""
+        if not self.connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='schema_migrations'"
+        ).fetchone():
+            return 0
+        row = self.connection.execute(
+            "SELECT max(version) FROM schema_migrations").fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    def apply_migrations(self) -> None:
+        """Apply every numbered migration not already recorded.
+
+        Corpus databases are durable artifacts, so opening an existing corpus must
+        not leave its read-model contract behind the application version.
+
+        It does this SILENTLY, which is why `pending_migrations()` exists beside
+        it: a caller that is about to move somebody's 265 MB corpus forward
+        several schema versions, with no backup and no undo, should say so first.
+        """
+        root = Path(__file__).resolve().parents[2] / "migrations"
+        pending = set(self.pending_migrations())
         for migration in sorted(root.glob("[0-9][0-9][0-9][0-9]_*.sql")):
             version = int(migration.name.split("_", 1)[0])
-            if version not in applied:
+            if version in pending:
                 self.connection.executescript(migration.read_text(encoding="utf-8"))
 
     @contextmanager

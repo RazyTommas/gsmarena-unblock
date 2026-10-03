@@ -72,6 +72,21 @@
   --primary-bg:#173f31;
   --primary-fg:#fff;
 
+  /* ROW DENSITY. Not colours, but on :root for the same reason the palette is:
+     one place holds the values, components only reference them, and the compact
+     mode near the end of this file redefines nothing but these. Every value
+     here is the literal that used to sit in the rule that now reads it, so a
+     document with no data-density attribute renders exactly as before. */
+  --cell-pad:9px 14px;
+  --head-pad:11px 14px;
+  --cell-lh:1.45;           /* = body's line-height; stated so compact can move it */
+  --cell-stack-lh:1.35;
+  --feed-pad:17px 18px;
+  --feed-gap:18px;
+  --feed-logo:38px;
+  --feed-row-gap:7px;
+  --step-pad:10px 0;
+
   /* tables */
   --th-bg:#fafbf9;
   --th-fg:#5b645f;          /* was #717a75 = 4.27:1 on --th-bg, below AA */
@@ -324,12 +339,39 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
 .metric strong{display:block;font:800 27px Inter,system-ui,sans-serif;margin-top:3px}
 .metric span{font-size:12px;color:var(--green)}
 
-/* wraps rather than overflowing: the toolbar used to be granted overflow:auto
-   only below 700px and simply pushed the body sideways above it */
-.toolbar{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:13px}
+/* ONE LINE, and the STRIP scrolls when it cannot hold one.
+   It used to be flex-wrap:wrap, which was the fix for an older defect -- the
+   toolbar was granted overflow:auto only below 700px and simply pushed the body
+   sideways above it. Wrapping cured the body scroll and introduced this:
+   measured on the Explore toolbar, its eight controls need 1,325px of content
+   plus gaps, against 1,414px of inner width at 1920 and 1,056px at 1366. So
+   `Export CSV` dropped onto a line of its own at every width from 1600 down --
+   1600 missed by 35px, 1366 by 269px.
+   The 269px is paid for by moving the Sort control out of this strip and in
+   among the other query controls in `.filters` (app.js), where it belongs: its
+   `<select>` was 351px wide -- a `<select>` is sized by its LONGEST option, and
+   "Most recent, grouped by what the date means" was inflating a control whose
+   selected value reads "Name A-Z". Measured after the move: 966px of content,
+   which is one line down to 1280.
+   Below that, nowrap + overflow-x:auto means this strip scrolls -- which is
+   rule 2 at the top of this file, the same thing `.data-card` does, and nothing
+   goes out of reach: every control in here is focusable, so Tab scrolls the
+   strip to it. The page itself never scrolls sideways.
+   Under 700px the strip WRAPS again (see the 700px block): a phone has no
+   pointer to drag a scrollbar with and the layout there is already stacked. */
+.toolbar{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:8px;align-items:center;margin-bottom:13px}
 .toolbar select,.toolbar input{border:1px solid var(--line);background:var(--field-bg);border-radius:8px;padding:8px 10px;color:var(--ink);font:13px Inter,system-ui,sans-serif;outline:0;max-width:100%}
 .toolbar input{flex:1 1 200px;min-width:0}
 .toolbar .spacer{flex:1 1 0}
+/* With nowrap, a flex item that is allowed to shrink gets its CONTENT squeezed,
+   and a squeezed <select> or tab strip clips its own label -- so only the two
+   things whose text can wrap harmlessly are shrinkable: a free-text input, and
+   an explanatory `.subtle` sentence (the Admin collection strip holds a 160
+   character one). Those wrap INSIDE their item, which makes the strip taller
+   and still leaves it one flex line. Everything else keeps its size and the
+   strip scrolls instead. */
+.toolbar select,.toolbar .segmented,.toolbar .rows-per-page,.toolbar .inline-sort{flex:0 0 auto}
+.toolbar>.subtle,.toolbar>label{flex:0 1 auto;min-width:0}
 
 /* the strip wraps; the labels inside it do not (they used to wrap to three
    lines at 1366 while the strip stayed on one row) */
@@ -349,11 +391,11 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    next and the list would lose its columns. A fraction keeps them aligned, and
    because the cell wraps rather than clips, a corpus with longer names costs a
    second line instead of a truncated one. */
-.update-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:17px 18px;display:grid;grid-template-columns:minmax(0,.5fr) minmax(0,1fr) minmax(0,1.35fr) auto;align-items:center;gap:18px;transition:.16s}
+.update-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:var(--feed-pad);display:grid;grid-template-columns:minmax(0,.5fr) minmax(0,1fr) minmax(0,1.35fr) auto;align-items:center;gap:var(--feed-gap);transition:.16s}
 .update-card>*{min-width:0}
 .update-card:hover{border-color:#bfc8c1;box-shadow:var(--shadow)}
 .device-title{display:flex;gap:12px;align-items:center;min-width:0}
-.maker-logo{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:var(--logo-bg);color:var(--green);font-weight:800;flex:0 0 auto}
+.maker-logo{width:var(--feed-logo);height:var(--feed-logo);display:grid;place-items:center;border-radius:11px;background:var(--logo-bg);color:var(--green);font-weight:800;flex:0 0 auto}
 .device-title h3{font:700 14px Inter,system-ui,sans-serif;margin:0;overflow-wrap:break-word}
 .device-title p,.build p{color:var(--muted);font-size:12px;margin:2px 0 0;overflow-wrap:break-word}
 
@@ -370,7 +412,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    in dark mode -- the defect this stylesheet's header records five times. */
 .badge.Adjudicated{background:var(--chip-bg);color:var(--ink)}
 
-.change-row{display:flex;gap:7px;flex-wrap:wrap}
+.change-row{display:flex;gap:var(--feed-row-gap);flex-wrap:wrap}
 .delta{font-size:12px;background:var(--chip-bg);border-radius:6px;padding:5px 8px}
 .delta b{color:var(--green)}
 .time{text-align:right;color:var(--muted);font-size:12px}
@@ -389,7 +431,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    draw one. */
 .data-card[tabindex]:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .data-table{width:100%;border-collapse:collapse}
-.data-table th{background:var(--th-bg);color:var(--th-fg);text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:11px 14px;border-bottom:1px solid var(--line)}
+.data-table th{background:var(--th-bg);color:var(--th-fg);text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:var(--head-pad);border-bottom:1px solid var(--line)}
 .data-table td{padding:13px 14px;border-bottom:1px solid var(--row-line)}
 .data-table tr:last-child td{border:0}
 .data-table tbody tr:hover{background:var(--row-hover)}
@@ -419,7 +461,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
 .admin-grid>*{min-width:0}
 .notice{border-left:3px solid var(--orange);background:var(--notice-bg);color:var(--notice-fg);border-radius:7px;padding:12px 14px;font-size:12px;margin-bottom:15px}
 .flow{padding:17px}
-.flow-step{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.flow-step{display:flex;gap:12px;padding:var(--step-pad);border-bottom:1px solid var(--line)}
 .flow-step:last-child{border:0}
 .flow-step i{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:var(--flow-badge-bg);color:var(--green);font-style:normal;font-weight:800;font-size:11px;flex:0 0 auto}
 
@@ -471,13 +513,23 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
   #app{padding:20px 14px}
   .page-head{align-items:flex-start}
   .page-head h1{font-size:25px}
+  /* a phone has no pointer to drag a horizontal scrollbar with, and this layout
+     is already stacked here, so the strip goes back to wrapping */
+  .toolbar{flex-wrap:wrap}
   .toolbar .spacer{display:none}
   .update-card{grid-template-columns:minmax(0,1fr)}
   .admin-grid{grid-template-columns:minmax(0,1fr)}
   .avatar{display:none}
 }
 
-.search-wrap{margin:auto;max-width:530px;width:50%;position:relative}
+/* min-width:0 -- the search box is the one elastic item in the topbar, and
+   without it its flex min-size is its own min-content (274px at 800x600), so
+   the strip cannot absorb anything and pushes the BODY sideways instead.
+   Measured: the topbar had exactly 0px of slack at 800x600, and adding one more
+   control to the row took the document to 822px against an 800px client width.
+   The same one-token omission as rule 1 at the top of this file, in a flex row
+   rather than a grid track. */
+.search-wrap{margin:auto;max-width:530px;width:50%;position:relative;min-width:0}
 .search-wrap .global-search{width:100%;margin:0}
 /* The dropdown had no height limit and no overflow, so past ~11 hits at
    800x600 it ran off the bottom of the viewport and the page behind could not
@@ -610,7 +662,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    `.subtle` stays inline, and it carries an explicit "·" separator so the join
    is visible as a join. */
 .data-table td small{display:block}
-.data-table td{white-space:normal;overflow-wrap:break-word;vertical-align:top;padding:9px 14px}
+.data-table td{white-space:normal;overflow-wrap:break-word;vertical-align:top;padding:var(--cell-pad);line-height:var(--cell-lh)}
 .data-table td .strong,.data-table td b{font-weight:700}
 .data-table td details,.data-table td summary{display:inline}
 /* buttons inside a collapsed row must not force it taller */
@@ -678,7 +730,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
    facts: Android version, patch level and the basis all collapsed onto one
    line and came out as "Android — SPL — Latest in capt…". Columns that carry
    several values opt into stacking them instead. */
-.data-table td.stack{line-height:1.35}
+.data-table td.stack{line-height:var(--cell-stack-lh)}
 .data-table td.stack .subtle{display:block}
 .data-table td.stack .subtle:before{content:none;margin:0}
 .data-table td.stack small{display:block;color:var(--muted);font-size:11px}
@@ -716,3 +768,144 @@ body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 Inter,syst
   font-weight:700;border-radius:5px;padding:2px 7px;margin-right:7px}
 .chip-error{background:#fee6e3;color:#8f2f29}
 .chip-warning{background:#fff0d9;color:#7d4e0a}
+
+/* ===========================================================================
+   ONE-CLICK COMPACT DENSITY
+   ===========================================================================
+
+   Ray: "the rows of the data -- I need a one click option that will make it all
+   one line, keep only the most important values, generalize it and do it to all
+   pages."
+
+   HOW, and why this shape. The mode is ONE attribute on the root element, set
+   by one button in the topbar and remembered in localStorage -- built exactly
+   like the theme above, for the same reason: an attribute on <html> is in scope
+   for every view, every table and both detail panels at once, so no renderer,
+   no template and no per-page rule has to know the mode exists. There are 12
+   views and 34 templates that render a second line; this file's compact-table
+   section already proved that collapsing them in ONE place beats editing all of
+   them, and this is that move again. Full mode REMOVES the attribute rather
+   than writing data-density="full", so with the toggle off not one selector
+   below matches and the rendering is the one that shipped.
+
+   WHAT COMPACT IS ALLOWED TO DO, and this is the binding half.
+
+   It may HIDE a whole, labelled fact. It may NEVER truncate one. The section
+   "compact table rows" earlier in this file records what truncation cost: cells
+   clipped to `max-width:28ch` with an ellipsis put 100 Security cells per page
+   at "An exact affected si..." at every viewport including 1920, with the text
+   only in a `title` -- a hover tooltip, which is not a keyboard route, is not
+   in a screenshot, and is not a thing a reader knows to look for. A hidden
+   second line that one click brings back is a choice the reader made; an
+   ellipsis is the UI telling them they have the whole value when they do not.
+   So: nothing here sets `white-space:nowrap`, `text-overflow:ellipsis`,
+   `max-width:<n>ch` or `overflow-wrap:anywhere` on a cell. Cells still wrap, so
+   a long PRIMARY value costs a second line rather than being cut, and
+   `tools/ui_density_audit.py` fails if any cell's scrollWidth exceeds its
+   client width in either density.
+
+   And the state is never silent: #densityToggle sits in the chrome of every
+   view, says "Compact rows", and is painted in the primary colour with
+   aria-pressed="true" while it is on. A reader cannot be looking at a compacted
+   table without the control that compacted it being visible and lit.
+
+   THREE THINGS DELIBERATELY NOT HIDDEN, each because hiding it would make the
+   UI state something false rather than less:
+
+   * `.attrib` -- the chip saying a value came from a DIFFERENT publisher than
+     the row's own source (a Samsung build's patch level comes from
+     samsung.doc.aspl, not from the FOTA manifest). Hide it and the value reads
+     as the row's own. It is an inline 11px span and costs no line anyway.
+   * `.detail-fact` in the detail panels. Its `<small>` is the LABEL in some
+     places ("<small>Promoted</small><b>Connected to reviewed identity</b>") and
+     the secondary line in others. One rule cannot tell them apart, and hiding a
+     label leaves an unlabelled value, which is worse than a tall panel.
+   * EVERY fact on a Radar card -- see the Radar block below. All four of its
+     columns are primary, so nothing there is hidden at all: the second lines
+     are collapsed onto one line with a visible separator instead.
+   --------------------------------------------------------------------------- */
+:root[data-density="compact"]{
+  --cell-pad:4px 10px;
+  --head-pad:5px 10px;
+  --cell-lh:1.3;
+  --cell-stack-lh:1.3;
+  --feed-pad:8px 14px;
+  --feed-gap:14px;
+  --feed-logo:24px;
+  --feed-row-gap:5px;
+  --step-pad:4px 0;
+}
+
+/* ONE rule for every table in the app -- the grids on all twelve views and the
+   tables inside both detail panels, since nothing here is scoped to #app.
+   `.subtle`, `<small>` and `<br>` are the three shapes the 34 templates use for
+   a second line, and `td.stack` is the opt-in that makes `.subtle` a block;
+   all four go at once, so there is no per-page exception to drift. */
+:root[data-density="compact"] .data-table td .subtle,
+:root[data-density="compact"] .data-table td small,
+:root[data-density="compact"] .data-table td br,
+:root[data-density="compact"] .flow-step .subtle{display:none}
+:root[data-density="compact"] .data-table td .button{padding:2px 7px}
+:root[data-density="compact"] .data-table td details{display:inline}
+
+/* Radar is cards, not a table, and all four of its columns are primary: the
+   device, the build it moved to, the Android/patch deltas, and when it was
+   detected versus when it took effect. Nothing here is hidden, then -- the
+   second lines are collapsed INLINE, with the same explicit "·" separator the
+   table cells use, because `Vendor release: Unknown<small>First observed:
+   ...</small>` once rendered as "UnknownFirst observed:" and two captured facts
+   fused into a made-up third is the failure this project cares most about.
+   Hiding the `<br>` without putting a separator back IS that defect.
+
+   The bounded fourth track is not cosmetic and was measured. `.update-card`'s
+   last track is `auto`, so inlining `.time` grew it from 178px to 435px -- and
+   because the other three are fractions, that came straight out of them: at
+   1366 they went 142/284/384 -> 101/201/271 and wrapped to more lines than
+   before, so "compact" made a Radar card 109px -> 100px while 1920 went
+   109px -> 60px. A density mode that only works when there is slack is not a
+   density mode. The track is minmax(0,.6fr) -- rule 1 at the top of this file --
+   so the collapsed line wraps inside its own column instead of taking width
+   from the three beside it.
+
+   And it is behind min-width:1001px, which is not decoration either. An
+   attribute selector later in this file outranks the plain `.update-card` rules
+   inside the <=1000px and <=700px blocks, so the unguarded version re-imposed
+   four columns on a phone: measured, the body scrolled 60px sideways at 800x600
+   and 77px at 690x900, on all three themes, because `.change-row`'s chips
+   cannot shrink below their own min-content. Under 1000px the responsive
+   collapse to two columns and then one stands, and compact there is the tighter
+   padding and the collapsed lines only. */
+@media(min-width:1001px){
+  :root[data-density="compact"] .update-card{grid-template-columns:minmax(0,.5fr) minmax(0,1fr) minmax(0,1.35fr) minmax(0,.6fr)}
+}
+:root[data-density="compact"] .update-card .device-title h3,
+:root[data-density="compact"] .update-card .device-title p,
+:root[data-density="compact"] .update-card .time .subtle{display:inline}
+:root[data-density="compact"] .update-card br{display:none}
+:root[data-density="compact"] .update-card .device-title p:before,
+:root[data-density="compact"] .update-card .time .subtle:before{content:"·";margin:0 6px;opacity:.45;font-weight:700}
+/* the badge and the build it describes share a line; the badge is a chip, so
+   there is no fused string to misread and no separator is needed.
+   `display:inline`, NOT a flex row: measured at 1920, a flex row gave the long
+   build string its own line and then wrapped it twice (62px), where inline flow
+   packs it after the badge and wraps once (42px). */
+:root[data-density="compact"] .update-card .build p{display:inline;margin-left:4px}
+:root[data-density="compact"] .update-card .delta{padding:3px 7px}
+:root[data-density="compact"] .update-card .time .button{margin:0 0 0 8px;padding:3px 8px;font-size:11px}
+:root[data-density="compact"] .maker-logo{font-size:11px;border-radius:7px}
+
+/* --- the control itself ----------------------------------------------------
+   A real <button>, so it is in the tab order with no tabindex and answers both
+   Enter and Space. :focus-visible gets an explicit ring: the UA default is
+   invisible against --card in the dark palette, which is the same defect the
+   focusable `.data-card` had. Colours are tokens only -- rule 3 at the top of
+   this file -- so the lit state is legible in light, dark and high contrast
+   without a single per-theme rule. */
+.density-toggle{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:9px;padding:8px 11px;font:600 12px Inter,system-ui,sans-serif;
+  cursor:pointer;white-space:nowrap}
+.density-toggle i{font-style:normal;font-size:13px;line-height:1}
+.density-toggle[aria-pressed="true"]{background:var(--primary-bg);color:var(--primary-fg);border-color:var(--primary-bg)}
+.density-toggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+@media(max-width:860px){.density-toggle b{display:none}.density-toggle{padding:8px 10px}}

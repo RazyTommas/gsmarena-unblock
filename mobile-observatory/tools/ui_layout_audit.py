@@ -60,6 +60,13 @@ for a in _flags:
         THEMES = a.split("=", 1)[1].split(",")
 SKIP_PANELS = "--no-panels" in _flags
 SKIP_SEARCH = "--no-search" in _flags
+# Row density is a second axis over the same matrix: compact hides second lines
+# and tightens padding, so it can introduce an overflow or a contrast regression
+# that full mode does not have. Default stays `full` so an unflagged run means
+# exactly what it used to.
+DENSITY = next((a.split("=", 1)[1] for a in _flags if a.startswith("--density=")), "full")
+if DENSITY not in ("full", "compact"):
+    sys.exit(f"unknown --density={DENSITY}; choose full or compact")
 
 # --css=PATH serves PATH in place of apps/web/styles.css, by intercepting the
 # request in the browser. That is how a defect gets planted back to prove this
@@ -116,6 +123,17 @@ def _install_css_override(target):
     target.route("**/styles.css*", lambda route: route.fulfill(
         status=200, body=body, headers={"content-type": "text/css; charset=utf-8",
                                         "cache-control": "no-store"}))
+
+# The eyebrow each renderer writes into #app. Proof that THIS view painted --
+# see goto_view(). Kept beside VIEWS so the two are edited together.
+VIEW_PAINTED = {
+    "radar": "Update Radar",
+    "explore": "Device & Silicon Explorer",
+    "watchlist": "Your watchlist",
+    "products": "Resolved product evidence",
+    "security": "Security Relations",
+    "admin": "Operations",
+}
 
 # route, optional tab container + tab value, label
 VIEWS = [
@@ -317,9 +335,41 @@ def settle(page):
     return True
 
 
+def set_density(page):
+    """Drive the real control rather than writing the attribute, so a toggle that
+    is broken or missing fails the run instead of being bypassed by the harness."""
+    page.evaluate("""want => {
+        const b = document.getElementById('densityToggle');
+        if (!b) throw new Error('no #densityToggle in the chrome');
+        const now = () => document.documentElement.getAttribute('data-density') === 'compact'
+                          ? 'compact' : 'full';
+        for (let i = 0; i < 3; i++) { if (now() === want) return; b.click(); }
+        throw new Error('the density toggle would not settle on ' + want);
+    }""", DENSITY)
+    page.wait_for_timeout(200)
+
+
 def goto_view(page, route, tabs, tab):
     page.evaluate("r => { if (location.hash !== '#'+r) location.hash = '#'+r; }", route)
-    page.wait_for_timeout(350)
+    # The VIEW'S OWN eyebrow, not the presence of a table and not the crumb.
+    # settle() waits for `.data-table`, which the view being LEFT already
+    # satisfies, and markRoute() writes the crumb and the rail's `.active` flag
+    # BEFORE render() runs -- so a renderer that throws leaves the previous
+    # view's DOM under the new view's name and every assertion here measures the
+    # wrong page and passes. renderAdmin() did exactly that (a ReferenceError on
+    # a deleted `matches`), so "admin@..." in this tool's output was Security
+    # measured a second time. The eyebrow is the first thing each renderer
+    # writes into #app, so it is the cheapest proof that THIS view painted. If
+    # the copy ever changes, the view SKIPs -- inconclusive, exit 2 -- which is
+    # the safe direction to be wrong in.
+    want = VIEW_PAINTED[route]
+    for _ in range(40):
+        page.wait_for_timeout(150)
+        if page.evaluate("""w => ((document.querySelector('#app .eyebrow')||{}).textContent||'')
+                                 .trim().toLowerCase() === w.toLowerCase()""", want):
+            break
+    else:
+        return False
     if not settle(page):
         return False
     if tabs:
@@ -432,6 +482,9 @@ def main():
         if not settle(page):
             print("  the app never painted; cannot measure")
             sys.exit(2)
+        set_density(page)
+        on_root = page.evaluate("() => document.documentElement.getAttribute('data-density')")
+        print(f"\n(row density: {DENSITY}; root data-density={on_root!r})")
 
         for (w, h) in VIEWPORTS:
             page.set_viewport_size({"width": w, "height": h})

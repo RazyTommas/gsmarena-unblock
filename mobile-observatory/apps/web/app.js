@@ -869,9 +869,18 @@ const renderers={radar:renderRadar, watchlist:renderWatchlist, explore:renderExp
   if(state.route==='admin') ensureAgentBundle();
   $('#app').innerHTML=renderers[state.route]();
   if(state.route==='explore') {
-    $('.filters')?.insertAdjacentHTML('beforeend','<label>Filters<button type="button" class="button reset-filters" id="resetFilters">Reset all</button></label>');
     const sortOptions=state.exploreMode==='silicon'?'<option value="mobile_desc">Mobile-linked first</option><option value="devices_desc">Most devices</option><option value="advisories_desc">Most CVEs</option><option value="name_asc">Name A–Z</option>':state.exploreMode==='devices'?'<option value="name_asc">Name A–Z</option><option value="latest_desc">Most recent, grouped by what the date means</option><option value="android_desc">Android highest first</option>':state.exploreMode==='releases'?'<option value="latest_desc">Newest release first</option><option value="oldest_asc">Oldest release first</option><option value="name_asc">Device A–Z</option><option value="android_desc">Android highest first</option>':'<option value="latest_desc">Newest evidence first</option><option value="oldest_asc">Oldest evidence first</option><option value="source_asc">Source A–Z</option><option value="name_asc">Identity A–Z</option>';
-    $('#exportView')?.insertAdjacentHTML('beforebegin',`<label class="inline-sort">Sort <select id="exploreSort">${sortOptions}</select></label>`);
+    // Sort goes in the FILTER row, not the pager toolbar. Measured: its <select>
+    // rendered 351px wide -- a <select> takes the width of its longest OPTION,
+    // and "Most recent, grouped by what the date means" was inflating a control
+    // whose selected value reads "Name A-Z". That one item was 27% of the
+    // toolbar and what pushed `Export CSV` onto a line of its own at every
+    // width from 1600 down. It belongs beside the other seven query controls
+    // anyway, and `.filters` is the wrapping row built for exactly that.
+    // Appended BEFORE the Reset label so Reset stays last -- `.filters>label:
+    // last-child{flex:0 1 auto}` is what keeps Reset from claiming a whole row.
+    $('.filters')?.insertAdjacentHTML('beforeend',`<label>Sort<select id="exploreSort">${sortOptions}</select></label>`);
+    $('.filters')?.insertAdjacentHTML('beforeend','<label>Filters<button type="button" class="button reset-filters" id="resetFilters">Reset all</button></label>');
   }
   if(state.route==='admin') {
     const unresolved=state.data.productPage?.total||0, chips=state.data.chipPage?.total||0;
@@ -1032,6 +1041,23 @@ const theme=$('#themeSelect');theme.value=localStorage.getItem('observatory-them
 // but an empty attribute is a value that means "no value" and only works because
 // something downstream is written to tolerate it.
 const applyTheme=v=>{const root=document.documentElement;if(v==='system')root.removeAttribute('data-theme');else root.dataset.theme=v;localStorage.setItem('observatory-theme',v);};applyTheme(theme.value);theme.addEventListener('change',()=>applyTheme(theme.value));
+// --- row density, persisted the same way the theme is --------------------
+// One attribute on <html> and one button in the chrome. Every view, every table
+// and both detail panels are inside that attribute's scope, so the twelve
+// renderers below are untouched and there is no per-page wiring to forget --
+// see the "ONE-CLICK COMPACT DENSITY" block in styles.css for what it does and
+// what it deliberately refuses to do.
+// `full` REMOVES the attribute instead of writing data-density="full", exactly
+// as `system` does for the theme above: with the toggle off, no density
+// selector matches at all and the rendering is the one that shipped.
+const densityButton=$('#densityToggle');
+const applyDensity=v=>{const compact=v==='compact',root=document.documentElement;
+  if(compact)root.dataset.density='compact';else root.removeAttribute('data-density');
+  localStorage.setItem('observatory-density',compact?'compact':'full');
+  densityButton?.setAttribute('aria-pressed',String(compact));};
+applyDensity(localStorage.getItem('observatory-density'));
+densityButton?.addEventListener('click',()=>applyDensity(
+  document.documentElement.dataset.density==='compact'?'full':'compact'));
 $('#refreshButton').addEventListener('click',()=>load().then(()=>toast('Data refreshed')));
 $('#helpButton').addEventListener('click',openHelp);
 $('.mobile-menu').addEventListener('click',()=>$('.rail').classList.toggle('open'));

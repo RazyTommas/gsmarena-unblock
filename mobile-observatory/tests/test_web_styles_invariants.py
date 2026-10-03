@@ -372,5 +372,118 @@ class SystemThemeFollowsTheOS(unittest.TestCase):
             self.assertIn(token, names, f"the high-contrast theme does not redefine {token}")
 
 
+class CompactDensityHidesButNeverTruncates(unittest.TestCase):
+    """Rule 2 again, on the second density.
+
+    `tools/ui_density_audit.py` measures the rendered page and is the real guard,
+    but it needs Chromium and a populated corpus. These are the cheap half, and
+    they exist because the density mode is the one change in this file that has a
+    standing temptation to re-introduce the exact defect the compact-table
+    comment block records: one line per row is trivially achievable with
+    `nowrap + overflow:hidden + ellipsis`, and that shipped once already --
+    100 Security cells per page reading "An exact affected si..." with the rest
+    of the sentence only in a title attribute.
+
+    The three tests above (no bare fr, no max-width:ch, no ellipsis, cells wrap)
+    already scan EVERY rule whose selector mentions `data-table`, which includes
+    the compact ones. These add what is specific to having two densities.
+    """
+
+    APP_PATH = Path(__file__).resolve().parents[1] / "apps" / "web" / "app.js"
+    HTML_PATH = Path(__file__).resolve().parents[1] / "apps" / "web" / "index.html"
+    ROOT_SEL = ':root[data-density="compact"]'
+
+    def _compact_rules(self):
+        return [(sel, decls, at) for sel, decls, at in _rules(CSS_PATH.read_text())
+                if 'data-density' in sel]
+
+    def test_the_compact_block_exists(self):
+        self.assertTrue(any(sel.strip() == self.ROOT_SEL for sel, _, _ in self._compact_rules()),
+                        f"expected a {self.ROOT_SEL} token block")
+
+    def test_compact_only_redefines_tokens_that_exist_in_full(self):
+        """A token defined only under compact has no value in full mode, which is
+        the same shape as rule 3's 'a colour that disappears in the other theme'."""
+        rules = _rules(CSS_PATH.read_text())
+        root = next((decls for sel, decls, at in rules if sel.strip() == ":root" and not at), None)
+        self.assertIsNotNone(root)
+        full = {p for p, _ in root if p.startswith("--")}
+        compact = {p for sel, decls, at in rules if sel.strip() == self.ROOT_SEL
+                   for p, _ in decls if p.startswith("--")}
+        self.assertTrue(compact, "the compact block redefines no tokens at all")
+        self.assertEqual(set(), compact - full,
+                         "token(s) defined only under data-density=compact, so they have no value "
+                         f"with the toggle off: {sorted(compact - full)}")
+
+    def test_compact_never_truncates_a_cell(self):
+        """Hiding a whole labelled fact is allowed; cutting one is not."""
+        offenders = []
+        for sel, decls, at in self._compact_rules():
+            if "data-table" not in sel and "update-card" not in sel and "detail" not in sel:
+                continue
+            for prop, value in decls:
+                v = value.strip().lower()
+                if prop == "white-space" and ("nowrap" in v or v.startswith("pre")):
+                    offenders.append(f"{sel} {{{prop}: {value}}}")
+                if prop == "text-overflow" and "ellipsis" in v:
+                    offenders.append(f"{sel} {{{prop}: {value}}}")
+                if prop == "max-width" and "ch" in v:
+                    offenders.append(f"{sel} {{{prop}: {value}}}")
+                if prop in ("overflow", "overflow-x") and "hidden" in v:
+                    offenders.append(f"{sel} {{{prop}: {value}}}")
+                if prop == "overflow-wrap" and "anywhere" in v:
+                    offenders.append(f"{sel} {{{prop}: {value}}} — measured: `anywhere` drops a "
+                                     f"column's min-content to one character and rendered "
+                                     f"'primary' as 'prima/ry' at 1366")
+        self.assertEqual([], offenders,
+                         "compact density truncates row content instead of hiding a whole fact. "
+                         "An ellipsis over evidence is a correctness bug in this product, not a "
+                         "density preference:\n  " + "\n  ".join(offenders))
+
+    def test_full_mode_is_the_absent_attribute(self):
+        """Not data-density="full". With the attribute absent no density selector
+        matches at all, which is what makes full mode the rendering that shipped
+        rather than a second mode that happens to look like it."""
+        app = self.APP_PATH.read_text()
+        self.assertIn("removeAttribute('data-density')", app,
+                      "app.js must REMOVE data-density for full mode")
+        # selectors, not the raw file: the comment above the block says the words
+        # `data-density="full"` while explaining why there is no such selector.
+        styled_full = [sel for sel, _, _ in _rules(CSS_PATH.read_text())
+                       if 'data-density="full"' in sel or "data-density='full'" in sel]
+        self.assertEqual([], styled_full,
+                         'a [data-density="full"] selector means full mode is styled, so it is '
+                         f"no longer the untouched rendering: {styled_full}")
+
+    def test_the_control_is_a_button_with_a_visible_focus_ring(self):
+        html = self.HTML_PATH.read_text()
+        self.assertRegex(html, r'<button[^>]*id="densityToggle"',
+                         "the density control must be a real <button>: a div needs tabindex, a "
+                         "key handler and a role before a keyboard can reach it at all")
+        self.assertIn('aria-pressed', html,
+                      "a toggle with no aria-pressed announces nothing about which mode is on")
+        rings = [sel for sel, decls, at in _rules(CSS_PATH.read_text())
+                 if "density-toggle" in sel and "focus" in sel
+                 and any(p == "outline" and "none" not in v and v.strip() != "0"
+                         for p, v in decls)]
+        self.assertTrue(rings,
+                        "the density toggle is focusable but the stylesheet defines no focus "
+                        "outline for it; the UA default is invisible against --card in dark")
+
+    def test_the_lit_state_is_built_from_tokens(self):
+        """Rule 3. The control is the only thing telling a reader the table in
+        front of them is abbreviated, so it must be legible in all three themes."""
+        pressed = [(sel, decls) for sel, decls, at in _rules(CSS_PATH.read_text())
+                   if "density-toggle" in sel and "aria-pressed" in sel]
+        self.assertTrue(pressed, "nothing styles the toggle's pressed state, so 'compact' and "
+                                 "'full' look identical")
+        for sel, decls in pressed:
+            for prop, value in decls:
+                if prop in ("background", "background-color", "color"):
+                    self.assertIn("var(--", value,
+                                  f"{sel} {{{prop}: {value}}} is a hardcoded colour; it cannot "
+                                  f"follow the theme")
+
+
 if __name__ == "__main__":
     unittest.main()

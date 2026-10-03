@@ -80,7 +80,18 @@ class TheDefaultInvocationRefuses(unittest.TestCase):
         first planted-defect run did exactly that.)
         """
         default = ROOT / ".observatory-data"
-        if not default.exists():
+        existed_before = default.exists()
+        # The claim is "the refusal RESTORES NOTHING", and the only honest way to
+        # check that is to compare against what was there before. Asserting
+        # `not default.exists()` outright is a different claim -- "this box has
+        # never built a corpus" -- which is true in a fresh worktree and false on
+        # every box that has run the batch once, PRODUCTION INCLUDED. Measured:
+        # it passed in the agent worktree (no data dir) and failed in the live
+        # checkout, where the directory's mtime predated the test run by days.
+        # A guard that can only pass on a machine nobody deploys to is a guard
+        # that teaches people to ignore red.
+        before = default.stat().st_mtime_ns if existed_before else None
+        if not existed_before:
             self.addCleanup(lambda: shutil.rmtree(default, ignore_errors=True)
                             if default.exists() else None)
         code, out, err = self.run_it(bare=True)
@@ -88,8 +99,13 @@ class TheDefaultInvocationRefuses(unittest.TestCase):
                             "a script piping this into a deployment must see a failure")
         self.assertEqual("", out, "the refusal belongs on stderr, not in a pipeline's stdout")
         self.assertIn("PACKAGED HISTORICAL SNAPSHOT", err)
-        self.assertFalse(default.exists(),
-                         "the refusal created a data directory; it must restore nothing")
+        if existed_before:
+            self.assertEqual(before, default.stat().st_mtime_ns,
+                             "the refusal wrote into an existing data directory; "
+                             "it must restore nothing")
+        else:
+            self.assertFalse(default.exists(),
+                             "the refusal created a data directory; it must restore nothing")
 
     def test_the_refusal_names_the_command_to_run_instead(self) -> None:
         """A refusal that does not say what to do instead is a worse README."""

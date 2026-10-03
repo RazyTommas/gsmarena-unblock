@@ -1,15 +1,133 @@
 # Mobile Observatory — handoff
 
-Updated 2026-09-30. Supersedes the 2026-09-17 handoff entirely — that one
+Updated 2026-10-03. Supersedes the 2026-09-17 handoff entirely — that one
 described port 8124 and a `/tmp` snapshot that no longer exists.
 
-State: `main` at `f5da9a7`, clean, pushed. 347 tests pass under BOTH
-`python3 -m unittest discover -s tests` and `pytest` (291 before the robustness
-round below). Corpus: 0 errors, 1 warning.
+## This round, 2026-10-03 — **570 tests under both runners** (521 before)
 
-**Two data-honesty rounds since, on a branch: 478 tests under both runners,
-corpus 0 errors / 3 warnings. Migrations 0030 and 0031 have NOT been applied to
-`.observatory-data`; a human does that.** See below.
+Four fixes, each at its root. Measured, not asserted; every guard was run against
+a planted defect before it was believed.
+
+### clicking a search result painted a view nobody had loaded
+
+Typing `S26` and clicking "Galaxy S26" landed on Explore with **0 rows and 0 API
+requests** while the server held 3; only a second click, on the Devices tab,
+fetched anything. `render()` paints `state.data` and never fetches, so a caller
+that moved the view and then called `render()` showed whatever the last unrelated
+fetch had left there — on a fresh boot, the unfiltered first page, which the
+grid's own client-side filter then reduced to nothing.
+
+It was **five call sites**, not one. Measured identically (`calls=[] rows=0`) on
+the search hit, the rail button, a `#explore` hash, Enter in the search box (which
+had no handler at all, while the dropdown's own footer says "Press Enter to filter
+the table"), and the boot's phase 2 overwriting a filtered table with the
+unfiltered page it had asked for before the reader typed. There is now one rule —
+`ROUTE_LOADERS` / `loadRoute()` / `showRoute()` in `apps/web/app.js` — and every
+one of them goes through it. The rows-per-page handler held a **third** copy of
+the same route→loader dispatch table; it is gone.
+
+Two things found while auditing and fixed with it:
+
+- The grid re-ran the query over each row's own values after the server had
+  already answered it. The server matches a device's **codename**; the row it
+  returns carries no codename column. Measured: 88 devices have a codename that
+  appears nowhere else on their row, and `q=lisa_tw_global` answers 1 device which
+  the client filter dropped to 0. The client-side `matches()` is gone.
+- **Browser Back/Forward does not change views at all**, and never did: the hash
+  is written with `history.replaceState`, so `history.length` stays 2 and Back
+  leaves the page. Not fixed — `pushState` is a behaviour change nobody asked for,
+  and the comment above the router explains why the replaceState/retry loop is
+  shaped that way. The `hashchange` listener it *would* use is fixed and proven.
+
+`tests/test_search_hit_opens_a_loaded_table.py` drives a real browser against a
+real server. Its fixture is 121 devices on purpose: with four, the boot's first
+page already holds the match and the test passes against the broken code.
+
+### the search has no wildcards, and now says so only when asked
+
+Measured: matching is case-insensitive substring matching. `S26`=`s26`=3 devices,
+`SM-S94`=3 (mid-string), and `s26*`, `S26%`, `s26_`, `*`, `%` all return **0**,
+because every character is literal. That is the correct behaviour and is not
+touched — `%` and `_` were live LIKE wildcards until recently and `q=_` reported
+865 devices / 452 chips / 3,443 releases as "matching".
+
+What it cost was discoverability, so the rule is now reachable **on demand and
+never before**: a `title=` for the mouse, a `:focus-within` line for the keyboard
+(hover alone has no keyboard route), `aria-describedby` for a screen reader, and
+nothing persistent in the chrome — the line is `display:none` until the field has
+focus and yields to the results dropdown, which occupies the same 44px. And a zero
+result whose query contains `*`, `%`, `_` or `?` adds one muted line inside the
+empty state that is already there, in the four places a zero result can be
+reached, from one function. No banner, no colour, no button. Works in light, dark
+and high contrast; the stylesheet stays fully token-driven.
+
+### `identity_resolution_rationales` is inside the changeset now
+
+It had no PRIMARY KEY, so the session extension recorded nothing for it and a
+revert silently skipped 721 rows. Migration **0033** gives it
+`PRIMARY KEY (subject, rule)` over a stored `subject` column holding
+`ifnull(identity_id,'product:'||product_id)` — the expression 0030's unique index
+was built on, materialised, because SQLite permits neither an expression nor a
+generated column in a primary key, and `PRIMARY KEY (identity_id, rule)` cannot
+exist on a STRICT table whose `identity_id` must stay nullable. A table-level
+`CHECK` ties `subject` to that derivation, so the database enforces it rather than
+the writer.
+
+Measured on a copy of the live corpus: 721 rows before and after, the collision set
+is the **same set** (0 keys differ between the old expression and the new column),
+`tables_invisible_to_a_changeset()` goes `['identity_resolution_rationales']` →
+`[]`, `check_corpus` goes **0 errors / 4 warnings → 0 errors / 3 warnings**, and an
+insert, an update and a delete inside a recorded block round-trip through
+`invert()` back to a byte-identical table.
+
+`src/mobile_observatory/identity_rationales.py` is now the only writer — the two
+rules spelled the same nine-column INSERT by hand, and `subject` would have been a
+tenth column for both to derive separately. A source scan fails if a second writer
+appears.
+
+### bounded retention, over the directory that is actually large
+
+`src/mobile_observatory/retention.py`, run by the batch inside the batch lock,
+bound by **age and bytes** (`--retention-days 14`, `--retention-max-mb 256`,
+`--retention-min-age-hours 48`, `--log-max-mb 4`, `--log-keep 4`, plus
+`--retention-dry-run` / `--retention-off`; `MOBILE_OBSERVATORY_RETENTION_*` in
+`scheduling/run-batch.sh`). It prints what it pruned and puts it in
+`results["retention"]`.
+
+Three measurements decided the shape:
+
+- **`ledger/raw` has nothing prunable in it.** All 13 distinct digests are cited
+  by `artifacts.sha256` *and* referenced by a surviving staging file: 28 files,
+  19.2 MB, **100% vetoed even at `--retention-days 0 --retention-max-mb 0`**. The
+  open item below named the only one of the two trees this can never free a byte
+  from.
+- **mtime is not a liveness signal under `raw`** (content-addressed, written once
+  behind `if not body.exists()`), and **97.5% of `ledger/staging` is rewritten
+  every night** by fixed run ids — so a byte cap below ~88 MiB would delete a file
+  the run just wrote. Hence the minimum age, and an honest residual line when the
+  cap cannot be met rather than a deletion that the next run undoes.
+- The veto is built from `artifacts.storage_uri` **and** `artifacts.sha256`, not
+  from `backup_evidence.irreplaceable_files`, which drops a row whose bytes are
+  missing or whose digest mismatches — so a cited-but-corrupt artifact would have
+  looked prunable. The digest half is also what survives a **relocation**:
+  verified on a copy, where 0 of 21 stored absolute paths resolve and all 28 raw
+  files were still vetoed.
+
+Verified independently of the implementer: at the harshest policy the flags allow,
+30 files / 94,272,853 B of staging and quarantine were pruned, **0** raw files,
+and the corpus's 20 cited artifacts were identical before and after with
+`problems == []`.
+
+State: 570 tests pass under BOTH `python3 -m unittest discover -s tests` and
+`pytest` (521 before the round above, 347 before the robustness round below).
+Corpus: **0 errors, 3 warnings** — measured 2026-10-03 on a read-only backup of
+the live corpus, which is at migration **32**.
+
+**Migrations 0030, 0031 and 0032 ARE applied to `.observatory-data` — the lines
+that said otherwise were stale and are corrected here. Migration 0033 has NOT
+been applied; a human does that**, and until it is, a changeset revert still
+skips `identity_resolution_rationales` and `check_corpus` still reports the
+fourth warning.
 
 ## Three compiled-in SQLite capabilities, 2026-09-30
 
@@ -17,8 +135,8 @@ corpus 0 errors / 3 warnings. Migrations 0030 and 0031 have NOT been applied to
 libsqlite3 and none was used. **521 tests under both runners** (479 before). No
 new dependency: `ctypes` and `sqlite3` only.
 
-**Migration 0032 has NOT been applied to `.observatory-data`; a human does that.**
-Until it is, search runs the scan exactly as before — see "cannot go stale".
+Migration 0032 **is** applied to `.observatory-data` (verified 2026-10-03: the
+live corpus reports schema version 32). The line here previously said it was not.
 
 ### a batch is now reversible from a 0.27 MB diff, not a 246 MB copy
 
@@ -318,8 +436,10 @@ even behind a proxy, and must terminate TLS.
 
 ## Open, none blocking
 
-- The ledger grows without bound — and it is **`ledger/staging` at 89.9 MB**,
-  not the `ledger/raw` (18.3 MB) this line used to name. `batch.log` unrotated.
+- ~~The ledger grows without bound~~ — CLOSED 2026-10-03, see the retention
+  section at the top. Worth keeping the correction visible: this line named
+  `ledger/raw`, which turned out to be the one tree retention can never free a
+  byte from (100% vetoed), while `ledger/staging` beside it was the 89.9 MB.
 - `VACUUM` still runs nowhere. Now measured rather than estimated: it reclaims
   1.039 MB of 246.105 MB (0.42%), plus some repacking of two 47%-full btrees.
   Still not worth a batch step.
@@ -330,10 +450,9 @@ even behind a proxy, and must terminate TLS.
   is narrower and worth not confusing with it: every batch records exactly what
   it changed, invertibly. That makes a **write** reversible and visible; it does
   not compare a rebuild against this corpus.
-- 6 `identity_resolution_rationales` rows and the rest of that table are outside
-  every changeset, because it has no PRIMARY KEY. Giving it one would close the
-  last blind spot in a revert; it is a schema change on a 721-row table and was
-  not made here.
+- ~~`identity_resolution_rationales` is outside every changeset~~ — CLOSED by
+  migration 0033, see the top. **0033 is not applied to `.observatory-data` yet**,
+  so the blind spot is still open on the live corpus until a human applies it.
 
 ## Hard rules (from the original brief — still binding)
 

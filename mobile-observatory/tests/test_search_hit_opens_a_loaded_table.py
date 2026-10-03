@@ -156,6 +156,28 @@ class SearchHitOpensALoadedTable(unittest.TestCase):
         self.assertIn(TARGET_NAME, rows[0])
         self.assertEqual([], self.errors)
 
+    def settled_rows(self, page, label):
+        """Wait for the ONE row this query matches, then return the count.
+
+        `wait_for_timeout(2500)` was a bet that the box is idle, and under the
+        full suite it is not: this assertion failed at 0 rows in a 729-test run
+        on a 24-core box under load, and passed 3/3 when run alone. The product
+        was never wrong -- reproduced by hand against the live corpus, Enter made
+        exactly one request and rendered exactly one row.
+
+        A flaky guard is worse than a missing one: it teaches the next reader
+        that red means "run it again". So wait for the CONDITION, with a ceiling,
+        and report the real count when the ceiling is hit rather than whatever
+        the DOM happened to hold at 2500ms.
+        """
+        try:
+            page.wait_for_function(
+                "document.querySelectorAll('#app .data-table tbody tr').length === 1",
+                timeout=15000)
+        except Exception:
+            pass   # fall through to the assertion, which says what it actually saw
+        return page.eval_on_selector_all("#app .data-table tbody tr", "els=>els.length")
+
     def test_the_same_rule_covers_the_rail_the_hash_and_enter(self) -> None:
         """The hit was one of five call sites; a fix that repaired only it is the wrong fix."""
         for label, move in (
@@ -168,8 +190,7 @@ class SearchHitOpensALoadedTable(unittest.TestCase):
                 page.wait_for_timeout(900)
                 self.calls.clear()
                 move(page)
-                page.wait_for_timeout(2500)
-                rows = page.eval_on_selector_all("#app .data-table tbody tr", "els=>els.length")
+                rows = self.settled_rows(page, label)
                 self.assertTrue(self.calls, f"{label} moved the view without loading it")
                 self.assertEqual(1, rows, f"{label} left {rows} rows on screen; requests: {self.calls}")
 
@@ -185,10 +206,9 @@ class SearchHitOpensALoadedTable(unittest.TestCase):
             self.calls.clear()
             page.focus("#globalSearch")
             page.keyboard.press("Enter")
-            page.wait_for_timeout(2500)
-            rows = page.eval_on_selector_all("#app .data-table tbody tr", "els=>els.length")
+            rows = self.settled_rows(page, "Enter")
             self.assertTrue(self.calls, "Enter did nothing, while the dropdown says it filters the table")
-            self.assertEqual(1, rows)
+            self.assertEqual(1, rows, f"Enter left {rows} rows on screen; requests: {self.calls}")
 
     def test_a_match_only_the_server_can_see_is_not_filtered_back_out(self) -> None:
         """The grid used to re-run the query over the row's own values.

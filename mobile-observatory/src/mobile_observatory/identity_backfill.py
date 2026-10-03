@@ -64,6 +64,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .enrichment import _xiaomi_catalog, _norm, _REGION
+from .identity_rationales import record_rationale
 
 
 def approve_catalog_confirmed_identities(connection: sqlite3.Connection, *,
@@ -304,13 +305,17 @@ def approve_stem_corroborated_identities(connection: sqlite3.Connection, *,
             ]
 
             def record(outcome: str, reason: str, rationale: str, row=r) -> None:
-                connection.execute(
-                    "INSERT OR REPLACE INTO identity_resolution_rationales"
-                    " (identity_id,rule,rule_version,product_id,outcome,reason,rationale,"
-                    "  evidence_json,decided_at) VALUES(?,?,?,?,?,?,?,?,?)",
-                    (row["id"], STEM_RULE, STEM_RULE_VERSION, row["product_id"], outcome,
-                     reason, rationale, json.dumps(evidence, sort_keys=True),
-                     row["last_seen_at"]))
+                # identity_rationales.record_rationale is the ONLY writer of this
+                # table -- see its module docstring. The INSERT used to be spelled
+                # here and byte-identically in adjudication._record, and migration
+                # 0033's `subject` key would have been a tenth column for both to
+                # derive separately.
+                record_rationale(
+                    connection, identity_id=row["id"], rule=STEM_RULE,
+                    rule_version=STEM_RULE_VERSION, product_id=row["product_id"],
+                    outcome=outcome, reason=reason, rationale=rationale,
+                    evidence_json=json.dumps(evidence, sort_keys=True),
+                    decided_at=row["last_seen_at"])
                 totals["approved" if outcome == "approved" else "refused_" + reason] += 1
 
             if not stem:

@@ -97,6 +97,8 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime, timezone
 
+from .identity_rationales import record_rationale
+
 # The state itself. Also the rule name, because the rule has exactly one outcome
 # and naming them differently would invite the two to drift.
 UNRESOLVABLE = "unresolvable_on_captured_evidence"
@@ -204,19 +206,24 @@ def _recorded_fingerprint(connection: sqlite3.Connection, product_id: str,
 
 def _record(connection: sqlite3.Connection, identity_id: str | None, product_id: str,
             outcome: str, reason: str, rationale: str, evidence: str, now: str) -> None:
-    """The one writer of this rule's provenance rows.
+    """This rule's provenance rows, written through the table's only writer.
 
-    INSERT OR REPLACE against the unique index migration 0030 creates, so the
-    current row for a subject is rewritten in place rather than appended to --
-    matching what migration 0029 says the table is for. A NULL identity_id keys on
+    INSERT OR REPLACE against `PRIMARY KEY (subject, rule)` -- migration 0033's
+    materialisation of the unique expression index 0030 created -- so the current
+    row for a subject is rewritten in place rather than appended to, matching what
+    migration 0029 says the table is for. A NULL identity_id keys on
     `product:<id>`; see the module docstring for the two products that need it.
+
+    The INSERT itself lives in identity_rationales.record_rationale and not here:
+    it was previously spelled byte-identically in identity_backfill's stem rule,
+    and the `subject` key would otherwise be a column two call sites derive
+    separately.
     """
-    connection.execute(
-        "INSERT OR REPLACE INTO identity_resolution_rationales"
-        " (identity_id,rule,rule_version,product_id,outcome,reason,rationale,"
-        "  evidence_json,decided_at) VALUES(?,?,?,?,?,?,?,?,?)",
-        (identity_id, ADJUDICATION_RULE, ADJUDICATION_RULE_VERSION, product_id,
-         outcome, reason, rationale, evidence, now))
+    record_rationale(
+        connection, identity_id=identity_id, rule=ADJUDICATION_RULE,
+        rule_version=ADJUDICATION_RULE_VERSION, product_id=product_id,
+        outcome=outcome, reason=reason, rationale=rationale,
+        evidence_json=evidence, decided_at=now)
 
 
 def _human_has_spoken(product_id: str, identities: list[sqlite3.Row],

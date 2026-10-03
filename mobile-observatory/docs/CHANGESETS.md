@@ -42,11 +42,21 @@ reported; `tools/corpus_changeset.py revert` refuses such a run unless
 
 **2. Only tables with a PRIMARY KEY.** The session extension identifies rows by
 primary key. A table without one is not recorded — and not complained about. On
-this corpus that is exactly one table: **`identity_resolution_rationales`**,
-which is where every automated identity conclusion records *why* it was reached.
-A revert leaves it untouched. `check_corpus` reports this as the warning
-`table_absent_from_every_changeset` so the blind spot is visible rather than
-discovered during a rollback.
+this corpus that is now **no table**, and it was one until migration 0033:
+`identity_resolution_rationales`, where every automated identity conclusion
+records *why* it was reached, had no key, so a revert left its 721 rows
+untouched. 0033 gives it `PRIMARY KEY (subject, rule)` — `subject` being a stored
+column holding `ifnull(identity_id,'product:'||product_id)`, the expression
+migration 0030's unique index was built on, because SQLite permits neither an
+expression nor a generated column in a primary key and a `(identity_id, rule)`
+key cannot exist on a STRICT table whose `identity_id` must stay nullable. A
+table-level `CHECK` ties `subject` to that derivation, and
+`src/mobile_observatory/identity_rationales.py` is the only writer.
+
+The limit is still *checked* rather than declared closed: `check_corpus` asks the
+live schema and reports `table_absent_from_every_changeset` (warning) for
+whatever it finds, so the next table created without a key is named here instead
+of silently joining a blind spot this section says is empty.
 
 Virtual tables are **not** in that list even though `PRAGMA table_info` shows no
 primary key for them: an FTS5 table stores its content in `*_data`, `*_content`,

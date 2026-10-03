@@ -26,11 +26,16 @@ means and none of them is visible in the changeset itself:
    is detectable rather than assumed away.
 2. **Only tables with a PRIMARY KEY.** The session extension identifies rows by
    primary key; a table without one is not tracked at all, and it is not
-   tracked *silently*. On this corpus that is exactly one table --
-   `identity_resolution_rationales` -- which is the table recording WHY each
-   automated identity conclusion was reached. `tables_invisible_to_a_changeset()`
-   names them and `integrity.check_corpus` reports them, so the blind spot is a
-   measurement rather than a surprise.
+   tracked *silently*. On this corpus that is now **no table**:
+   `identity_resolution_rationales` was the last one -- the table recording WHY
+   each automated identity conclusion was reached -- and migration 0033 gave it
+   a key (`PRIMARY KEY (subject, rule)`, where `subject` materialises the
+   expression 0030's unique index was built on). The limit itself has not gone
+   away, so it is still measured rather than declared closed:
+   `tables_invisible_to_a_changeset()` asks the schema, and
+   `integrity.check_corpus` reports whatever it names, so a table added later
+   without a key is reported instead of quietly joining a blind spot that this
+   paragraph claims is empty.
 3. **Net effect, not history.** Insert-then-update collapses to one insert of
    the final value. That is what makes it compact; it also means a changeset is
    not an audit log of the steps taken.

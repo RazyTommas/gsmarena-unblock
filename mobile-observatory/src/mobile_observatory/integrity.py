@@ -666,12 +666,15 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
     # ABOUT -- its changes are simply absent from the diff, and an operator
     # reverting a batch would get a silently partial rollback.
     #
-    # On this corpus it is one table, `identity_resolution_rationales`, which is
-    # the table recording WHY each automated identity conclusion was reached. A
-    # warning and not an error: nothing is misreported by it, the rollback is
-    # merely narrower than it appears. It becomes an error's worth of surprise
-    # only if somebody believes the revert was total, which is what naming it
-    # here prevents.
+    # On this corpus it is now NO table. It was one --
+    # `identity_resolution_rationales`, which records WHY each automated identity
+    # conclusion was reached -- until migration 0033 gave it a PRIMARY KEY. This
+    # check stays, and stays a warning rather than being deleted as satisfied: it
+    # reads the live schema, so the next table created without a key is reported
+    # here instead of joining a blind spot nobody is looking for. A warning and
+    # not an error because nothing is misreported by such a table -- the rollback
+    # is merely narrower than it appears, and it becomes an error's worth of
+    # surprise only if somebody believes a revert was total.
     untracked = changesets.tables_invisible_to_a_changeset(connection)
     if untracked:
         findings.append(Finding(

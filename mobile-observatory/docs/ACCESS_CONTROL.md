@@ -51,7 +51,7 @@ Configure one explicitly instead with the environment, which keeps the secret
 out of the data directory entirely:
 
 ```sh
-MOBILE_OBSERVATORY_TOKEN=... python3 -m mobile_observatory.server --host 0.0.0.0
+MOBILE_OBSERVATORY_TOKEN=... PYTHONPATH=src python3 -m mobile_observatory.server --host 0.0.0.0
 ```
 
 The environment wins over the file. A blank value (`MOBILE_OBSERVATORY_TOKEN=`)
@@ -93,6 +93,114 @@ cross-site browser request, and it has already presented a token.
 
 Authentication is checked **before** origin, so `401` vs `403` cannot tell a
 cross-site probe whether it already holds a valid session.
+
+## The two deploy-time exposures, and how you now find out about them
+
+Two exposures cannot be closed from inside this process, and the earlier version
+of this document stopped there. That was half an answer: *un-closeable* and
+*un-noticeable* are different problems, and only the second one was true.
+
+| Exposure | Why code cannot close it | What now detects it |
+| --- | --- | --- |
+| A loopback-bound server behind a reverse proxy or an SSH tunnel is remotely reachable while still counting as "open" | The proxy is somebody else's config file; this process only sees `--host 127.0.0.1` | A request arriving with `X-Forwarded-For` / `X-Forwarded-Proto` / `X-Forwarded-Host` / `Forwarded`, or from a non-loopback peer, while no token is configured |
+| Plain HTTP exposes a permanent bearer token | The TLS terminator is somebody else's daemon | A request presenting a credential, from beyond this machine, with nothing saying the hop in front spoke TLS |
+
+Both are reported as named alarms: `open_server_is_reachable_from_outside` and
+`access_token_travelled_in_cleartext`. They go to **stderr** with an `ALARM`
+prefix, re-stated at most every five minutes while still true, and to
+**`/api/v1/admin/health`** under `posture`, where `posture.alarming` is the one
+boolean a monitoring check can be pointed at. `src/mobile_observatory/posture.py`
+has the argument; `tests/test_posture_alarms.py` drives a real server on a
+non-loopback bind to prove each one fires and each opt-out silences exactly one
+thing.
+
+### It warns and never refuses, deliberately
+
+1. **Neither condition is knowable at startup.** Both are properties of a
+   REQUEST. A startup refusal cannot see them, so "refuse" could only mean
+   refusing mid-run -- on the thousandth request, having served 999 under the
+   exposure it is refusing over.
+2. **The trigger is attacker-controlled.** `X-Forwarded-For: 1.2.3.4` is one
+   header any client can send. A server that exits on it hands every stranger an
+   off switch: a detector turned into a denial of service, which is strictly
+   worse than what it was added to fix.
+3. **A proxy in front is a legitimate deployment.** What is wrong is the
+   combination, and the repair is a token in the unit file, applied by a human in
+   daylight. Killing the service at 3am does not apply it.
+
+Refusing is right where the state is known before the first byte and is
+unambiguous -- which `token_for_binding` already covers: a non-loopback bind with
+no token mints a credential rather than serving open.
+
+### The startup banner
+
+One line, on stderr, every start. It never carries the token's value.
+
+```
+posture: bind=0.0.0.0:8000 exposure=all-interfaces auth=token(environment) origin-check=active tls-in-front=unknown-until-a-request-arrives insecure-ok=unset
+```
+
+`tls-in-front` is honestly unknown at startup and says so rather than defaulting
+to a word a reader would act on: nothing in this process can see a terminator
+that has not relayed anything yet. `/api/v1/admin/health` reports it as measured
+once traffic exists -- `terminated-in-front`, `not-terminated-in-front`, or
+`mixed(N-of-M-requests-claimed-https)`.
+
+`auth` names where the credential came from and never what it is:
+`token(environment)`, `token(file)`, `token(minted file)` (this process generated
+it because nobody had), or `open(no token)`.
+
+### Saying "I know", once
+
+`MOBILE_OBSERVATORY_INSECURE_OK` takes **alarm names**, not a boolean, so
+acknowledging the cleartext reality of an air-gapped LAN box does not also
+silence "this open server is reachable from the internet":
+
+```sh
+MOBILE_OBSERVATORY_INSECURE_OK=access_token_travelled_in_cleartext
+MOBILE_OBSERVATORY_INSECURE_OK=open_server_is_reachable_from_outside,access_token_travelled_in_cleartext
+MOBILE_OBSERVATORY_INSECURE_OK=1        # or true/yes/on/all -- every alarm
+```
+
+The **environment is the authority** and `<data-dir>/insecure-acknowledged.json`
+is the **record**, append-only: every startup that asserts a waiver adds an entry
+with the time, the alarm names, the bind, the hostname and the pid, and the
+startup line says where it was written and when the waiver was first asserted.
+That way round on purpose -- a waiver that lived only in the file would outlive
+the operator who reasoned about it, the box, and the exposure, and a waiver
+nobody can see is how this gap shipped. Removing the variable re-arms the alarm;
+the file still says it was once waived.
+
+An acknowledged condition is still detected and still counted. In the health
+payload it reads `status: acknowledged`, with its count and first-seen date, and
+`waived: true` -- two fields because they are two facts: what the traffic did,
+and what the operator said. A misspelt value waives nothing (fail-safe) and the
+startup line names it beside the valid ones.
+
+### What fires in which posture
+
+Measured against a real server on a copy of the live corpus, 2026-10-03.
+
+| bind | token | the request | `open_…reachable` | `…token…cleartext` |
+| --- | --- | --- | --- | --- |
+| `127.0.0.1` | none | loopback peer, no relay headers | clear | clear |
+| `127.0.0.1` | none | `X-Forwarded-For` present | **FIRING** | clear |
+| `127.0.0.1` | none | `X-Forwarded-For` + `X-Forwarded-Proto: https` | **FIRING** | clear |
+| `0.0.0.0` | minted | LAN peer, no credential | clear | clear |
+| `0.0.0.0` | env | loopback peer + Bearer | clear | clear |
+| `0.0.0.0` | env | LAN peer + Bearer, no TLS evidence | clear | **FIRING** |
+| `0.0.0.0` | env | LAN peer + Bearer + `X-Forwarded-Proto: https` | clear | clear |
+| `127.0.0.1` | env | Bearer + `X-Forwarded-*: …, http` | clear | **FIRING** |
+
+The dev posture -- row one, loopback with no token and nothing in front -- stays
+silent. If it did not, nobody would read the alarm on the box that matters.
+
+Two things that follow from the table and are worth stating:
+
+- **TLS does not make an open server safe.** `https` to the proxy still reaches
+  an unauthenticated corpus, so row three still fires.
+- **A token over loopback is not a leak.** Those bytes never left the machine,
+  and reporting them would make the air-gapped posture permanently alarmed.
 
 ## Ordering note
 

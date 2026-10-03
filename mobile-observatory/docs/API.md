@@ -37,6 +37,15 @@ such as `vendor=Qualcomm` and exact parts such as `part=SM8750-AB`.
   `docs/SOURCE_SILENCE_DETECTION.md`. A source can read `silent` even when its
   last run's own outcome was `succeeded`: silence is about being overdue for
   the *next* run, not about how the last one went.
+- `GET /api/v1/admin/health` also carries **`posture`** — how this server is
+  exposed, as observed from real traffic. `posture.alarming` is a single boolean
+  a monitoring check can be pointed at; `posture.alarms[]` names each exposure
+  with `status` (`clear` / `firing` / `acknowledged`), `waived`, `count`,
+  `first_seen_at` and the `evidence` that triggered it. `posture.banner` is the
+  same one line printed at startup, and `posture.tls_in_front` is measured from
+  requests rather than assumed (`unknown-until-a-request-arrives` before any
+  arrive). It never carries the access token's value — only where it came from.
+  See `docs/ACCESS_CONTROL.md`.
 
 ## Write resources
 

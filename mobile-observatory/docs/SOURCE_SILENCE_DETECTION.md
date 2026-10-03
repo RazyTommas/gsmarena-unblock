@@ -43,7 +43,7 @@ same reason: nothing downstream may mistake a label for a gate.
    once if its last run failed **or** it is silent (an OR, not a sum, so a
    source that is both failed and overdue is not double-counted). This
    number is the metric tile the web app's home page shows on every load.
-3. **`python3 -m mobile_observatory.batch`** -- every batch run computes
+3. **`PYTHONPATH=src python3 -m mobile_observatory.batch`** -- every batch run computes
    `results["silence"]`, logs an `ALARM source silent (advisory): ...` line
    per silent source to `<data-dir>/batch.log`, and exits with status `2` if
    any source is silent (see `docs/SCHEDULING.md`). `run_batch()` itself

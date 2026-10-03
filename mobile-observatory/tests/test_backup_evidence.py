@@ -230,6 +230,217 @@ class BackupRoundTripTest(unittest.TestCase):
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("gap(s) in this backup", result.stderr)
 
+    # -- the corpus's identity travels with its evidence ----------------------
+    def test_the_identity_baseline_is_in_the_archive_and_comes_back(self) -> None:
+        """Without it, a restore puts the evidence back and takes with it the one
+        record that could have checked whether the corpus rebuilt on top of it is
+        the corpus the backup came from. See docs/BACKUP.md and
+        src/mobile_observatory/corpus_identity.py."""
+        from mobile_observatory import corpus_identity
+
+        corpus_identity.write_baseline(
+            Database(self.data / "corpus.sqlite").connection,
+            self.data / corpus_identity.BASELINE_FILENAME)
+        output = self.make("withidentity.tar.gz")
+        manifest = self.manifest_of(output)
+        self.assertIsNotNone(manifest["identity_baseline"])
+        self.assertEqual([], backup_evidence.verify(output)["bad"])
+
+        (self.data / corpus_identity.BASELINE_FILENAME).unlink()
+        report = backup_evidence.restore(output, self.data)
+        self.assertTrue(report["identity_baseline_restored"])
+        recovered, why = corpus_identity.read_baseline(
+            self.data / corpus_identity.BASELINE_FILENAME)
+        self.assertIsNone(why)
+        self.assertIn("identity_conclusions", recovered["components"])
+
+    def test_an_archive_without_the_identity_baseline_says_so(self) -> None:
+        """The same rule as local.sqlite: an archive that quietly lacks it must
+        not print the same success as one that has it."""
+        from mobile_observatory import corpus_identity
+
+        baseline = self.data / corpus_identity.BASELINE_FILENAME
+        if baseline.exists():
+            baseline.unlink()
+        output = self.root / "noidentity.tar.gz"
+        manifest = backup_evidence.build(self.data, output, stamp=NOW)
+        self.assertIsNone(manifest["identity_baseline"])
+        self.assertTrue(any("corpus-identity.json" in p for p in manifest["problems"]))
+        report = backup_evidence.restore(output, self.data)
+        self.assertFalse(report["identity_baseline_restored"])
+        self.assertIn("cannot be compared", report["identity_baseline_note"])
+
+    def test_an_older_archive_without_the_key_still_verifies(self) -> None:
+        """The manifest key is optional on purpose: a backup taken before this
+        existed must not become unrestorable because of it."""
+        import json
+        import tarfile
+
+        source = self.make("tobedowngraded.tar.gz")
+        downgraded = self.root / "downgraded.tar.gz"
+        with tarfile.open(source, "r:gz") as old, tarfile.open(downgraded, "w:gz") as new:
+            for member in old.getmembers():
+                data = old.extractfile(member)
+                if member.name == backup_evidence.MANIFEST:
+                    manifest = json.loads(data.read().decode("utf-8"))
+                    manifest.pop("identity_baseline", None)
+                    payload = json.dumps(manifest, indent=2).encode()
+                    member.size = len(payload)
+                    import io
+                    new.addfile(member, io.BytesIO(payload))
+                elif member.name == "corpus-identity.json":
+                    continue
+                else:
+                    new.addfile(member, data)
+        self.assertEqual([], backup_evidence.verify(downgraded)["bad"])
+
+    # -- the one disaster it exists for: a DIFFERENT directory ----------------
+    def test_a_restore_into_a_different_directory_repoints_the_corpus(self) -> None:
+        """`artifacts.storage_uri` is absolute, and nothing used to repoint it.
+
+        The old drill restored /tmp/drill back into /tmp/drill, so it could never
+        see this: the paths it checked were the paths it had written. Measured on
+        the old code with a different target directory -- 1 of 1 artifact file
+        restored, and the corpus still citing the ORIGINAL box's path, which does
+        not exist there.
+        """
+        import shutil
+
+        archive = self.make("move.tar.gz")
+        elsewhere = self.root / "a-different-box" / "observatory-data"
+        elsewhere.mkdir(parents=True)
+        # You carried the corpus (docs/BACKUP.md: copy .observatory-data when you
+        # need THIS corpus) and the evidence comes from the 2 MB archive.
+        shutil.copy2(self.data / "corpus.sqlite", elsewhere / "corpus.sqlite")
+        shutil.rmtree(self.data)                         # the original box is gone
+
+        report = backup_evidence.restore(archive, elsewhere)
+        self.assertEqual(0, report["evidence_paths"]["unresolved_count"],
+                         f"the corpus still cites bytes it cannot produce: "
+                         f"{report['evidence_paths']['unresolved']}")
+        self.assertGreater(report["evidence_paths"]["rebased"], 0)
+
+        db = sqlite3.connect(elsewhere / "corpus.sqlite")
+        try:
+            rows = db.execute("SELECT id, storage_uri FROM artifacts").fetchall()
+        finally:
+            db.close()
+        absolute = [(i, u) for i, u in rows if str(u).startswith("/")]
+        self.assertTrue(absolute, "the fixture must have absolute URIs or this proves nothing")
+        for identifier, uri in absolute:
+            with self.subTest(artifact=identifier):
+                self.assertTrue(Path(uri).is_file(), f"{identifier} -> {uri} does not exist")
+                self.assertTrue(str(uri).startswith(str(elsewhere)),
+                                f"{identifier} still points at the original directory")
+
+    def test_the_rebase_is_a_no_op_when_nothing_moved(self) -> None:
+        """A rule that rewrites rows it did not need to is a rule that makes a
+        clean restore look like a recovery."""
+        archive = self.make("inplace.tar.gz")
+        report = backup_evidence.restore(archive, self.data)
+        self.assertEqual(0, report["evidence_paths"]["rebased"])
+        self.assertGreater(report["evidence_paths"]["already_correct"], 0)
+        self.assertEqual(0, report["evidence_paths"]["unresolved_count"])
+
+    def test_a_moved_directory_can_be_rebased_with_no_archive_at_all(self) -> None:
+        """`--rebase`: the same rule over what is on disk. A directory somebody
+        copied to a new box has no archive to recover from and the same broken
+        absolute paths."""
+        import shutil
+
+        moved = self.root / "moved"
+        shutil.copytree(self.data, moved)
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "backup_evidence.py"),
+             "--rebase", "--data-dir", str(moved)],
+            capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(0, report["unresolved_count"])
+        db = sqlite3.connect(moved / "corpus.sqlite")
+        try:
+            uris = [u for (u,) in db.execute(
+                "SELECT storage_uri FROM artifacts").fetchall() if str(u).startswith("/")]
+        finally:
+            db.close()
+        self.assertTrue(uris)
+        for uri in uris:
+            self.assertTrue(str(uri).startswith(str(moved)), uri)
+            self.assertTrue(Path(uri).is_file(), uri)
+
+    def test_an_unresolved_row_is_counted_exactly_and_named_boundedly(self) -> None:
+        """A partial relocation that reported only its successes would read
+        exactly like a complete one."""
+        sys.path.insert(0, str(ROOT / "src"))
+        from mobile_observatory import evidence_paths
+
+        self.add_artifact("art-gone", Path("/nowhere/at/all/x.bin"), b"never written")
+        db = sqlite3.connect(self.data / "corpus.sqlite")
+        try:
+            report = evidence_paths.rebase(db, self.data, [])
+        finally:
+            db.close()
+        self.assertEqual(1, report["unresolved_count"])
+        self.assertIn("art-gone", report["unresolved"][0])
+
+    def test_bytes_that_do_not_match_their_digest_are_refused_not_repointed(self) -> None:
+        """The digest is the whole key. Repointing a corpus at a file that is
+        not the file it recorded would make the corpus cite the wrong bytes --
+        and do it under the name of a recovery, which is worse than leaving the
+        broken path visible."""
+        sys.path.insert(0, str(ROOT / "src"))
+        from mobile_observatory import evidence_paths
+
+        target = self.data / "evidence" / "artifacts" / "a.bin"
+        before = target.read_bytes()
+        target.write_bytes(b"different bytes entirely")
+        db = sqlite3.connect(self.data / "corpus.sqlite")
+        try:
+            stored_before = db.execute(
+                "SELECT storage_uri FROM artifacts WHERE id='art-0'").fetchone()[0]
+            report = evidence_paths.rebase(
+                db, self.data,
+                [("evidence/artifacts/a.bin", hashlib.sha256(before).hexdigest())])
+            stored_after = db.execute(
+                "SELECT storage_uri FROM artifacts WHERE id='art-0'").fetchone()[0]
+        finally:
+            db.close()
+        self.assertEqual(0, report["rebased"])
+        self.assertEqual(1, len(report["mismatched"]))
+        self.assertIn("does not match", report["mismatched"][0])
+        self.assertEqual(stored_before, stored_after,
+                         "the corpus was repointed at bytes that are not the bytes it "
+                         "recorded")
+
+    def test_an_entry_resolving_outside_the_data_directory_is_refused(self) -> None:
+        """A `..` in somebody else's manifest is not a path into our corpus."""
+        sys.path.insert(0, str(ROOT / "src"))
+        from mobile_observatory import evidence_paths
+
+        db = sqlite3.connect(self.data / "corpus.sqlite")
+        try:
+            report = evidence_paths.rebase(db, self.data, [("../outside.bin", None)])
+        finally:
+            db.close()
+        self.assertEqual(0, report["rebased"])
+        self.assertTrue(any("outside the data directory" in m
+                            for m in report["mismatched"] + report["missing"]))
+
+    def test_a_pseudo_uri_is_not_reported_as_a_broken_path(self) -> None:
+        """The demonstration seed ships one `fixture:` row. Counting it as
+        unresolved would make every fresh corpus look damaged."""
+        sys.path.insert(0, str(ROOT / "src"))
+        from mobile_observatory import evidence_paths
+
+        db = sqlite3.connect(self.data / "corpus.sqlite")
+        try:
+            db.execute("UPDATE artifacts SET storage_uri='fixture:seeded' WHERE id='art-0'")
+            db.commit()
+            report = evidence_paths.rebase(db, self.data, [])
+        finally:
+            db.close()
+        self.assertEqual(0, report["unresolved_count"])
+
     def test_an_empty_corpus_refuses_rather_than_writing_a_useless_archive(self) -> None:
         empty = self.root / "empty"
         empty.mkdir()

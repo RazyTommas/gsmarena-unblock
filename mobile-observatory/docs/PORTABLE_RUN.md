@@ -1,16 +1,32 @@
 # Portable reviewed snapshot — 2026-09-17
 
+**This is a dated historical snapshot and it is a tenth of the corpus this
+repository builds.** Measured: 83 devices / 26,961 observations here, against
+854 / 94,969 from `PYTHONPATH=src python3 -m mobile_observatory.batch` over the captured inputs
+that are also in git. For a deployment, follow the README, not this document.
+
+`run.py` therefore refuses by default and names the batch instead; `--bundle` is
+the opt-in. What it is still the right answer for: a box with no captured inputs
+at all, and comparing against what a given date held.
+
 Clone this repository or use GitHub's **Code → Download ZIP**, then unzip it.
 Python 3.11+ is the only runtime requirement. From the repository root run:
 
 ```sh
-python3 mobile-observatory/run.py
+python3 mobile-observatory/run.py --list-bundles   # what is packaged, and what each holds
+python3 mobile-observatory/run.py --bundle         # extract and serve the newest one
 ```
 
-Windows: `py -3 mobile-observatory/run.py`.
+`--bundle` picks the newest manifest in `portable/` that has a zip beside it
+rather than a hardcoded date, prints that bundle's own stated row counts, and
+names any manifest whose zip is missing. (At the time of writing
+`mobile-observatory-2026-09-22.json` is such a manifest: it states 236 devices /
+94,487 observations and there is no zip beside it, so `--bundle` cannot reach it
+and says so rather than silently serving the older one.)
+
+Windows: `py -3 mobile-observatory/run.py --bundle`.
 Open <http://127.0.0.1:8124/>. Stop with Ctrl+C. No package installation is needed.
-The older `start.sh` remains the explicitly synthetic demonstration launcher;
-use `run.py` for the included real dataset.
+The older `start.sh` remains the explicitly synthetic demonstration launcher.
 
 ## Included data
 
@@ -50,9 +66,9 @@ The distributed archive remains immutable; running databases are writable.
 Options:
 
 ```sh
-python3 mobile-observatory/run.py --port 8125
-python3 mobile-observatory/run.py --data-dir /path/to/my-observatory
-python3 mobile-observatory/run.py --data-dir /path/to/my-observatory --restore-only
+python3 mobile-observatory/run.py --bundle --port 8125
+python3 mobile-observatory/run.py --bundle --data-dir /path/to/my-observatory
+python3 mobile-observatory/run.py --bundle --data-dir /path/to/my-observatory --restore-only
 ```
 
 To move changes made after this packaged snapshot, stop the app and copy the whole

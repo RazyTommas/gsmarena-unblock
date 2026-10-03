@@ -8,7 +8,7 @@ observations separately from pending ones.
 Needs Chromium and a populated corpus, so it lives here beside tools/ui_smoke.py
 rather than in tests/. Run it against a COPY of the corpus, never the live one:
 
-    python3 -m mobile_observatory.server --port 8950 --data-dir <a copy>
+    PYTHONPATH=src python3 -m mobile_observatory.server --port 8950 --data-dir <a copy>
     python3 tools/ui_review_state_check.py http://127.0.0.1:8950 /tmp/shots
 
 ONE OF THESE CHECKS WAS BROKEN and passed against a corpus that had the defect.

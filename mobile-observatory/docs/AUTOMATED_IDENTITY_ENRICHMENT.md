@@ -232,5 +232,5 @@ they still do not serve. `write_agent_review_bundle` likewise narrows to
 corpus has recorded as unanswerable.
 
 ```sh
-python3 -m mobile_observatory.integrity --data-dir .observatory-data
+PYTHONPATH=src python3 -m mobile_observatory.integrity --data-dir .observatory-data
 ```

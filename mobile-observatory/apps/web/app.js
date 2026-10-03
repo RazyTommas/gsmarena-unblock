@@ -91,6 +91,18 @@ const EMPTY_DATA = {
   collectionRequests:[], agentBundle:null, agentProposals:[], identityHistory:[],
 };
 
+// What the boot's three unfiltered fetches asked for, in the shape
+// canonicalScope() produces. Written out rather than taken from
+// canonicalScope(): by the time loadRest's Promise.all resolves the reader may
+// already have typed, and asking canonicalScope() then would stamp the total
+// with a filter the request never carried -- which is the exact defect, arriving
+// by timing instead of by a click. See loadCanonicalPage.
+const UNFILTERED_SCOPE={
+  devices:{q:'',vendor:'',family:'',part:'',maker:'',region:'',max_android:'',support:''},
+  silicon:{q:'',vendor:'',family:'',part:''},
+  releases:{q:'',vendor:'',family:'',part:'',maker:'',region:''},
+};
+
 // Views that phase 1 alone can draw. Anything else waits for phase 2.
 const CORE_ROUTES = ['radar', 'watchlist'];
 
@@ -202,7 +214,12 @@ async function loadHealth() {
     const health = await api.health();
     Object.assign(state.data, {
       health: items(health), reviewQueue: health.reviewQueue || [],
-      integrity: health.integrity || null, projection: health.projection || null });
+      integrity: health.integrity || null, projection: health.projection || null,
+      // The server's own account of how it is exposed. Kept beside the integrity
+      // findings because an operator asking "did the run work" is the same
+      // operator who needs to know the box is serving an unauthenticated corpus
+      // through somebody's reverse proxy. See src/mobile_observatory/posture.py.
+      posture: health.posture || null });
     state.healthError = null;
   } catch (error) {
     state.healthError = error.message || 'Collector status is unavailable.';
@@ -228,9 +245,13 @@ async function loadRest() {
         api.collectionRequests(), api.agentProposals(), api.identityHistory()
       ]);
     Object.assign(state.data, {
-      devices:items(devices), devicePage:devices.meta?.page||{},
-      chips:items(chips), chipPage:chips.meta?.page||{},
-      releases:items(releases), releasePage:releases.meta?.page||{},
+      // Stamped with the scope they were actually fetched under -- no filters at
+      // all -- for the same reason loadCanonicalPage stamps its own. Without
+      // this the boot's three totals would read as answering whatever the
+      // reader had typed by the time they were painted.
+      devices:items(devices), devicePage:{...(devices.meta?.page||{}),scope:scopeKey(UNFILTERED_SCOPE.devices)},
+      chips:items(chips), chipPage:{...(chips.meta?.page||{}),scope:scopeKey(UNFILTERED_SCOPE.silicon)},
+      releases:items(releases), releasePage:{...(releases.meta?.page||{}),scope:scopeKey(UNFILTERED_SCOPE.releases)},
       productReleases:items(productReleases), productReleasePage:productReleases.meta?.page||{},
       productSecurity:items(productSecurity), productSecurityPage:productSecurity.meta?.page||{},
       sourceRecords:items(sourceRecords), sourcePage:sourceRecords.meta?.page||{},
@@ -309,7 +330,57 @@ async function loadSourcePage(offset=0) {
   state.data.sourceRecords=items(payload);state.data.sourcePage=payload.meta?.page||{};state.sourcePage=offset;render();
 }
 async function loadProductPage(offset=0) {const payload=await api.sourceProducts({limit:pageSize(),offset,state:state.productState});state.data.sourceProducts=items(payload);state.data.productPage=payload.meta?.page||{};render();}
-async function loadCanonicalPage(kind,offset=0){const method=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const filters={limit:pageSize(),offset,q:state.filter,vendor:state.chipVendor==='all'?'':state.chipVendor,family:state.chipFamily==='all'?'':state.chipFamily,part:state.chipPart==='all'?'':state.chipPart,sort:state.exploreSort[kind]};if(kind!=='silicon'){filters.maker=state.maker==='all'?'':state.maker;filters.region=state.region==='all'?'':state.region;}if(kind==='devices'){filters.max_android=state.android==='all'?'':state.android;filters.support=state.support==='all'?'':state.support;}const payload=await api[method](filters);const dataKey=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const pageKey=kind==='devices'?'devicePage':kind==='silicon'?'chipPage':'releasePage';state.data[dataKey]=items(payload);state.data[pageKey]=payload.meta?.page||{};render();}
+// ===========================================================================
+// A TAB'S COUNT BELONGS TO THE QUERY THAT PRODUCED IT
+//
+// The Explore tabs read `Devices (3) | Silicon (452) | Canonical ROMs (21,186)`.
+// Only the ACTIVE tab is re-fetched when the reader filters, so after typing
+// `S26` the active tab showed the query's total and the other three went on
+// showing the last UNFILTERED one -- three wrong numbers, stated with the same
+// confidence as the right one, and no way for a reader to tell which was which.
+//
+// Fixed by recording, on each page, the SCOPE it was fetched under, and showing
+// a count only when that scope is the one in force now. `canonicalScope` is
+// also the single place the filter set is built, so the comparison cannot drift
+// from the request: a filter added to one and not the other would silently
+// re-open this.
+//
+// WHY NO NUMBER RATHER THAN A NUMBER LABELLED "unfiltered". The stored total is
+// not the unfiltered total -- it is the total for whatever query was last sent
+// to THAT tab. Refine `S2` to `S26` on the Devices tab and Silicon still holds
+// the total for `S2`; call that "unfiltered" and the chrome states something
+// false. Marking it accurately would mean carrying each tab's own stale query
+// into its label, which is four queries on screen at once to explain three
+// numbers nobody asked for. Omitting the number cannot state a wrong one, and
+// the count returns the moment the reader opens that tab -- which fetches it.
+//
+// The alternative, fetching all four tabs on every keystroke, is 4x the
+// requests per character for three numbers the reader is not looking at. The
+// releases query alone was 53ms before the trigram index.
+// ===========================================================================
+function canonicalScope(kind){
+  // Everything the SERVER filters this tab by -- and nothing else. limit/offset
+  // and sort are excluded on purpose: paging and reordering do not change a
+  // total, so including them would blank the count every time somebody pressed
+  // the next-page arrow.
+  const scope={q:state.filter,vendor:state.chipVendor==='all'?'':state.chipVendor,
+               family:state.chipFamily==='all'?'':state.chipFamily,
+               part:state.chipPart==='all'?'':state.chipPart};
+  if(kind!=='silicon'){scope.maker=state.maker==='all'?'':state.maker;scope.region=state.region==='all'?'':state.region;}
+  if(kind==='devices'){scope.max_android=state.android==='all'?'':state.android;scope.support=state.support==='all'?'':state.support;}
+  return scope;
+}
+function scopeKey(scope){return JSON.stringify(Object.keys(scope).sort().map(k=>[k,scope[k]||'']));}
+const CANONICAL_PAGE_KEY={devices:'devicePage',silicon:'chipPage',releases:'releasePage'};
+// True when this tab's stored total answers the question being asked right now.
+function countIsCurrent(kind){
+  const page=state.data[CANONICAL_PAGE_KEY[kind]];
+  return !!page && page.scope===scopeKey(canonicalScope(kind));
+}
+async function loadCanonicalPage(kind,offset=0){const method=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const scope=canonicalScope(kind);const filters={...scope,limit:pageSize(),offset,sort:state.exploreSort[kind]};const payload=await api[method](filters);const dataKey=kind==='devices'?'devices':kind==='silicon'?'chips':'releases';const pageKey=CANONICAL_PAGE_KEY[kind];state.data[dataKey]=items(payload);
+  // The scope travels WITH the total, on the same object, so the two cannot be
+  // separated by a later write to state.data.
+  state.data[pageKey]={...(payload.meta?.page||{}),scope:scopeKey(scope)};render();}
 async function loadProductEvidencePage(offset=0){const firmware=state.productMode==='firmware';const filters={limit:pageSize(),offset,q:state.productQuery,maker:state.productMaker,region:firmware?state.productRegion:'',sort:state.productSort};const payload=await (firmware?api.productReleases(filters):api.productSecurity(filters));state.data[firmware?'productReleases':'productSecurity']=items(payload);state.data[firmware?'productReleasePage':'productSecurityPage']=payload.meta?.page||{};render();}
 // ===========================================================================
 // SWITCHING A VIEW AND LOADING IT ARE ONE ACT
@@ -561,6 +632,26 @@ const productDecision = x => x.review_state === 'unresolvable_on_captured_eviden
   : `<button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="approved">Approve</button> <button class="button product-review" data-id="${escapeHtml(x.id)}" data-decision="rejected">Reject</button>`;
 const productRows = rows => rows.map(x=>`<tr><td><b>${escapeHtml(x.name)}</b><div class="subtle">${escapeHtml(x.maker)}</div></td><td>${x.identities}</td><td>${x.observations}</td><td>${escapeHtml(x.chipset||'Awaiting specification match')}<div class="subtle">${escapeHtml(x.launch_os||'')}</div></td><td>${reviewStateBadge(x)}</td><td>${productDecision(x)}</td></tr>`).join('');
 
+// One Explore tab button. The count is the SERVER's total for this tab, and it
+// appears only while that total answers the question now being asked; otherwise
+// the label stands alone and the title says why, so a reader who wonders where
+// the number went is told rather than left to assume zero.
+//
+// `fallback` is this tab's loaded row count, used only before any page metadata
+// exists at all (first paint). It is never used to stand in for a stale total --
+// that was the original defect in miniature, since the rows in state.data are
+// the previous query's rows too.
+function exploreTab(kind,label,fallback){
+  const page=state.data[CANONICAL_PAGE_KEY[kind]]||{};
+  const current=countIsCurrent(kind);
+  const total=page.total!==undefined?page.total:fallback;
+  const filtered=scopeKey(canonicalScope(kind))!==scopeKey(UNFILTERED_SCOPE[kind]);
+  const title=current?'':(filtered
+    ? `Not counted for the current filter. Open this tab to count ${label.toLowerCase()} matching it.`
+    : `Not counted yet. Open this tab to count ${label.toLowerCase()}.`);
+  return `<button data-value="${kind}" class="${state.exploreMode===kind?'active':''}"${title?` title="${escapeHtml(title)}"`:''}>${escapeHtml(label)}${current?` (${Number(total||0).toLocaleString()})`:''}</button>`;
+}
+
 function renderExplore() {
   const chipByPart=new Map(state.data.chips.map(x=>[x.part,x]));
   const contains=(value,query)=>!query||query==='all'||String(value||'').toLowerCase().includes(String(query).toLowerCase());
@@ -582,7 +673,7 @@ function renderExplore() {
   const parts=[...new Set(state.data.chips.filter(x=>(state.chipVendor==='all'||x.vendor.toLowerCase()===state.chipVendor)&&(state.chipFamily==='all'||x.family===state.chipFamily)).map(x=>x.part))].sort();
   return heading('Device & Silicon Explorer','Find the exact hardware','Filter devices by identity, Android version, region, and exact silicon part.') + `
   <div class="filters"><label>Manufacturer<select id="makerFilter"><option value="all">All manufacturers</option>${[...new Set(state.data.devices.map(x=>x.maker))].sort().map(x=>`<option>${escapeHtml(x)}</option>`).join('')}</select></label><label>Chip vendor contains<input class="filter-input" id="chipFilter" list="vendorOptions" value="${escapeHtml(state.chipVendor==='all'?'':state.chipVendor)}" placeholder="Type Qualcomm, MediaTek…"><datalist id="vendorOptions">${[...new Set(state.data.chips.map(x=>x.vendor))].sort().map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Chip family contains<input class="filter-input" id="familyFilter" list="familyOptions" value="${escapeHtml(state.chipFamily==='all'?'':state.chipFamily)}" placeholder="Type Snapdragon, Dimensity…"><datalist id="familyOptions">${families.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Part contains<input class="filter-input" id="partFilter" list="partOptions" value="${escapeHtml(state.chipPart==='all'?'':state.chipPart)}" placeholder="Type SM8750, MT…"><datalist id="partOptions">${parts.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist></label><label>Android ceiling<select id="androidFilter"><option value="all">Any version</option><option value="17">17 or lower</option><option value="16">16 or lower</option><option value="15">15 or lower</option></select></label><label>Region<select id="regionFilter"><option value="all">Any region</option><option value="ilo">Israel / ILO</option><option value="mid">Middle East / MID</option><option value="global">Global</option></select></label><label>Support<select id="supportFilter"><option value="all">All statuses</option><option value="Supported">Officially supported</option><option value="Likely supported">Likely supported</option><option value="End announced">End announced</option><option value="Unsupported">Unsupported</option><option value="Unknown">Not stated by vendor</option></select></label></div>
-  <div class="toolbar"><div class="segmented" id="exploreTabs"><button data-value="devices" class="${state.exploreMode==='devices'?'active':''}">Devices (${state.data.devicePage?.total||devices.length})</button><button data-value="silicon" class="${state.exploreMode==='silicon'?'active':''}">Silicon (${state.data.chipPage?.total||chips.length})</button><button data-value="releases" class="${state.exploreMode==='releases'?'active':''}">Canonical ROMs (${state.data.releasePage?.total||releases.length})</button><button data-value="sources" class="${state.exploreMode==='sources'?'active':''}">Source records (${sourcePage.total||0})</button></div><span class="subtle">${state.exploreMode==='sources'?`${sourcePage.offset+1}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}`:`${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+1}-${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+(state.exploreMode==='devices'?devices.length:state.exploreMode==='silicon'?chips.length:releases.length)} shown`}</span><span class="spacer"></span>${state.exploreMode!=='sources'?`<button class="button" id="canonicalPrev">←</button><button class="button" id="canonicalNext">→</button>`:''}${pageSizeControl('exploreRows')}<button class="button" id="exportView">Export CSV ↓</button></div>
+  <div class="toolbar"><div class="segmented" id="exploreTabs">${exploreTab('devices','Devices',devices.length)}${exploreTab('silicon','Silicon',chips.length)}${exploreTab('releases','Canonical ROMs',releases.length)}<button data-value="sources" class="${state.exploreMode==='sources'?'active':''}">Source records (${sourcePage.total||0})</button></div><span class="subtle">${state.exploreMode==='sources'?`${sourcePage.offset+1}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}`:`${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+1}-${((state.data[state.exploreMode==='devices'?'devicePage':state.exploreMode==='silicon'?'chipPage':'releasePage']?.offset)||0)+(state.exploreMode==='devices'?devices.length:state.exploreMode==='silicon'?chips.length:releases.length)} shown`}</span><span class="spacer"></span>${state.exploreMode!=='sources'?`<button class="button" id="canonicalPrev">←</button><button class="button" id="canonicalNext">→</button>`:''}${pageSizeControl('exploreRows')}<button class="button" id="exportView">Export CSV ↓</button></div>
   ${state.exploreMode==='devices'?`<h2 class="section-title">Reviewed devices</h2>${coverageStrip()}<div class="data-card">${devices.length?`<table class="data-table"><thead><tr><th>Device identity</th><th>Silicon</th><th>Software state</th><th>Current firmware</th><th>Support</th></tr></thead><tbody>${deviceRows(devices)}</tbody></table>`:`<div class="empty"><b>No matching devices.</b><br>No result may also mean incomplete source coverage; check Admin health.${literalMatchNote(state.filter)}</div>`}</div>`:state.exploreMode==='silicon'?`<h2 class="section-title">Silicon index</h2><div class="data-card">${chips.length?`<table class="data-table"><thead><tr><th>Chip</th><th>Exact part</th><th>Used by</th><th>Advisories</th><th>Attention</th></tr></thead><tbody>${chipRows(chips)}</tbody></table>`:`<div class="empty"><b>No matching silicon.</b><br>Try a broader chip filter.${literalMatchNote(state.filter)}</div>`}</div>`:state.exploreMode==='releases'?`<h2 class="section-title">Canonical ROM versions</h2><div class="data-card">${releases.length?`<table class="data-table"><thead><tr><th>Model</th><th>Region</th><th>Build</th><th>OS</th><th>Security patch</th><th>Baseband</th><th>Released</th></tr></thead><tbody>${releaseRows(releases)}</tbody></table>`:`<div class="empty"><b>No observed ROMs match.</b><br>This is different from proof that no ROM exists.${literalMatchNote(state.filter)}</div>`}</div>`:`<h2 class="section-title">All captured source records</h2><div class="notice">These rows are visible evidence awaiting or supporting canonical identity resolution. “Unresolved” is intentional—not missing data.</div><div class="toolbar"><input id="sourceQuery" value="${escapeHtml(state.sourceQuery)}" placeholder="Search name, codename, build…"><select id="sourceName"><option value="">All sources</option><option value="xiaomi.community.firmware_tracker">Xiaomi${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('xiaomi'))?.records||0})`}</option><option value="tecno.vendor.security_device_scope">Tecno${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('tecno'))?.records||0})`}</option><option value="samsung.fota">Samsung${state.healthPending||state.healthError?'':` (${state.data.health.find(x=>x.source.includes('samsung'))?.records||0})`}</option></select><select id="sourceKind"><option value="">All record types</option><option value="firmware_release">Firmware</option><option value="security_patch_publication">Security patch publication</option></select><button class="button primary" id="sourceSearch">Search</button></div><div class="data-card"><table class="data-table"><thead><tr><th>Source identity</th><th>Collector</th><th>Record type</th><th>Observed value</th><th>Region</th><th>Identity state</th><th>Observed</th></tr></thead><tbody>${sourceRows(sourceRecords)}</tbody></table></div><div class="toolbar"><button class="button" id="sourcePrev" ${sourcePage.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${sourcePage.total?sourcePage.offset+1:0}-${sourcePage.offset+sourceRecords.length} of ${sourcePage.total||0}</span><button class="button" id="sourceNext" ${sourcePage.nextCursor?'':'disabled'}>Next →</button></div>`}`;
 }
 
@@ -773,8 +864,77 @@ function integrityPanel() {
   </div>`;
 }
 
+// The deploy posture, where the person who can fix it will see it.
+//
+// The alarms already reach stderr and /api/v1/admin/health. Neither is a place
+// anybody looks on purpose: a log is read after an incident and a JSON endpoint
+// is read by a monitor somebody has to have configured. This panel is the third
+// place, and it is the only one that is in front of a human during normal use.
+//
+// Pending and absent render differently, for the same reason integrityPanel()
+// distinguishes them: "no alarms" and "nobody asked" must not look alike.
+function posturePanel() {
+  if (!state.data.posture) {
+    if (state.healthPending) return '';
+    if (state.healthError) return '';
+    // An older server, or a build without the detector. Saying nothing here
+    // would read as "checked, and fine".
+    return `<div class="integrity integrity-warn">
+      <div class="integrity-head"><b>This server reports no deploy posture</b></div>
+      <p class="subtle">Nothing is saying whether it is reachable from outside without a
+         credential, or whether an access token is crossing a network in clear. That is not
+         a statement that it is not.</p></div>`;
+  }
+  const p = state.data.posture;
+  const alarms = p.alarms || [];
+  const firing = alarms.filter(a => a.status === 'firing');
+  const waived = alarms.filter(a => a.status === 'acknowledged');
+  const tone = firing.length ? 'bad' : (waived.length ? 'warn' : 'ok');
+  const line = a => `<li><span class="chip-${a.status === 'firing' ? 'error' : 'warning'}">${
+      escapeHtml(a.status)}</span> <b>${escapeHtml(a.name)}</b> · ${a.count}
+    <div class="subtle">${escapeHtml(a.detail || '')}.${
+      a.evidence ? ` Evidence: ${escapeHtml(a.evidence)}.` : ''}${
+      a.first_seen_at ? ` First seen ${escapeHtml(a.first_seen_at)}.` : ''}</div></li>`;
+  return `<div class="integrity integrity-${tone}">
+    <div class="integrity-head">
+      <b>${firing.length ? `${firing.length} deploy exposure${firing.length === 1 ? '' : 's'} detected`
+                         : 'No deploy exposure detected'}</b>
+      <span class="subtle">${escapeHtml(p.banner || '')}</span>
+    </div>
+    ${firing.length || waived.length
+      ? `<ul class="integrity-list">${firing.concat(waived).map(line).join('')}</ul>`
+      : `<p class="subtle">Requests observed: ${p.requests_observed}, of which
+         ${p.requests_relayed_by_a_proxy} arrived through a proxy and
+         ${p.requests_claiming_tls_in_front} said TLS terminated in front
+         (${escapeHtml(p.tls_in_front || '')}). Neither exposure has been seen on a
+         request. This is not a claim about requests nobody made.</p>`}
+    ${(p.insecure_ok?.unrecognised || []).length
+      ? `<p class="subtle"><b>${escapeHtml(p.insecure_ok.env_var)}</b> names
+         ${escapeHtml(p.insecure_ok.unrecognised.join(', '))}, which is not an alarm name:
+         nothing was waived by it. Valid values:
+         ${escapeHtml((p.insecure_ok.valid_values || []).join(', '))}.</p>` : ''}
+    ${p.insecure_ok?.record_error
+      ? `<p class="subtle">The acknowledgement could not be recorded:
+         ${escapeHtml(p.insecure_ok.record_error)}</p>` : ''}
+  </div>`;
+}
+
 function renderAdmin() {
-  const health=state.data.health.filter(matches), delayed=health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length;
+  // `.filter(matches)` -- a ReferenceError. `matches()` was the client-side row
+  // matcher deleted when the Explore grid stopped re-running the server's query
+  // over its own rows; three of its five call sites went with it and THIS ONE
+  // DID NOT. So `renderAdmin()` threw on every render and the whole Operations
+  // page -- collector status, the corpus invariant findings, the review inbox --
+  // painted NOTHING. Found by opening the page in a browser, which is also the
+  // only way it could have been found: 570 tests passed over it.
+  //
+  // Not restored, removed: `ROUTES_THE_SEARCH_BOX_FILTERS` already states that
+  // the search box filters `radar` and `explore` and not `admin`, and the box
+  // describes itself as a catalogue search. Filtering the collector table by a
+  // device query contradicted the rule the router already declares, and would
+  // empty the source table the moment somebody typed a model name into a box
+  // that says it finds devices.
+  const health=state.data.health, delayed=health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length;
   // "0 sources need attention" before anything has been asked is a claim, not a
   // blank. Say which it is.
   const healthNotice = state.healthPending
@@ -784,10 +944,11 @@ function renderAdmin() {
       : `${delayed} ${delayed===1?'source needs':'sources need'} attention.`;
   const cfg=state.config||{};
   return heading('Operations','Know when the data is trustworthy','Collection health, coverage gaps, and offline snapshot readiness.') + `
+  ${posturePanel()}
   ${integrityPanel()}
   <div class="notice">${healthNotice} Product views preserve the last valid observation and display its age.</div>
   <div class="admin-grid"><div><div class="data-card"><table class="data-table"><thead><tr><th>Source</th><th>Scope</th><th>Status</th><th>Evidence captured / imported</th><th>Collection</th><th>Records</th></tr></thead><tbody>${health.map(x=>`<tr><td class="strong">${escapeHtml(x.source)}</td><td>${escapeHtml(x.scope)}</td><td>${badge(x.status,x.status)}${silenceNote(x)}</td><td>${val(x.captured_at,'capture time')}<div class="subtle">Imported ${escapeHtml(x.last)}</div></td><td>${escapeHtml(x.next)}<div class="subtle">${escapeHtml(x.execution_mode||'snapshot')}</div></td><td>${escapeHtml(x.records)}</td></tr>`).join('')}</tbody></table></div></div>
-  <div class="data-card flow"><div class="eyebrow">Offline bundle</div><h2 class="section-title" style="margin-top:4px">Snapshot contents</h2><div class="flow-step"><i>1</i><div><b>Corpus database</b><div class="subtle">Canonical facts + provenance</div></div></div><div class="flow-step"><i>2</i><div><b>Evidence cache</b><div class="subtle">Permitted source documents</div></div></div><div class="flow-step"><i>3</i><div><b>Manifest</b><div class="subtle">Source cutoffs, hashes, row counts</div></div></div><p class="subtle">Build and verify snapshots with <code>python3 -m mobile_observatory.snapshots</code>.</p></div></div>
+  <div class="data-card flow"><div class="eyebrow">Offline bundle</div><h2 class="section-title" style="margin-top:4px">Snapshot contents</h2><div class="flow-step"><i>1</i><div><b>Corpus database</b><div class="subtle">Canonical facts + provenance</div></div></div><div class="flow-step"><i>2</i><div><b>Evidence cache</b><div class="subtle">Permitted source documents</div></div></div><div class="flow-step"><i>3</i><div><b>Manifest</b><div class="subtle">Source cutoffs, hashes, row counts</div></div></div><p class="subtle">Build and verify snapshots with <code>PYTHONPATH=src python3 -m mobile_observatory.snapshots</code>.</p></div></div>
   <h2 class="section-title">Collection preferences</h2><div class="data-card"><div class="form-grid"><label>Preferred cadence (no scheduler installed)<select id="cfgCadence"><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">Daily</option></select></label><label>Catalog scope<select id="cfgSupported"><option value="1">Supported devices only</option><option value="0">All devices</option></select></label></div><div class="validation-note"><b>Preferred regions</b> — validated codes; hover/select labels explain their scope.</div><div class="check-grid" id="cfgRegions">${(state.data.configOptions?.regions||[]).map(x=>`<label class="check-pill"><input type="checkbox" value="${escapeHtml(x.id)}" ${(cfg.preferredRegions||[]).includes(x.id)?'checked':''}> ${escapeHtml(x.id)} · ${escapeHtml(x.label)}</label>`).join('')}</div><div class="validation-note"><b>Enabled sources</b> — only installed source contracts can be selected.</div><div class="check-grid" id="cfgSources">${(state.data.configOptions?.sources||[]).map(x=>`<label class="check-pill"><input type="checkbox" value="${escapeHtml(x.id)}" ${(cfg.enabledSources||[]).includes(x.id)?'checked':''}> ${escapeHtml(x.label)}</label>`).join('')}</div><div class="toolbar"><button class="button primary" id="saveConfig">Save preferences</button><button class="button" id="exportConfig">Export config</button><label class="button">Import config<input id="importConfig" type="file" accept="application/json" hidden></label></div></div>
   <h2 class="section-title">Resolve and query one model</h2><div class="data-card"><div class="form-grid"><label>Model name, code, or alias<input id="modelQuery" placeholder="e.g. SM-S931B or Galaxy S25"></label><label>Query sources<select id="querySource"><option value="all">All enabled sources</option>${(cfg.enabledSources||[]).map(x=>`<option>${escapeHtml(x)}</option>`).join('')}</select></label></div><div id="modelMatch" class="query-match">Enter a model. Atlas will show the canonical identity before any source query is run.</div></div>
   <h2 class="section-title">Identity review inbox · ${state.data.productPage?.total||0} product candidates</h2><div class="notice">Approving remembers the source-to-product relationship and marks all linked history ready for later exact hardware promotion. It does not invent a vendor model code.<br><b>Not every row here is waiting on you.</b> A product marked <i>No identifier to resolve</i> has been adjudicated: the captured sources carry nothing that could resolve its identity, so there is no review left to do and it is listed rather than queued. It is not rejected, nothing is hidden, and <i>Reopen</i> puts it back in the queue if you have evidence the sources do not.</div><div class="toolbar"><label class="subtle" for="productState">Show</label><select id="productState" aria-label="Product review state"><option value="not_approved"${state.productState==='not_approved'?' selected':''}>Not serving (awaiting review + adjudicated)</option><option value="proposed"${state.productState==='proposed'?' selected':''}>Awaiting identity review</option><option value="unresolvable_on_captured_evidence"${state.productState==='unresolvable_on_captured_evidence'?' selected':''}>Adjudicated: no identifier to resolve</option><option value="rejected"${state.productState==='rejected'?' selected':''}>Identity rejected</option><option value="approved"${state.productState==='approved'?' selected':''}>Identity approved</option><option value=""${state.productState===''?' selected':''}>All states</option></select></div><div class="data-card"><table class="data-table"><thead><tr><th>Product candidate</th><th>Source identities</th><th>History rows</th><th>Specification evidence</th><th>State</th><th>Decision</th></tr></thead><tbody>${productRows(state.data.sourceProducts||[])}</tbody></table></div><div class="toolbar"><button class="button" id="productPrev" ${state.data.productPage?.offset?'':'disabled'}>← Previous</button><span class="subtle">Rows ${(state.data.productPage?.total||0)?state.data.productPage.offset+1:0}-${(state.data.productPage?.offset||0)+(state.data.sourceProducts?.length||0)} of ${state.data.productPage?.total||0}</span><button class="button" id="productNext" ${state.data.productPage?.nextCursor?'':'disabled'}>Next →</button></div>

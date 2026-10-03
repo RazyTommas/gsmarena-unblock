@@ -44,7 +44,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 
-from . import changesets, search_index
+from . import changesets, corpus_identity, search_index
 from .adjudication import UNRESOLVABLE
 from .source_dates import ISO_DATE_GLOB, STATED_DATE_FIELDS
 
@@ -64,8 +64,13 @@ def _scalar(connection, sql: str, params: tuple = ()) -> int:
     return connection.execute(sql, params).fetchone()[0]
 
 
-def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
+def check_corpus(connection, *, deep: bool = True, identity_baseline=None) -> list[Finding]:
     """Run the invariants. Returns findings, most serious first.
+
+    `identity_baseline` overrides where the corpus-identity baseline is read
+    from; by default it is `<the corpus file's directory>/corpus-identity.json`.
+    Pass the baseline recorded on the corpus you believe you reproduced to ask
+    whether you actually did -- see corpus_identity.py.
 
     `deep` runs the two whole-database page scans. They are the right checks and
     the wrong thing to do on every request: PRAGMA integrity_check alone is
@@ -171,7 +176,7 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
         findings.append(Finding(
             "firmware_observed_but_not_served", "error", invisible,
             f"{invisible} devices have observed firmware that the read path cannot see; "
-            "the projection is stale or was never built (python3 -m mobile_observatory.current_firmware)"))
+            "the projection is stale or was never built (PYTHONPATH=src python3 -m mobile_observatory.current_firmware)"))
 
     # -- the grid must be able to see every device ---------------------------
     # Sharper than the firmware case: a device missing from the identity
@@ -192,7 +197,7 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
         findings.append(Finding(
             "device_missing_from_catalogue_projection", "error", unlisted,
             f"{unlisted} hardware models are invisible in the device grid; the identity "
-            "projection is stale (python3 -m mobile_observatory.current_firmware)"))
+            "projection is stale (PYTHONPATH=src python3 -m mobile_observatory.current_firmware)"))
 
     # -- the projection must not outlive what it was built from --------------
     # Compares the INPUT state, not two clocks. The previous version compared
@@ -214,7 +219,7 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
         findings.append(Finding(
             "projection_older_than_its_inputs", "warning", 1,
             "the tables the projection is built from have changed since it was published; "
-            "rebuild with python3 -m mobile_observatory.current_firmware"))
+            "rebuild with PYTHONPATH=src python3 -m mobile_observatory.current_firmware"))
 
     # -- exactly one headline row per device ----------------------------------
     # devices_page dropped its GROUP BY because both projections are one row per
@@ -411,7 +416,7 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
             "observation_link_approved_without_an_approved_identity", "warning", unlicensed_links,
             f"{unlicensed_links} observation links are approved to serve while no approved "
             "source identity ties them to the product they name; the approval was granted "
-            "elsewhere (python3 -m mobile_observatory.batch reconciles them)"))
+            "elsewhere (PYTHONPATH=src python3 -m mobile_observatory.batch reconciles them)"))
 
     # -- and the reason those links exist ------------------------------------
     # source_identity_registry.id is uuid5(source_id, namespace, normalized_value):
@@ -682,9 +687,109 @@ def check_corpus(connection, *, deep: bool = True) -> list[Finding]:
             f"no PRIMARY KEY, so the session extension does not record changes to it and a "
             f"changeset revert leaves it untouched: {', '.join(untracked)}"))
 
+    # -- the second, worse blind spot: a generated column --------------------
+    #
+    # A table with a GENERATED column cannot be in a changeset at all, and
+    # attaching it makes `sqlite3session_changeset` return SQLITE_SCHEMA for the
+    # WHOLE SESSION -- so the choice is "this table is missing" or "the whole
+    # changeset is missing". `observations.effective_at` is such a column, and
+    # `observations` is 57% of the corpus.
+    #
+    # Separate from the no-PRIMARY-KEY finding above because the reason and the
+    # fix differ: that one is repaired by giving the table a key (migration 0033
+    # did exactly that), this one by removing the generated column or accepting
+    # the gap. Folding them together would hide which repair applies.
+    #
+    # A WARNING, on the same reasoning as its neighbour: nothing is misreported
+    # by it, the rollback is merely narrower than it looks -- and it becomes an
+    # error's worth of surprise only if somebody believes a revert was total.
+    generated = changesets.tables_with_a_generated_column(connection)
+    if generated:
+        findings.append(Finding(
+            "table_cannot_be_in_a_changeset_generated_column", "warning", len(generated),
+            f"a GENERATED column makes the session extension unable to produce a "
+            f"changeset for this table -- and attaching it returns SQLITE_SCHEMA for the "
+            f"whole session, so it is excluded and its rows are in NO changeset. A revert "
+            f"restores everything except these: {', '.join(generated)}"))
+
+    # -- is this the corpus it claims to be? ---------------------------------
+    #
+    # "A rebuild is not a restore": 759 devices identical, 106 only in the live
+    # corpus, 95 only in a rebuild, 201 resolving differently -- and until this
+    # check existed, nothing noticed. The changesets added before it are a
+    # NARROWER thing worth not confusing with it: they make a WRITE reversible,
+    # they do not compare a rebuild against this corpus.
+    #
+    # The test is CONTAINMENT, not equality. A nightly batch adds conclusions,
+    # registry rows and devices, so an equality test would fire every night and
+    # be switched off within a week. What a batch never does is FORGET, because
+    # a concluded identity is final by design -- so a subject the baseline
+    # recorded and this corpus no longer has is the divergence, and an addition
+    # is not. See corpus_identity.compare.
+    #
+    # `deep` guards it for the reason at the top of this function: it reads
+    # ~7,000 subjects across four tables and /api/v1/admin/health is called on
+    # every page load.
+    if deep:
+        findings.extend(_identity_findings(connection, identity_baseline))
+
     order = {"error": 0, "warning": 1}
     findings.sort(key=lambda f: (order.get(f.severity, 2), -f.count))
     return findings
+
+
+def _identity_findings(connection, identity_baseline) -> list[Finding]:
+    """Compare this corpus against the identity it was recorded under.
+
+    Absence of a baseline is REPORTED, never treated as a pass. A check whose
+    only states are PASS and FAIL reports an absent measurement as a negative
+    one, and "nothing to compare against" is the state a fresh rebuild is in --
+    exactly the case somebody would otherwise read as "no divergence found".
+    """
+    path = (identity_baseline if identity_baseline is not None
+            else corpus_identity.baseline_path(connection))
+    if path is None:
+        return [Finding("corpus_identity_cannot_be_located", "warning", 1,
+                        "this corpus has no file on disk (it is in memory), so there is "
+                        "nowhere to record or read its identity baseline")]
+    baseline, why = corpus_identity.read_baseline(path)
+    if baseline is None:
+        return [Finding(
+            "corpus_identity_has_no_recorded_baseline", "warning", 1,
+            f"{why}. Nothing says what this corpus is supposed to be, so a rebuild "
+            f"cannot be told from a restore. The next batch records one; "
+            f"`PYTHONPATH=src python3 -m mobile_observatory.corpus_identity record` does it now.")]
+    report = corpus_identity.compare(baseline, corpus_identity.fingerprint(connection))
+    if not report["comparable"]:
+        return [Finding("corpus_identity_baseline_is_not_comparable", "warning", 1,
+                        report["incomparable_reason"])]
+    if report["identical"]:
+        return []
+    moved = report["forgotten"] + report["changed"]
+    if not moved:
+        # Grew only. Not a finding: this is what every nightly batch does, and
+        # reporting it would be the always-fires check this was designed around.
+        return []
+    parts = []
+    for name, part in report["components"].items():
+        if part["digest_matches"]:
+            continue
+        parts.append(f"{name}: {part['baseline_count']} -> {part['current_count']} "
+                     f"(forgotten {part['forgotten']}, changed {part['changed']}, "
+                     f"added {part['added']})"
+                     + (f" e.g. {', '.join(part['examples'][:3])}" if part["examples"] else ""))
+    return [Finding(
+        "corpus_no_longer_matches_its_recorded_identity", "error", moved,
+        f"baseline recorded {report['baseline_recorded_at']} (digest "
+        f"{str(report['baseline_digest'])[:12]}) says things this corpus does not: "
+        f"{moved} subjects forgotten or re-decided, {report['added']} added. A "
+        f"concluded identity is final by design, so this corpus is not the one that "
+        f"baseline describes -- a rebuild rather than a restore. "
+        + "; ".join(parts)
+        # The MECHANISM, not more of the size. A count sends an operator looking
+        # for damage; "a later rule version stripped the brand prefix" tells
+        # them whether it is the divergence they already know about.
+        + ("  MECHANISM: " + " ".join(report["mechanism"]) if report.get("mechanism") else ""))]
 
 
 def review_queue(connection) -> list[dict]:
@@ -859,11 +964,17 @@ def main() -> None:
     parser.add_argument("--data-dir", default=".observatory-data")
     parser.add_argument("--strict", action="store_true",
                         help="exit nonzero if any error-severity finding is present")
+    parser.add_argument("--identity-baseline", default=None,
+                        help="Compare the corpus's identity conclusions against this "
+                             "baseline file instead of <data-dir>/corpus-identity.json. "
+                             "Point it at the baseline from the corpus you believe you "
+                             "reproduced; see corpus_identity.py.")
     args = parser.parse_args()
 
     db = Database.migrated(Path(args.data_dir) / "corpus.sqlite")
     try:
-        findings = check_corpus(db.connection)
+        findings = check_corpus(db.connection,
+                                identity_baseline=args.identity_baseline)
         print(summarise(findings))
         for finding in findings:
             print(f"  [{finding.severity}] {finding.check}: {finding.count} — {finding.detail}")

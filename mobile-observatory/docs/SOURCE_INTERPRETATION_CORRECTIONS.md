@@ -91,3 +91,111 @@ discards those six rows and nothing else. `"N/A"` needs no entry to be covered.
 - `derived_date_column_holds_a_non_date` — **error**, 0. A source cannot cause it;
   it can only mean a write bypassed `source_dates` or migration 0031 was reverted,
   and then a reader is shown a non-date under a date label.
+
+## The shape rule was only half the rule (2026-10-04, migration 0034)
+
+A date that looks like a date is half of reading a stated date. The other half is
+the NAME the source wrote it under, and that half was broken in exactly the shape
+this codebase keeps paying for.
+
+`promote_approved_product_observations` read `$.data.release_date` and
+`$.data.branch` — the `xiaomi.community.firmware_tracker` vocabulary.
+`mifirm.community.firmware_archive` publishes the identical two facts as
+`$.data.vendor_released_at` and `$.data.channel`. Nothing errored. All **21,845**
+promoted mifirm releases simply stored `vendor_released_at IS NULL` and
+`channel='unknown'` with a real date and a real branch sitting in the payload
+beside them.
+
+The consequence was worse than a blank column. `android_version_changed` picks its
+before/after pair by walking
+`ORDER BY product_id, region_code, channel, vendor_released_at, id`, and with every
+date NULL the sort collapses onto `id` —
+`uuid5(_NS,'product-firmware'||observation_id)`. Measured on a read-only copy of
+the live corpus:
+
+| | |
+|---|---|
+| `android_version_changed` events published | **5,804** |
+| ordered on a pair where BOTH releases are undated | **5,643** |
+| ordered on two stated dates | 56 |
+| citing release rows the corpus no longer holds | 105 |
+
+Two independent instruments agree on the 5,643: the pair's dates read back through
+`dedupe_key`, and the shape of `occurred_at` (`vendor_released_at or created_at`,
+so a full timestamp there *is* the fallback).
+
+**Replayed with the dates and channels the sources stated all along: of the 5,690
+events whose inputs still exist, 5,588 would not have been produced and 1,064 that
+should exist never were.** 102 are the same claim either way. The date alone
+accounts for 5,524 of the 5,588; the channel accounts for the rest by splitting
+mifirm's `stable` (17,210) and `developer` (4,630) branches, which had been walked
+as one sequence. 278 surviving pairs assert a direction the real dates reverse.
+
+### The fix, and what was deliberately not done
+
+- **The spellings are declared once**, in `source_dates.py`, beside the shape test:
+  `VENDOR_RELEASE_DATE_FIELDS`, `STATED_CHANNEL_FIELDS`, `PUBLICATION_DATE_FIELDS`,
+  `SECURITY_PATCH_LEVEL_FIELDS`, and `DATE_FIELDS_NOT_A_RELEASE_DATE` with each
+  adapter's own stated reason for why its date is not one.
+  `tests/test_firmware_order_basis.py` **scans every adapter** for a date-ish or
+  channel-ish payload key that appears in none of those lists. That is the part
+  that catches the next adapter rather than the last one.
+- Two more writers went through the same rule, found by that scan and not by
+  reading: `collectors.promotion.SamsungFirmwarePromoter` (a third spelling of the
+  date, a second of the channel, and its default was `"stable"` — an assertion,
+  not an absence) and `hmd_updates.import_hmd_updates`. Both were measured to be
+  byte-identical for their own sources first; the Samsung channel is an input to
+  `release_id`, so a different value would have re-keyed 21,186 rows.
+- **The 5,804 events are not retracted.** `domain_events` carries
+  `domain_events_no_update` / `_no_delete`; deleting published facts is a larger
+  harm than leaving them, and it is not an agent's call. Instead
+  `domain_event_ordering` records what decided each one, **measured before** the
+  backfill and frozen afterwards. The order of migration 0034's two halves is
+  load-bearing: reversed, it would stamp `vendor_release_date` onto 5,643
+  hash-ordered events.
+- **The 21,845 release dates and channels are repaired**, in the same migration,
+  with one `source_data_corrections` row each — the precedent migration 0031 set
+  for the same column, for the same reason: `product_firmware_releases` is a
+  derived read model and the payload is untouched. The 3,190 releases whose
+  publishers name no channel, and the 3,196 whose publishers state no date, keep
+  saying so.
+
+### One gap left open, on purpose
+
+`STATED_DATE_FIELDS` — which drives `observations.effective_at` (migration 0031) —
+still does **not** list `$.data.vendor_released_at`, so that generated column
+reports the capture time for all **44,351** mifirm observations.
+`product_firmware_releases.vendor_released_at` is unaffected; it reads every
+declared spelling.
+
+It is open because `effective_at` already mixes three different measurements in
+one sortable column (a vendor release date, a bulletin publication date, a capture
+time), the Explore observations tab sorts on it, and adding a fourth publisher's
+real dates changes that ordering for 46% of the corpus. The honest repair is the
+banding decision `devices_page` already had to make for `latest_desc`, which is a
+judgement and not a rename. `check_corpus` reports it as
+`source_stated_release_date_not_read_by_the_generated_column` (warning, 44,351) so
+it is loud rather than silent — on the **deep** scan only, because it is a 222ms
+96,319-row scan and `check_corpus(deep=False)` runs on every page load.
+
+### Reported, not just fixed
+
+| check | severity | live corpus |
+|---|---|---|
+| `firmware_order_decided_by_row_id_not_a_date` | warning | **5,748** (5,643 + the 105 whose releases are gone) |
+| `event_order_basis_not_recorded` | **error** | 0 — rows missing while the table exists can only mean a writer bypassed `firmware_order` |
+| `event_order_basis_table_absent` | warning | 0 after 0034; 5,804 before it. A warning because the feed degrades to a null basis and the client prints "Order basis not recorded", which is true |
+| `source_stated_release_date_not_read_by_the_generated_column` | warning (deep) | **44,351** |
+| `headline_build_decided_by_publisher_name` | warning | **243** (181 before this change) |
+
+That last one is a consequence, not a repair, and it is the user-visible part.
+`current_firmware`'s device-level pick ranks by `latest_basis`, then the
+publisher's `currency_rank`, then `source_id` — deliberately, so every date
+comparison after it is between rows of one publisher. mifirm's rows used to be
+`observation_order_only` and lost to the tracker's dated rows on basis alone; now
+both are `vendor_release_date`, both publishers are rank 50, and `mifirm.…` sorts
+before `xiaomi.…`. **39 Xiaomi devices' headline build changes publisher for that
+reason, and for 7 of them the new headline carries an earlier date than the one it
+replaced.** Three more change inside mifirm, from capture order to real dates,
+which is the unambiguous repair. Deciding that one of these publishers outranks
+the other is an authority judgement and was not made.

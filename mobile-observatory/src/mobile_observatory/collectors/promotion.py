@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from ..repository import CanonicalRepository, Event, normalize_identifier, utc_now
+from ..source_dates import stated_channel, vendor_release_date
 
 _NS = uuid.UUID("3c39ed17-7d28-4a98-b304-f18457fd65bd")
 
@@ -58,9 +59,29 @@ class SamsungFirmwarePromoter:
         parser = self.db.execute('SELECT parser_name FROM ingestion_runs WHERE id=?',(row['run_id'],)).fetchone()
         # Old immutable history observations retain the original parser's wrong
         # release_time field; never promote its build-derived month as a date.
-        release_time = None if parser and parser['parser_name']=='samsung_fota_history_csv' else data.get('release_time')
+        # THE SAME TWO FACTS, THROUGH THE SAME ONE RULE as the product promotion.
+        #
+        # This read used to be `data.get('release_time')` and
+        # `data.get("channel", "stable")`, which is a THIRD spelling of the release
+        # date and a SECOND of the channel -- found by the adapter scan in
+        # tests/test_firmware_order_basis.py, not by reading. The product path
+        # spelling `release_date`/`branch` while the mifirm adapter published
+        # `vendor_released_at`/`channel` is what left 21,845 releases undated and
+        # 5,643 published "came after" claims ordered by a uuid5 row id.
+        #
+        # Measured before changing it, on a copy of the live corpus: all 21,188
+        # samsung.fota observations state `channel` ('stable'), none states
+        # `branch`, none has surrounding whitespace, and `release_time` is non-null
+        # in 0 of all 96,319 observations. So `absent="stable"` keeps this
+        # publisher's default exactly as it was -- which matters, because the
+        # channel is an input to `release_id` and a different value here would
+        # re-key every one of the 21,186 Samsung firmware_releases rows. What is
+        # gained is that a date or a branch under a name this source does not use
+        # today can no longer go unread, and the shape test now applies here too.
+        release_time = None if parser and parser['parser_name']=='samsung_fota_history_csv' else vendor_release_date(data)
+        channel = stated_channel(data, absent="stable")
         target_id = _id("target", "samsung", data["region_code"])
-        release_id = _id("firmware", hardware_id, target_id, data["build"], data.get("channel", "stable"))
+        release_id = _id("firmware", hardware_id, target_id, data["build"], channel)
         evidence_id = _id("evidence", row["id"])
         previous = self.db.execute(
             """SELECT fr.*, os.major android FROM firmware_releases fr LEFT JOIN os_releases os ON os.id=fr.os_release_id
@@ -84,7 +105,7 @@ class SamsungFirmwarePromoter:
            last_observed_at=MAX(last_observed_at,excluded.last_observed_at),
            baseband_version=COALESCE(excluded.baseband_version,baseband_version),
            security_patch_level=COALESCE(excluded.security_patch_level,security_patch_level)""",
-          (release_id, hardware_id, target_id, data["build"], data.get("channel", "stable"), os_id,
+          (release_id, hardware_id, target_id, data["build"], channel, os_id,
            data.get("security_patch"), data.get("baseband"), release_time, row["observed_at"], row["observed_at"], now))
         for role in (("availability", "baseband") if data.get("baseband") else ("availability",)):
             self.db.execute("INSERT OR IGNORE INTO firmware_release_evidence VALUES(?,?,?)", (release_id, evidence_id, role))

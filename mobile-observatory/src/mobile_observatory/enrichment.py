@@ -9,7 +9,8 @@ import uuid
 from collections import defaultdict
 from pathlib import Path
 
-from .source_dates import stated_date
+from .firmware_order import ORDERING_BASES, record_ordering_basis
+from .source_dates import stated_channel, stated_date, vendor_release_date
 
 _NS = uuid.UUID("a61652aa-f30a-40c4-9135-7e38dc86f330")
 _REGION = re.compile(r"\s+(EEA|Global|China|India|Indonesia|Japan|Russia|Taiwan|Turkey)$", re.I)
@@ -372,6 +373,7 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
     history, but not enough to manufacture a canonical hardware model code.
     """
     promoted_firmware = promoted_security = android_events = 0
+    ordering_bases: defaultdict[str, int] = defaultdict(int)
     rows = connection.execute("""SELECT o.id observation_id,o.source_id,o.observed_at,o.payload_json,
       opl.product_id,opl.identity_id
       FROM observation_product_links opl
@@ -392,12 +394,29 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
                 if android:
                     match = re.match(r"^(\d+)", android)
                     major = int(match.group(1)) if match else None
+                # READ THE FIELD, NOT ONE SOURCE'S NAME FOR IT.
+                #
+                # These two lines used to be `data.get("branch") or "unknown"` and
+                # `stated_date(data.get("release_date"))`, spelled out twice each --
+                # once in the `existing` lookup below and once in the INSERT. Both
+                # are the xiaomi tracker's vocabulary. mifirm.community.firmware_
+                # archive publishes the identical facts as `vendor_released_at` and
+                # `channel`, so all 21,845 of its promoted releases stored
+                # vendor_released_at=NULL and channel='unknown' while the payload
+                # beside them carried a real date and a real branch. Nothing
+                # errored; the corpus just stopped knowing when a build shipped,
+                # and the event loop below then ordered 5,643 of 5,804 published
+                # "came after" claims by a uuid5 row id. The accepted spellings are
+                # declared once in source_dates and a test scans every adapter for
+                # one that is in no list.
+                channel = stated_channel(data)
+                released_at = vendor_release_date(data)
                 release_id = _id("product-firmware", row["observation_id"])
                 existing = connection.execute('''SELECT id FROM product_firmware_releases
                     WHERE product_id=? AND identity_id=? AND source_id=? AND region_code=?
                       AND build_id=? AND channel=? AND delivery_method IS ? LIMIT 1''',
                     (row['product_id'],row['identity_id'],row['source_id'],region,data['build'],
-                     data.get('branch') or 'unknown',data.get('delivery_method'))).fetchone()
+                     channel,data.get('delivery_method'))).fetchone()
                 if existing:
                     release_id = existing['id']
                 before = connection.total_changes
@@ -406,12 +425,12 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
                    android_version,android_major,vendor_released_at,delivery_method,created_at)
                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (release_id,row["product_id"],row["identity_id"],row["observation_id"],row["source_id"],
-                   region,data["build"],data.get("branch") or "unknown",
+                   region,data["build"],channel,
                    # `or None` handled an empty string and nothing else: the string
                    # 'null' is truthy, so six Xiaomi builds stored a four-character
-                   # word as their vendor release date. stated_date is the one rule
-                   # for reading a date a source stated -- see source_dates.py.
-                   android,major,stated_date(data.get("release_date")),
+                   # word as their vendor release date. vendor_release_date applies
+                   # that shape rule to every spelling -- see source_dates.py.
+                   android,major,released_at,
                    data.get("delivery_method"),row["observed_at"]))
                 promoted_firmware += connection.total_changes > before
             elif data.get("aspl_month"):
@@ -451,11 +470,31 @@ def promote_approved_product_observations(connection: sqlite3.Connection) -> dic
                    json.dumps({"android":release["android_version"],"build":release["build_id"],
                                "region":release["region_code"],"device":release["canonical_name"],
                                "source_identity":release["identity_id"]},sort_keys=True)))
-                android_events += connection.total_changes > before
+                created = connection.total_changes > before
+                android_events += created
+                if created:
+                    # WITH the event and only with it. The pair's order was just
+                    # decided on exactly these two dates, so this is the one
+                    # moment the basis is knowable; recording it later would be
+                    # recording today's dates onto yesterday's decision, and
+                    # migration 0034 re-dates 21,845 releases. See
+                    # firmware_order.py. An event that exists without a basis row
+                    # is an ERROR in check_corpus, never a value filled in by a
+                    # guess.
+                    ordering_bases[record_ordering_basis(
+                        connection, event_id=event_id,
+                        before_release_id=old["id"], after_release_id=release["id"],
+                        before_released_at=old["vendor_released_at"],
+                        after_released_at=release["vendor_released_at"],
+                        recorded_at=release["created_at"])] += 1
             if old is None or (release["vendor_released_at"] or "") >= (old["vendor_released_at"] or ""):
                 previous[key] = release
     return {"firmware_releases": promoted_firmware, "security_publications": promoted_security,
-            "android_upgrade_events": android_events}
+            "android_upgrade_events": android_events,
+            # Per basis, never a bare total. An "android_upgrade_events: 1064"
+            # line says nothing about whether those orderings were chronology or
+            # row-id order, and that distinction is the whole point.
+            **{f"android_upgrade_events_{basis}": ordering_bases[basis] for basis in ORDERING_BASES}}
 
 
 def enrich_canonical_silicon(connection: sqlite3.Connection, xref_csv: Path) -> dict[str, int]:

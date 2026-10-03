@@ -11,6 +11,7 @@ import sqlite3
 
 from .enrichment import _capture_evidence, _id
 from .product_specs import name_key
+from .source_dates import stated_channel, vendor_release_date
 
 SOURCE='hmd.vendor.security_updates'
 URL='https://www.hmd.com/en_int/security-updates'
@@ -66,7 +67,15 @@ def import_hmd_updates(c: sqlite3.Connection, csv_path: Path, *, observed_at: st
             payload=json.dumps({'data':data,'identity_hints':{'manufacturer':maker,'source_device_name':name},
                 'evidence':{'artifact_pointer':f'CSV line {line}','authority':'vendor-official','source_url':URL}},sort_keys=True)
             content_hash=hashlib.sha256(payload.encode()).hexdigest()
-            key=':'.join((name,data['build'],data['security_patch_level'],data['release_date']))
+            # The THIRD writer to product_firmware_releases, through the same one
+            # rule as the other two. parse_update() builds `release_date` from
+            # date.isoformat() and `branch` from a literal 'unknown', so both reads
+            # answer exactly what the hardcoded ones did -- what changes is that a
+            # fourth spelling arriving from this source cannot go unread, and the
+            # channel is no longer a literal in one place and a payload field in
+            # another. Found by tests/test_firmware_order_basis.py's source scan.
+            released,channel=vendor_release_date(data),stated_channel(data)
+            key=':'.join((name,data['build'],data['security_patch_level'],released))
             oid=_id('hmd-update',key,content_hash)
             c.execute('INSERT OR IGNORE INTO observations VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                 (oid,SOURCE,run,artifact,'vendor_update_publication',key,observed_at,payload,content_hash,'valid',None))
@@ -97,9 +106,9 @@ def import_hmd_updates(c: sqlite3.Connection, csv_path: Path, *, observed_at: st
             # interpret its country-looking prefixes as market/codename identity.
             before=c.total_changes
             c.execute('INSERT OR IGNORE INTO product_firmware_releases VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                (_id('hmd-firmware',key),pid,iid,oid,SOURCE,'SOURCE_UNSPECIFIED',data['build'],'unknown',
+                (_id('hmd-firmware',key),pid,iid,oid,SOURCE,'SOURCE_UNSPECIFIED',data['build'],channel,
                  data['android'],int(data['android'].split('.')[0]) if data['android'] else None,
-                 data['release_date'],None,observed_at,None))
+                 released,None,observed_at,None))
             totals['firmware_added']+=c.total_changes>before
             before=c.total_changes
             c.execute('INSERT OR IGNORE INTO product_security_publications VALUES(?,?,?,?,?,?,?,?,?)',

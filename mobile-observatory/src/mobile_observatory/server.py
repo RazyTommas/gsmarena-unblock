@@ -208,6 +208,28 @@ class ObservatoryService:
     def _radar_event_source(self) -> str:
         return f"(SELECT * FROM {self._current_event_source()} WHERE event_type IN ('firmware_first_observed','firmware_replaced','android_version_changed','security_patch_changed','baseband_changed'))"
 
+    # `domain_event_ordering` arrives with migration 0034 and holds what decided
+    # each "this build came after that one" claim. Asked the same way
+    # `_current_event_source` asks about its view, and for the same reason: the
+    # server, the batch and `tools/` are all pointed at corpora that may be behind
+    # -- a restored backup, a bundle extracted at schema 8, the live directory in
+    # the moment before the startup migration runs. A hard join against a table
+    # that is not there turns the whole Update Radar into a 500, and losing the
+    # feed is a much worse outcome than losing one column of it. Below 0034 the
+    # basis reports null, the client prints "Order basis not recorded", and
+    # check_corpus names the absent table.
+    def _event_ordering_available(self) -> bool:
+        return bool(self.corpus.connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='domain_event_ordering'"
+        ).fetchone())
+
+    def _event_ordering_select(self, alias: str) -> tuple[str, str]:
+        """(columns, join) for the ordering basis, or NULL columns and no join."""
+        if self._event_ordering_available():
+            return (f"{alias}.ordering_basis, {alias}.before_released_at, {alias}.after_released_at",
+                    f"LEFT JOIN domain_event_ordering {alias} ON {alias}.event_id=de.id")
+        return ("NULL ordering_basis, NULL before_released_at, NULL after_released_at", "")
+
     def updates(self, query: dict[str, list[str]]) -> list[dict]:
         return self.updates_page(query).items
 
@@ -286,7 +308,13 @@ class ObservatoryService:
                 LEFT JOIN v_device_catalog dc ON dc.hardware_model_id=fr.hardware_model_id
                 LEFT JOIN firmware_targets ft ON ft.id=fr.firmware_target_id
                 LEFT JOIN source_products sp ON de.subject_type='source_product' AND sp.id=de.subject_id
-                LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id"""
+                LEFT JOIN source_identity_registry sir ON sir.product_id=sp.id
+                -- What decided the order this event claims. LEFT JOIN because
+                -- only ordering events have a basis row at all: a
+                -- firmware_first_observed orders nothing and reports null, which
+                -- is a different null from "an ordering event whose basis is
+                -- missing" -- and check_corpus is what tells those apart.
+                {self._event_ordering_select('deo')[1]}"""
         return joins, " AND ".join(clauses), params
 
     def _release_feed_query(self, query: dict[str, list[str]], watched, seen
@@ -318,6 +346,7 @@ class ObservatoryService:
             limit, offset = _pagination(query)
             rows = self.corpus.connection.execute(
                 f"""SELECT de.id, de.event_type, de.occurred_at, de.recorded_at, de.before_json, de.after_json,
+                           {self._event_ordering_select('deo')[0]},
                            fr.hardware_model_id watch_hardware_id,sp.id watch_product_id,
                            coalesce(dc.brand,sp.manufacturer) maker,
                            coalesce(dc.variant,sp.canonical_name) device,
@@ -346,6 +375,15 @@ class ObservatoryService:
                     "buildFrom": before.get("build", "No prior observation"), "buildTo": after.get("build", "Unknown"),
                     "androidFrom": before.get("android") or "Unknown", "androidTo": after.get("android") or "Unknown",
                     "patchFrom": before.get("security_patch") or "Unknown", "patchTo": after.get("security_patch") or "Unknown",
+                    # What decided the "came after" this row states. 5,643 of the
+                    # 5,804 published android_version_changed events were ordered
+                    # by a uuid5 row id because the promotion read one publisher's
+                    # field names; they stay published and now say so. null means
+                    # the event type orders nothing OR -- for an ordering event --
+                    # that no basis was recorded, which check_corpus reports as an
+                    # error rather than something this row papers over.
+                    "orderingBasis": row["ordering_basis"],
+                    "orderedFrom": row["before_released_at"], "orderedTo": row["after_released_at"],
                     "change": change, "importance": "high" if android_changed else "medium", "watched": (subject_type,subject_id) in watched,
                     # Per row, so the client never needs the whole
                     # acknowledgement list. Shipping all of it cost 220KB on
@@ -375,6 +413,11 @@ class ObservatoryService:
                 "buildTo": row["build_to"], "androidFrom": "Unknown",
                 "androidTo": row["android_to"], "patchFrom": "Unknown",
                 "patchTo": row["patch_to"], "change": "First observation",
+                # A lone release states no order, so there is no basis to report.
+                # Present and null rather than absent, so the client never has to
+                # tell "this feed does not carry the field" from "this row has no
+                # order" -- the same reason the event rows above never default it.
+                "orderingBasis": None, "orderedFrom": None, "orderedTo": None,
                 "importance": "medium", "watched": ("hardware_model",row["hardware_model_id"]) in watched,
                 "acknowledged": row["id"] in seen_ids,
                 "subjectType": "hardware_model", "subjectId": row["hardware_model_id"],
@@ -780,11 +823,23 @@ class ObservatoryService:
         if silicon:
             silicon['evidence'] = json.loads(silicon.pop('evidence_json'))
         upgrades = []
-        for event in db.execute(f'''SELECT * FROM {self._current_event_source()} WHERE subject_type='source_product'
-            AND subject_id=? AND event_type='android_version_changed' ORDER BY occurred_at DESC,id''', (product_id,)):
+        # orderingBasis travels with every "came after" claim. LEFT JOIN and no
+        # coalesce to a default: an event with no recorded basis reports null, and
+        # check_corpus calls that an error. Inventing 'observation_order_only' here
+        # would hide the one condition the error exists to surface.
+        columns, join = self._event_ordering_select('deo')
+        for event in db.execute(f'''SELECT de.*, {columns}
+            FROM {self._current_event_source()} de
+            {join}
+            WHERE de.subject_type='source_product'
+              AND de.subject_id=? AND de.event_type='android_version_changed'
+            ORDER BY de.occurred_at DESC,de.id''', (product_id,)):
             upgrades.append({'id': event['id'], 'effective_at': event['occurred_at'],
                 'observed_at': event['recorded_at'], 'before': json.loads(event['before_json']),
-                'after': json.loads(event['after_json'])})
+                'after': json.loads(event['after_json']),
+                'orderingBasis': event['ordering_basis'],
+                'beforeReleasedAt': event['before_released_at'],
+                'afterReleasedAt': event['after_released_at']})
         regions = [dict(r) for r in db.execute('''SELECT region_code region,channel,count(*) releases
             FROM product_firmware_releases WHERE product_id=? GROUP BY region_code,channel
             ORDER BY region_code,channel''', (product_id,))]

@@ -1,7 +1,137 @@
 # Mobile Observatory — handoff
 
-Updated 2026-10-03. Supersedes the 2026-09-17 handoff entirely — that one
+Updated 2026-10-04. Supersedes the 2026-09-17 handoff entirely — that one
 described port 8124 and a `/tmp` snapshot that no longer exists.
+
+## 5,643 of 5,804 "this build came after that one" claims were ordered by a hash (2026-10-04)
+
+**MIGRATION 0034 IS NOT YET APPLIED TO `.observatory-data`.** The batch and the
+server both apply it, inside the batch lock, and the server names what it is
+about to apply before applying it. Take a backup first
+(`tools/backup_evidence.py`): 0034 rewrites 21,845 rows of a derived read model
+and records 21,845 `source_data_corrections` rows. **It is not reversible from a
+changeset** — a migration is schema, so `tools/corpus_changeset.py revert`
+refuses the run without `--schema-moved`. Until it is applied, `check_corpus`
+reports `event_order_basis_table_absent` (warning, 5,804) and the feed reports
+every basis as `null`.
+
+`promote_approved_product_observations` read `$.data.release_date` and
+`$.data.branch` — one publisher's vocabulary.
+`mifirm.community.firmware_archive` publishes the identical two facts as
+`$.data.vendor_released_at` and `$.data.channel`, so all **21,845** of its
+promoted releases stored `vendor_released_at IS NULL` and `channel='unknown'`
+while a real date sat in the payload beside them. Nothing errored.
+
+`android_version_changed` orders its before/after pair by
+`ORDER BY … vendor_released_at, id`, and with every date NULL the sort collapses
+onto `id` — `uuid5(_NS,'product-firmware'||observation_id)`. Measured on a
+read-only copy of the live corpus, two independent instruments agreeing (the
+pair's dates via `dedupe_key`; the shape of `occurred_at`):
+
+| | |
+|---|---|
+| `android_version_changed` events published | **5,804** |
+| ordered on a pair where BOTH releases are undated | **5,643** |
+| ordered on two stated dates | 56 |
+| citing release rows the corpus no longer holds | 105 |
+
+**Replayed with the dates the sources stated all along: of the 5,690 events whose
+inputs still exist, 5,588 would not have been produced and 1,064 that should
+exist never were.** 102 are the same claim either way. 278 of the survivors
+assert a direction the real dates reverse. The replay was validated against the
+stored events first — 0 events it derives from the corpus as-is are missing from
+`domain_events` — and the batch then produced **exactly the 1,064 it predicted**.
+
+**Nothing is retracted.** `domain_events` is append-only by trigger and deleting
+published facts is the larger harm. `domain_event_ordering` (migration 0034)
+records what decided each claim, **measured before** the backfill and frozen
+afterwards, in `software_state_basis`'s own vocabulary —
+`vendor_release_date` / `observation_order_only` / `mixed_dated_and_undated`,
+plus `cited_releases_absent` for the 105. The two halves of 0034 are ordered and
+that order is load-bearing: reversed, it stamps `vendor_release_date` onto 5,643
+hash-ordered events, and a test plants exactly that. `GET /updates` and the
+product detail carry `orderingBasis`, never defaulted; the Radar card prints it.
+
+Blast radius, measured on a copy — live was never written and the batch never ran
+against it:
+
+| | before | after |
+|---|---|---|
+| `product_firmware_releases` with a date | 4,880 | **26,729** (+21,849) |
+| `channel='unknown'` | 25,035 | **3,190** (honest absence: naijarom, google, frbox) |
+| `android_version_changed` events | 5,804 | **6,868** (+1,064, all `vendor_release_date`) |
+| events removed | — | **0** |
+| `devices_with_current_firmware` | 845 | **845** |
+| devices / observations / `firmware_releases` | 865 / 96,319 / 21,186 | unchanged |
+| `check_corpus` deep | 0 errors, 4 warnings | **0 errors, 7 warnings** |
+
+A second batch over the migrated copy adds 0 events and 0 releases, and
+`corpus-identity.json` reports no divergence.
+
+**42 devices' headline build changes, and that is user-visible.** 3 are the plain
+repair (capture order → real dates, inside mifirm). The other **39 flip publisher
+from `xiaomi.community.firmware_tracker` to `mifirm.community.firmware_archive`,
+and 7 of those now show a build with an EARLIER date than the one it replaced.**
+The mechanism is pre-existing and deliberate: `current_firmware`'s device pick
+ranks by `latest_basis`, then `currency_rank`, then `source_id` — so every date
+comparison after it is between rows of one publisher. mifirm used to lose on
+basis alone; now both are `vendor_release_date`, both are rank 50, and `mifirm.…`
+sorts before `xiaomi.…` alphabetically. `check_corpus` now names the population:
+`headline_build_decided_by_publisher_name`, **243 devices (181 before this
+change)**. **Deciding that one of these publishers outranks the other is an
+authority judgement and was NOT made.**
+
+**One instance of the same mismatch is left open on purpose.**
+`source_dates.STATED_DATE_FIELDS` drives `observations.effective_at` (migration
+0031) and does not list `$.data.vendor_released_at`, so that generated column
+still reports the capture time for **44,351** mifirm observations.
+`product_firmware_releases.vendor_released_at` is unaffected. Not closed because
+`effective_at` already mixes a vendor release date, a bulletin publication date
+and a capture time in one sortable column that the Explore observations tab sorts
+on; the honest repair is the banding decision `devices_page` already had to make,
+which is a judgement, not a rename. `check_corpus` reports it
+(`source_stated_release_date_not_read_by_the_generated_column`, warning, 44,351)
+on the **deep** scan only — it is a 222ms 96,319-row scan and `deep=False` runs
+on every page load. Measured: the fast set costs 627.6ms at HEAD and 627.0ms with
+this change.
+
+Every adapter was checked for the same shape, by a scan over the source rather
+than by reading: `mifirm_archive` (the defect), `xiaomi_tracker`, `apple_ipsw`,
+`samsung_fota`, `samsung_history`, `samsung_aspl`, `tecno_security`,
+`tecno_ota_checkin`, `frbox_transsion`, `naijarom_transsion`, `fixture_catalog`.
+`frbox`'s `build_date`, `naijarom`'s `date_token` and `samsung_fota`'s
+`build_derived_month` are deliberately NOT read as release dates — each adapter
+says so in its own payload `date_basis`. Three further writers were routed
+through the one rule, found by the scan and not by reading:
+`collectors.promotion.SamsungFirmwarePromoter` held a third spelling of the date
+and a second of the channel whose default was `"stable"` (an assertion, not an
+absence), and `hmd_updates` a fourth. Both measured byte-identical for their own
+sources first — the Samsung channel is an input to `release_id`, so a different
+value would have re-keyed all 21,186 `firmware_releases`.
+
+Planted and caught (**16 of 16**, listed in the harness output): the field-name
+fix reverted · an adapter gains an undeclared date field · 0034's two halves
+swapped · a recorded basis overwritten by a later run · a basis written for an
+event that already existed · the feed defaulting a missing basis · the mislabel
+CHECK constraints dropped · `check_corpus` losing its table guard · the 222ms
+scan back on the request path · the client losing a label · an absent channel
+borrowing another publisher's default · the field-name rule used to bypass the
+shape rule · the adapter scan pointed at nothing (the guard's own guard) · the
+basis vocabulary becoming two lists · the migration retracting the events · the
+feed hard-joining the table and 500-ing below 0034.
+
+**Three of those plants were not caught on the first pass**, and each exposed a
+test that could not fail. `test_the_constraints_refuse_a_mislabelled_basis` used
+invented event ids, so every insert raised `IntegrityError` from the
+`REFERENCES domain_events(id)` foreign key and the case passed with the CHECK
+constraints removed entirely. And the frozen-basis case passed while EITHER of
+two independent defences held (`INSERT OR IGNORE`, and only recording on the
+branch that actually inserted), so planting either one left it green — the
+AND-keeps-the-bug shape. All three are fixed and now isolate what they name.
+
+`docs/SOURCE_INTERPRETATION_CORRECTIONS.md` has the full argument,
+`src/mobile_observatory/firmware_order.py` the reasoning for a table rather than
+a column, `docs/API.md` the `orderingBasis` contract.
 
 ## Deploy-rehearsal blockers, 2026-10-03 (latest) — three P1s and three adjacent
 
@@ -381,8 +511,15 @@ and the corpus's 20 cited artifacts were identical before and after with
 State: see the production-hardening round at the top for the current test count
 under BOTH `python3 -m unittest discover -s tests` and `pytest`; it was 570 before
 that round (521 before the round below, 347 before the robustness round).
-Corpus: **0 errors, 3 warnings on the FAST check set; 4 on the full scan.** Those
-are two different measurements of two different things and are not comparable --
+Corpus, as of 2026-10-04 and AFTER migration 0034: **0 errors, 6 warnings on the
+FAST check set; 7 on the full scan.** Before 0034 the same code reports 0 errors
+and 5 fast / 6 deep, the extra one being `event_order_basis_table_absent`. The
+lines below said `3 fast / 4 full` and were measured on 2026-10-03; the fast set
+was already 4 at HEAD before this round (`observation_link_identity_owned_by_
+another_product`, 18), so take the numbers in this paragraph and not those.
+Fast-set cost is unchanged: 627.6ms at HEAD, 627.0ms now, five runs, minimum.
+Those are two different measurements of two different things and are not
+comparable --
 `check_corpus(deep=False)` is what `/api/v1/admin/health` runs on every page load,
 and `deep=True` adds the whole-database page scans, the search-index
 re-derivation and the corpus-identity comparison. Quoting one number for both is
@@ -738,6 +875,26 @@ terminate TLS — what changed is that failing to is no longer invisible.
   still the narrower thing and still worth not confusing with it: a changeset
   makes a **write** reversible; it does not compare a rebuild against this
   corpus.
+- **Migration 0034 is not applied to `.observatory-data`.** See the section at
+  the top. Written here rather than left implicit because this exact line is
+  what went stale for 0033: nobody applied it, a server restart did, and the
+  handoff went on saying a human had to. The server and the batch both apply it
+  now and both say what they are applying first — but take a backup, because it
+  rewrites 21,845 rows of a derived read model and a changeset cannot revert a
+  migration.
+- **`observations.effective_at` does not read `$.data.vendor_released_at`**, so
+  it reports the capture time for 44,351 mifirm observations. Measured and
+  reported (`source_stated_release_date_not_read_by_the_generated_column`,
+  warning, 44,351, deep scan). Closing it changes the Explore observations sort
+  for 46% of the corpus and needs the banding decision `devices_page` already
+  made — a judgement, deliberately left to a human.
+- **39 devices' headline build now comes from mifirm rather than the Xiaomi
+  tracker purely because `mifirm.…` sorts before `xiaomi.…`**, both being
+  `currency_rank` 50 with the same `latest_basis`; 7 of them show an earlier date
+  than the build they replaced. 243 devices are in that tiebreak state (181
+  before this change), counted by
+  `headline_build_decided_by_publisher_name`. Giving one publisher a higher
+  `currency_rank` is an authority judgement and was not made.
 - ~~`identity_resolution_rationales` is outside every changeset~~ — CLOSED by
   migration 0033, which IS applied to `.observatory-data` (verified 2026-10-03:
   the live corpus reports schema 33). It was applied by a server restart, not by

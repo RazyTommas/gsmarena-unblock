@@ -327,6 +327,154 @@ def check_corpus(connection, *, deep: bool = True, identity_baseline=None) -> li
                                 "reader is shown a non-date under a date label; every writer of "
                                 "these columns is supposed to go through source_dates"))
 
+    # -- a published "came after" claim must say what decided the order -------
+    # The three checks below are one family. `android_version_changed` states that
+    # one build came after another, and the pair is chosen by
+    # `ORDER BY ... vendor_released_at, id`; with both dates NULL the sort falls
+    # through to `id`, which is a uuid5 digest. 5,643 of 5,804 published events
+    # were ordered that way because the promotion read one publisher's field names
+    # (see source_dates.py). They are not retracted -- domain_events is append-only
+    # by trigger and deleting published facts is the larger harm -- so what has to
+    # hold instead is that a reader can tell the two kinds of claim apart.
+    #
+    # The ERROR is the missing basis, not the row-id ordering. Row-id ordering is a
+    # fact about the evidence and it is reported as such; an event with no basis
+    # row is a reader who cannot find out, which is the thing this corpus is not
+    # allowed to do.
+    #
+    # Guarded on the TABLE and not on the schema version, because that is the
+    # thing these two queries actually need. `check_corpus` is pointed at restored
+    # backups and at corpora a tool opened read-only, where migration 0034 may not
+    # have run, and a check that raises `no such table` reports every other
+    # finding as "the check crashed" -- which is how one missing table becomes a
+    # health endpoint that answers nothing. The absence is itself reported below
+    # rather than passed over in silence.
+    has_ordering = bool(connection.execute(
+        "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='domain_event_ordering'"
+    ).fetchone())
+    ordering_events = _scalar(connection, """
+        SELECT count(*) FROM domain_events WHERE event_type='android_version_changed'""")
+    # WARNING and not error, by this module's own test -- "would the corpus make
+    # the UI state something false". It would not: the feed detects the table's
+    # absence (ObservatoryService._event_ordering_available) and reports the basis
+    # as null, which the client renders as "Order basis not recorded". That is a
+    # true sentence about a corpus that genuinely cannot attribute these claims.
+    # The error-severity half is the next check: rows missing while the table
+    # EXISTS can only mean a writer bypassed firmware_order, which is the same
+    # split as source_states_a_non_date (warning, the source's defect) against
+    # derived_date_column_holds_a_non_date (error, a write bypassed the rule).
+    if not has_ordering and ordering_events:
+        findings.append(Finding("event_order_basis_table_absent", "warning", ordering_events,
+                                "this corpus publishes events claiming one build came after "
+                                "another and has no domain_event_ordering table to say what "
+                                "decided the order -- migration 0034 has not been applied, so "
+                                "every one of these claims is unattributable. Apply it: the "
+                                "batch and the server both do, inside the batch lock"))
+    unexplained_order = _scalar(connection, """
+        SELECT count(*) FROM domain_events de
+         WHERE de.event_type='android_version_changed'
+           AND NOT EXISTS (SELECT 1 FROM domain_event_ordering o WHERE o.event_id=de.id)""") \
+        if has_ordering else 0
+    if unexplained_order:
+        findings.append(Finding("event_order_basis_not_recorded", "error", unexplained_order,
+                                "these android_version_changed events state that one build came "
+                                "after another and nothing records what decided that order. "
+                                "promote_approved_product_observations writes the basis WITH the "
+                                "event (firmware_order.record_ordering_basis), so a missing row "
+                                "means a writer bypassed it or migration 0034 was reverted -- and "
+                                "a basis cannot honestly be filled in later, because the releases "
+                                "may have been re-dated since"))
+
+    row_id_ordered = _scalar(connection, """
+        SELECT count(*) FROM domain_event_ordering
+         WHERE ordering_basis IN ('observation_order_only','mixed_dated_and_undated',
+                                  'cited_releases_absent')""") if has_ordering else 0
+    if row_id_ordered:
+        findings.append(Finding("firmware_order_decided_by_row_id_not_a_date", "warning",
+                                row_id_ordered,
+                                "these published events claim one build came after another on an "
+                                "order that no stated release date supports: the pair was sorted "
+                                "by its uuid5 row id, or by one date against an absent one, or it "
+                                "cites releases the corpus no longer holds. Each row names its own "
+                                "basis in domain_event_ordering and the feed prints it. They are "
+                                "left published deliberately -- see firmware_order.py; this is the "
+                                "size of what is already out there, not a repair that is pending"))
+
+    # -- a headline build decided by a publisher's NAME ----------------------
+    # `current_firmware`'s device-level pick ranks by how well "latest" is
+    # established, then by the publisher's `currency_rank`, then by `source_id` --
+    # deliberately, so that the `effective_at` comparison after it is always
+    # between rows of ONE publisher (a naijarom capture date and a Google OTA
+    # check-in date do not measure the same event). When two publishers share a
+    # currency_rank the tiebreak is therefore `source_id` ASCENDING, which is
+    # deterministic and alphabetical and nothing else.
+    #
+    # Reported because repairing the mifirm release dates moved 39 Xiaomi devices
+    # into exactly this state: their mifirm rows were `observation_order_only` and
+    # lost to the tracker's dated rows on basis alone; now both are
+    # `vendor_release_date`, mifirm and the tracker are both rank 50, and
+    # `mifirm.…` sorts before `xiaomi.…`. For 7 of those the headline build now
+    # carries an EARLIER date than the one it replaced. The behaviour is as
+    # designed and the device grid already discloses it per row; what was missing
+    # is a number. Deciding that one of these publishers outranks the other is an
+    # authority judgement and is not made here.
+    name_decided = _scalar(connection, """
+        SELECT count(DISTINCT d.hardware_model_id) FROM device_current_firmware d
+         WHERE d.is_device_primary=1
+           AND EXISTS (SELECT 1 FROM device_current_firmware o
+                        JOIN sources os ON os.id=o.source_id
+                        JOIN sources ds ON ds.id=d.source_id
+                       WHERE o.hardware_model_id=d.hardware_model_id
+                         AND o.source_id<>d.source_id
+                         AND o.latest_basis=d.latest_basis
+                         AND os.currency_rank=ds.currency_rank)""")
+    if name_decided:
+        findings.append(Finding("headline_build_decided_by_publisher_name", "warning",
+                                name_decided,
+                                "these devices are described by two publishers the corpus has no "
+                                "basis to rank against each other (same currency_rank, same "
+                                "latest_basis), so which build the grid shows is decided by "
+                                "source_id ascending -- alphabetically. The row says so in its "
+                                "own attribution; this is the count. Assigning one of them a "
+                                "higher currency_rank is a human judgement about authority"))
+
+    # -- the same field-name mismatch, in the one place it is still open ------
+    # `observations.effective_at` (migration 0031) coalesces over
+    # source_dates.STATED_DATE_FIELDS, which does not list `$.data.vendor_released_at`,
+    # so for every mifirm observation the generated column falls through to the
+    # capture time while a real vendor date sits in the payload beside it. The
+    # promotion path is fixed; this one is not, and the reason is in
+    # source_dates.py: `effective_at` already mixes a vendor release date, a
+    # bulletin publication date and a capture time in one sortable column, the
+    # Explore observations tab sorts on it, and adding a fourth publisher's real
+    # dates changes that ordering for 46% of the corpus. The honest repair is the
+    # banding decision `devices_page` already had to make, which is a judgement.
+    # Reported so it is loud rather than silent, and counted so it cannot be
+    # described as small without someone looking.
+    #
+    # `deep` guards it for the reason at the top of this function, measured rather
+    # than assumed: it is a 96,319-row scan evaluating a VIRTUAL generated column
+    # and a json_extract per row, 222ms warm on the live corpus, and
+    # `check_corpus(deep=False)` is what /api/v1/admin/health runs on every page
+    # load. The quantity it measures is a property of the CAPTURE and changes only
+    # when a batch ingests, so once per batch is the right cadence and not a
+    # concession.
+    unread_stated_dates = _scalar(connection, f"""
+        SELECT count(*) FROM observations
+         WHERE effective_at = observed_at
+           AND json_extract(payload_json,'$.data.vendor_released_at')
+                 GLOB '{ISO_DATE_GLOB}*'""") if deep else 0
+    if unread_stated_dates:
+        findings.append(Finding("source_stated_release_date_not_read_by_the_generated_column",
+                                "warning", unread_stated_dates,
+                                "these observations state a vendor release date under a field name "
+                                "source_dates.STATED_DATE_FIELDS does not list, so "
+                                "observations.effective_at reports the capture time instead. "
+                                "product_firmware_releases.vendor_released_at is NOT affected -- "
+                                "that path reads every declared spelling. This is the same "
+                                "mismatch in the one consumer where closing it would change a "
+                                "read-path ordering; see source_dates.py"))
+
     # -- an adjudicated product must record why -------------------------------
     # `unresolvable_on_captured_evidence` is a terminal state an agent rule sets
     # without a human, so a row carrying it with no recorded basis is a conclusion

@@ -179,6 +179,33 @@ unknown and do not satisfy Android-version filters. Exact device detail includes
 newest Samsung manifest's explicit latest marker outranks same-time historical
 rows; no firmware build strings are treated as chronology.
 
+#### `orderingBasis` — what decided a "came after" claim
+
+Every `GET /updates` row carries `orderingBasis`, plus `orderedFrom` /
+`orderedTo` holding the two dates **as they stood when the order was decided**:
+
+| value | meaning |
+|---|---|
+| `vendor_release_date` | both builds carry a release date the vendor stated, and the order is those dates |
+| `observation_order_only` | neither does, so the pair was sorted by its uuid5 row id — a hash, not chronology |
+| `mixed_dated_and_undated` | one does; the undated build was treated as the earlier one, which no date establishes |
+| `cited_releases_absent` | the corpus no longer holds the two releases this event compared |
+| `null` | the event states no order (`firmware_first_observed`), **or** it states one and nothing records what decided it — `check_corpus` reports the latter |
+
+It is never defaulted. The same four values appear on
+`productDetail.androidUpgrades[].orderingBasis`.
+
+**5,643 of the 5,804 published `android_version_changed` events are
+`observation_order_only`** and are not retracted: `domain_events` is append-only
+by trigger. The vocabulary is `software_state_basis`'s, deliberately, because the
+states mean the same thing. See `src/mobile_observatory/firmware_order.py` for the
+measurement and the argument, and
+`docs/SOURCE_INTERPRETATION_CORRECTIONS.md` for the field-name defect behind it.
+
+Below schema 34 the fields report `null` rather than failing: the join is
+conditional on the table existing, because losing the whole feed is worse than
+losing one column of it.
+
 ### Dismissing every unwatched item
 
 `GET /updates/unwatched-pending` and `POST /updates/dismiss-unwatched` take the

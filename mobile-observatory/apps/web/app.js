@@ -774,7 +774,15 @@ function integrityPanel() {
 }
 
 function renderAdmin() {
-  const health=state.data.health.filter(matches), delayed=health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length;
+  // `.filter(matches)` -- `matches` was the client-side search filter, deleted
+  // when the grid stopped re-running the server's query over each row. The
+  // reference survived here, so renderAdmin() threw ReferenceError and the
+  // WHOLE Admin view never painted: markRoute() had already written "Admin"
+  // into the crumb, so the previous view's table stayed on screen under the new
+  // title and it read as a slow render rather than a crash. Admin is not in
+  // ROUTES_THE_SEARCH_BOX_FILTERS, so there is nothing for it to filter on:
+  // dropping the filter is the behaviour the rest of the app already has.
+  const health=state.data.health, delayed=health.filter(x=>!['healthy','succeeded'].includes(String(x.status).toLowerCase())||x.silent).length;
   // "0 sources need attention" before anything has been asked is a claim, not a
   // blank. Say which it is.
   const healthNotice = state.healthPending

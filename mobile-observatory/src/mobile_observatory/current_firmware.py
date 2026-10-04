@@ -299,6 +299,150 @@ class ProjectionError(RuntimeError):
     """Raised when a build fails validation. The previous generation keeps serving."""
 
 
+#: The device-level pick's ordering keys: (recorded name, SQL, direction).
+#:
+#: ONE definition. `row_number()` chooses the winner from it and the derivation
+#: below records WHICH key separated that winner from the runner-up, so the pick
+#: and the stated reason for the pick cannot disagree -- which is this codebase's
+#: recorded lesson #2, and the reason this is a table rather than two ORDER BYs.
+#: `{t}` is the row's table or alias.
+#:
+#: THE ORDER OF THESE KEYS IS THE WHOLE RULE. Read down:
+#:
+#: 1. `latest_basis` -- how well "latest" is established. A capture-order guess
+#:    must never outrank a row whose source declared it, so this comes before any
+#:    date: ordering by date first would let a confident old row lose to an
+#:    uncertain new one.
+#:
+#: 2. `publisher_currency_rank` -- a DECLARED judgement, recorded by a human on
+#:    the source row, that two publishers' dates do not measure the same event.
+#:    google.ota.checkin says what Google's servers would hand the device today;
+#:    an archive row says a build once existed, and 2026-09-30 from the archive is
+#:    not "later" than 2026-01-01 from the check-in because they answer different
+#:    questions. This stays AHEAD of the date, and that is not the defect being
+#:    fixed: a rank is a statement about meaning, where `source_id` ascending is a
+#:    statement about the alphabet.
+#:
+#:    Learned the hard way here. This key was moved BELOW the date first, and
+#:    `test_the_most_current_publisher_wins_regardless_of_date` -- the guard the
+#:    previous round wrote for the 218 devices -- failed immediately. It was right
+#:    to.
+#:
+#: 3. `latest_stated_date` -- THE DATE, and it comes before the publisher's NAME.
+#:
+#:    This is the change. Two things gate it, and both are the argument:
+#:
+#:    * it is NULL in every row outside `latest_basis='vendor_release_date'`, so
+#:      it is inert for any basis where `effective_at` is a capture time. Inside
+#:      that basis `effective_at` IS one kind of measurement -- measured on the
+#:      live corpus, `latest_basis='vendor_release_date'` and
+#:      `effective_at_basis='vendor_stated_date'` are the same 536 rows (0
+#:      disagreements either way), all 536 carrying a full 10-character ISO date,
+#:      0 NULL;
+#:    * key 2 has already separated publishers whose dates are declared
+#:      incomparable, so by the time this key is read the comparison is between
+#:      two publishers the corpus has NO basis to distinguish -- and then the
+#:      later vendor-stated release date is simply the more recent build.
+#:
+#:    "Current firmware" means the most recent one, which is derivable from the
+#:    evidence, so no authority judgement is needed and none is made. Measured:
+#:    this takes the headline changes from 42 to 37 and the devices showing an
+#:    EARLIER stated date than the build they replaced from 4 to 0.
+#:
+#: 4. `publisher_identity` -- the publisher's NAME, gated to the complement of
+#:    key 3: outside the vendor-stated-date basis the dates are not comparable, so
+#:    something must fix the publisher before key 6 looks at a date, and this is
+#:    it. Inside that basis the expression is NULL in every row and the name never
+#:    enters the comparison at all. Where this key decides a device,
+#:    `check_corpus` counts it -- 89 on the live corpus, all in the capture-order
+#:    basis, down from the 243 that were merely at risk of it.
+#:
+#: 5. `android_version` -- at the same stated release date, the higher Android
+#:    major is the more current software state. Derivable from the evidence, not
+#:    from a name. Earns its place: it is what separates one real tie on this
+#:    corpus (`cd216c76…`, two rows at 2025-05-05 with different majors).
+#:
+#: 6. `observation_order` -- capture order, and by now always within ONE publisher
+#:    because keys 2 and 4 fixed the publisher for every basis where this key can
+#:    still discriminate.
+#:
+#: 7. `arbitrary_stable_order` / `one_publishers_region_choice` -- the row's own
+#:    coordinates. Stable across rebuilds and meaningless, which is why reaching
+#:    it is RECORDED as a confession and not as a reason. See
+#:    PRIMARY_BASIS_ONE_PUBLISHER_REGION for why the last key reports two
+#:    different things.
+#:
+#: `sources.currency_rank` is `INTEGER NOT NULL DEFAULT 50`, so key 2 cannot be
+#: NULL and a new source cannot silently win every tie by having no rank.
+_PRIMARY_KEYS: tuple[tuple[str, str, str], ...] = (
+    ("latest_basis",
+     "CASE {t}.latest_basis WHEN 'source_manifest_latest' THEN 0"
+     " WHEN 'vendor_release_date' THEN 1 ELSE 2 END", "ASC"),
+    ("publisher_currency_rank",
+     "(SELECT currency_rank FROM sources WHERE sources.id = {t}.source_id)", "ASC"),
+    ("latest_stated_date",
+     "CASE WHEN {t}.latest_basis='vendor_release_date' THEN {t}.effective_at END", "DESC"),
+    ("publisher_identity",
+     "CASE WHEN {t}.latest_basis!='vendor_release_date' THEN {t}.source_id END", "ASC"),
+    ("android_version",
+     "CASE WHEN {t}.latest_basis='vendor_release_date' THEN {t}.android_major END", "DESC"),
+    ("observation_order", "{t}.effective_at", "DESC"),
+    ("arbitrary_stable_order", "{t}.target_key || char(31) || {t}.channel", "ASC"),
+)
+
+#: Reached when the last key is what separated them AND the runner-up is the SAME
+#: publisher's row: the pick is then which of ONE publisher's region/channel
+#: partitions to show, and the grid already prints the region it chose and how
+#: many the device has. Split out from `arbitrary_stable_order` because the two
+#: are not the same problem and the counts are not close: measured, 364 of the 365
+#: devices that reach the last key are this, and exactly 1 is a genuine
+#: cross-publisher tie. Reporting 365 unresolvable ties would be a true sentence
+#: that reads as a far worse fact than the one it describes.
+PRIMARY_BASIS_ONE_PUBLISHER_REGION = "one_publishers_region_choice"
+
+#: Values of `device_primary_basis`, plus the two the keys above cannot name on
+#: their own. Keep in step with the CHECK constraint in
+#: migrations/0035_device_primary_basis.sql; the test asserts they agree.
+PRIMARY_BASES: tuple[str, ...] = (
+    ("sole_candidate",) + tuple(k[0] for k in _PRIMARY_KEYS)
+    + (PRIMARY_BASIS_ONE_PUBLISHER_REGION,))
+
+#: The pick is decided by the publisher's NAME in exactly this state. Named here
+#: so integrity.check_corpus counts the same thing the projection records.
+PRIMARY_BASIS_DECIDED_BY_NAME = "publisher_identity"
+
+
+def _primary_order_by(table: str) -> str:
+    return ",\n                     ".join(
+        f"{sql.format(t=table)} {direction}" for _, sql, direction in _PRIMARY_KEYS)
+
+
+def _primary_basis_case(winner: str, runner_up: str) -> str:
+    """SQL naming the first key on which `winner` and `runner_up` differ.
+
+    `IS NOT` and not `!=`: four of the seven keys are deliberately NULL outside
+    the basis they apply to, and `NULL != NULL` is NULL, which a CASE treats as
+    false -- so a `!=` here would fall through every gated key and report the last
+    one for every device. Null-safe comparison is what makes the gating legible
+    instead of invisible. Verified against SQLite rather than assumed: `||` binds
+    tighter than `IS NOT`, `NULL IS NOT NULL` is 0, and `NULL != NULL` is NULL.
+
+    The last key is then refined by WHO the runner-up was -- see
+    PRIMARY_BASIS_ONE_PUBLISHER_REGION. The inner CASE is emitted twice because a
+    scalar subquery cannot correlate into its own FROM clause, but it is emitted
+    from ONE expression here, so the two copies cannot drift.
+    """
+    branches = "".join(
+        f"\n               WHEN {sql.format(t=winner)} IS NOT {sql.format(t=runner_up)}"
+        f" THEN '{name}'"
+        for name, sql, _ in _PRIMARY_KEYS)
+    inner = f"CASE{branches}\n               ELSE 'arbitrary_stable_order' END"
+    return (f"CASE WHEN ({inner}) = 'arbitrary_stable_order'"
+            f"\n                 AND {winner}.source_id IS {runner_up}.source_id"
+            f"\n            THEN '{PRIMARY_BASIS_ONE_PUBLISHER_REGION}'"
+            f"\n            ELSE ({inner}) END")
+
+
 def _mark_device_primary(connection) -> None:
     """Choose the one row per device the grid renders, and roll up its totals.
 
@@ -307,44 +451,51 @@ def _mark_device_primary(connection) -> None:
     what keeps the grid a seek instead of a scan: measured on a 176x corpus,
     /devices goes from 1,549ms to 42ms.
 
-    The ordering is the read path's own, moved rather than reinvented: basis
-    first, so a device whose latest is genuinely established outranks one where
-    it is a capture-order guess, and only then the date. Ordering by date first
-    would let a confident old row lose to an uncertain new one.
+    The ordering is `_PRIMARY_KEYS` and the reasoning for every key is there.
+    What happens here is that the winner is chosen by it AND the key that
+    actually separated the winner from the runner-up is recorded, so a reader can
+    tell a pick the evidence made from a tie something had to break.
     """
+    table = "device_current_firmware_staging"
     connection.execute("""
         UPDATE device_current_firmware_staging SET
           is_device_primary=0, device_release_total=NULL,
-          device_target_total=NULL, device_target_codes=NULL""")
-    connection.execute("""
+          device_target_total=NULL, device_target_codes=NULL,
+          device_primary_basis=NULL""")
+    connection.execute(f"""
         WITH ranked AS (
           SELECT rowid AS rid,
                  row_number() OVER (
                    PARTITION BY hardware_model_id
                    ORDER BY
-                     -- 1. How well "latest" is established. A guess must never
-                     --    outrank a row whose source declared it.
-                     CASE latest_basis
-                       WHEN 'source_manifest_latest' THEN 0
-                       WHEN 'vendor_release_date' THEN 1 ELSE 2 END,
-                     -- 2. Which publisher is most current, then WHICH publisher.
-                     --    Both come before any date, so the effective_at
-                     --    comparison below is always between rows of ONE source.
-                     --    Without this the device-level pick was ordering a
-                     --    naijarom capture date against an frbox capture date --
-                     --    274 devices span several publishers and 218 of them
-                     --    were decided by exactly that comparison, which is the
-                     --    thing this corpus is not allowed to do. Fixing it per
-                     --    target in EVIDENCE_SQL and leaving it here meant the
-                     --    rule held for every row except the one the grid shows.
-                     (SELECT currency_rank FROM sources
-                       WHERE sources.id = device_current_firmware_staging.source_id),
-                     source_id,
-                     effective_at DESC,
-                     target_key, channel) AS rk
-            FROM device_current_firmware_staging)
+                     {_primary_order_by(table)}) AS rk
+            FROM {table})
         UPDATE device_current_firmware_staging SET is_device_primary=1
          WHERE rowid IN (SELECT rid FROM ranked WHERE rk=1)""")
+    # The reason, derived from the SAME keys and written in the same pass over
+    # the same staging rows. Ranked a second time rather than carried out of the
+    # statement above because SQLite's UPDATE...FROM cannot see a window
+    # function's neighbouring row, and re-deriving from `_PRIMARY_KEYS` cannot
+    # drift from it the way a hand-copied ORDER BY would.
+    connection.execute(f"""
+        WITH ranked AS (
+          SELECT rowid AS rid, hardware_model_id AS hm,
+                 row_number() OVER (
+                   PARTITION BY hardware_model_id
+                   ORDER BY
+                     {_primary_order_by(table)}) AS rk
+            FROM {table}),
+        pair AS (
+          SELECT w.rid AS rid,
+                 (SELECT r.rid FROM ranked r WHERE r.hm=w.hm AND r.rk=2) AS runner
+            FROM ranked w WHERE w.rk=1)
+        UPDATE device_current_firmware_staging AS s SET device_primary_basis = (
+          SELECT CASE WHEN pair.runner IS NULL THEN 'sole_candidate' ELSE (
+                   SELECT {_primary_basis_case('win', 'lose')}
+                     FROM {table} win, {table} lose
+                    WHERE win.rowid=pair.rid AND lose.rowid=pair.runner) END
+            FROM pair WHERE pair.rid=s.rowid)
+         WHERE s.is_device_primary=1""")
     connection.execute("""
         WITH totals AS (
           SELECT hardware_model_id AS hm, sum(release_count) AS releases,
@@ -474,6 +625,28 @@ def _validate(connection) -> None:
     if bad_primary:
         problems.append(f"{bad_primary} devices do not have exactly one primary row")
 
+    # A pick with no recorded reason is the state this projection was in before
+    # migration 0035, and it is the state a reader cannot audit: the grid shows
+    # one build out of several and nothing says what chose it. Refusing here
+    # rather than reporting it later, because the basis is derived in the same
+    # pass as the pick -- a primary row without one means the derivation did not
+    # run, not that the corpus is thin.
+    unexplained = connection.execute(
+        """SELECT count(*) FROM device_current_firmware_staging
+            WHERE is_device_primary=1 AND device_primary_basis IS NULL"""
+    ).fetchone()[0]
+    if unexplained:
+        problems.append(f"{unexplained} primary rows record no basis for having been chosen")
+
+    # And the mirror: a basis on a row that was NOT chosen describes a choice
+    # nobody made.
+    stray = connection.execute(
+        """SELECT count(*) FROM device_current_firmware_staging
+            WHERE is_device_primary=0 AND device_primary_basis IS NOT NULL"""
+    ).fetchone()[0]
+    if stray:
+        problems.append(f"{stray} non-primary rows carry a basis for a choice that was not made")
+
     if problems:
         raise ProjectionError("; ".join(problems))
 
@@ -548,7 +721,12 @@ def _build_locked(db: Database, connection, built_at: str, *, verbose: bool) -> 
             """SELECT hardware_model_id, target_key, channel, build_id, latest_basis,
                       ifnull(source_id,''), ifnull(effective_at,''), effective_at_basis,
                       ifnull(android_version,''), ifnull(security_patch_level,''),
-                      ifnull(security_patch_level_source_id,''), release_count, is_device_primary
+                      ifnull(security_patch_level_source_id,''), release_count, is_device_primary,
+                      -- In the digest, because a generation where the same build
+                      -- is shown for a DIFFERENT recorded reason is a different
+                      -- page, and the comment above says a fingerprint that
+                      -- cannot tell two pages apart is worse than none.
+                      ifnull(device_primary_basis,'')
                  FROM device_current_firmware_staging
                 ORDER BY hardware_model_id, target_key, channel"""):
         digester.update(("|".join(str(value) for value in row) + "\n").encode("utf-8"))
@@ -585,13 +763,13 @@ def _build_locked(db: Database, connection, built_at: str, *, verbose: bool) -> 
                   security_patch_level,security_patch_level_source_id,
                   effective_at,effective_at_basis,latest_basis,release_count,
                   is_device_primary,device_release_total,device_target_total,device_target_codes,
-                  device_source_count)
+                  device_source_count,device_primary_basis)
                SELECT hardware_model_id,target_key,channel,fact_layer,firmware_release_id,
                       product_firmware_release_id,source_id,build_id,android_version,android_major,
                       security_patch_level,security_patch_level_source_id,
                       effective_at,effective_at_basis,latest_basis,release_count,
                       is_device_primary,device_release_total,device_target_total,device_target_codes,
-                      device_source_count
+                      device_source_count,device_primary_basis
                  FROM device_current_firmware_staging""")
         txn.execute(
             """INSERT INTO projection_state

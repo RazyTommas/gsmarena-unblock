@@ -223,6 +223,19 @@ class ObservatoryService:
             "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='domain_event_ordering'"
         ).fetchone())
 
+    # `device_current_firmware.device_primary_basis` arrives with migration 0035.
+    # Asked for the same reason `_event_ordering_available` asks about its table:
+    # a hard reference to a column that is not there turns the DEVICE GRID -- the
+    # application's front page -- into a 500 on any corpus below 0035, and a
+    # restored backup or a bundle extracted at schema 8 is exactly such a corpus.
+    # Below 0035 the field reports null and `check_corpus` names the absence.
+    def _primary_basis_column(self, alias: str) -> str:
+        available = self.corpus.connection.execute(
+            "SELECT 1 FROM pragma_table_info('device_current_firmware')"
+            " WHERE name='device_primary_basis'").fetchone()
+        return (f"{alias}.device_primary_basis build_choice_basis,"
+                if available else "NULL build_choice_basis,")
+
     def _event_ordering_select(self, alias: str) -> tuple[str, str]:
         """(columns, join) for the ordering basis, or NULL columns and no join."""
         if self._event_ordering_available():
@@ -682,8 +695,15 @@ class ObservatoryService:
                       lf.security_patch_level patch, lf.security_patch_level_source_id patch_source,
                       lf.build_id build, lf.effective_at_basis date_basis, lf.fact_layer fact_layer,
                       lf.device_target_codes region, lf.device_target_total target_count,
-                      lf.source_id build_source, lf.device_source_count source_count,
-                      coalesce(lf.device_release_total,0) firmware_count,
+                      lf.source_id build_source, lf.device_source_count source_count, """
+            # WHICH ordering key chose this row out of the device's candidates.
+            # The grid already said "N publishers describe this device" and then
+            # showed one of them without saying what picked it; two of this
+            # column's values (publisher_identity, arbitrary_stable_order) are
+            # confessions rather than reasons, and a reader is entitled to see
+            # which one applies to the row in front of them.
+            + self._primary_basis_column("lf") +
+            """ coalesce(lf.device_release_total,0) firmware_count,
                       lf.effective_at latest_firmware_at """
             # No GROUP BY. It was needed when this query joined hardware_silicon
             # and v_chip_devices, which fan out per device. Both projections are

@@ -46,6 +46,7 @@ from dataclasses import dataclass, asdict
 
 from . import changesets, corpus_identity, search_index
 from .adjudication import UNRESOLVABLE
+from .current_firmware import PRIMARY_BASIS_DECIDED_BY_NAME
 from .source_dates import ISO_DATE_GLOB, STATED_DATE_FIELDS
 
 
@@ -400,43 +401,77 @@ def check_corpus(connection, *, deep: bool = True, identity_baseline=None) -> li
                                 "left published deliberately -- see firmware_order.py; this is the "
                                 "size of what is already out there, not a repair that is pending"))
 
-    # -- a headline build decided by a publisher's NAME ----------------------
-    # `current_firmware`'s device-level pick ranks by how well "latest" is
-    # established, then by the publisher's `currency_rank`, then by `source_id` --
-    # deliberately, so that the `effective_at` comparison after it is always
-    # between rows of ONE publisher (a naijarom capture date and a Google OTA
-    # check-in date do not measure the same event). When two publishers share a
-    # currency_rank the tiebreak is therefore `source_id` ASCENDING, which is
-    # deterministic and alphabetical and nothing else.
+    # -- a headline build decided by a publisher's NAME, or by nothing --------
+    # ASKED OF THE RECORDED ANSWER, not re-derived from the inputs.
     #
-    # Reported because repairing the mifirm release dates moved 39 Xiaomi devices
-    # into exactly this state: their mifirm rows were `observation_order_only` and
-    # lost to the tracker's dated rows on basis alone; now both are
-    # `vendor_release_date`, mifirm and the tracker are both rank 50, and
-    # `mifirm.…` sorts before `xiaomi.…`. For 7 of those the headline build now
-    # carries an EARLIER date than the one it replaced. The behaviour is as
-    # designed and the device grid already discloses it per row; what was missing
-    # is a number. Deciding that one of these publishers outranks the other is an
-    # authority judgement and is not made here.
-    name_decided = _scalar(connection, """
-        SELECT count(DISTINCT d.hardware_model_id) FROM device_current_firmware d
-         WHERE d.is_device_primary=1
-           AND EXISTS (SELECT 1 FROM device_current_firmware o
-                        JOIN sources os ON os.id=o.source_id
-                        JOIN sources ds ON ds.id=d.source_id
-                       WHERE o.hardware_model_id=d.hardware_model_id
-                         AND o.source_id<>d.source_id
-                         AND o.latest_basis=d.latest_basis
-                         AND os.currency_rank=ds.currency_rank)""")
-    if name_decided:
-        findings.append(Finding("headline_build_decided_by_publisher_name", "warning",
-                                name_decided,
-                                "these devices are described by two publishers the corpus has no "
-                                "basis to rank against each other (same currency_rank, same "
-                                "latest_basis), so which build the grid shows is decided by "
-                                "source_id ascending -- alphabetically. The row says so in its "
-                                "own attribution; this is the count. Assigning one of them a "
-                                "higher currency_rank is a human judgement about authority"))
+    # The first version of this check counted devices that *could* be decided by
+    # `source_id` -- two publishers, same `currency_rank`, same `latest_basis` --
+    # and reported 243. That is the population at risk, not the population it
+    # happened to. Since migration 0035 the projection records which ordering key
+    # actually separated the winner from the runner-up
+    # (`device_current_firmware.device_primary_basis`, derived from
+    # current_firmware._PRIMARY_KEYS in the same pass as the pick), so the honest
+    # count is of devices where the name really did decide. Measuring the risk
+    # when the fact is available is the "a true sentence missing its qualifier is
+    # a wrong one" shape: 243 was not false, but it was not the number anybody
+    # reading it thought it was.
+    #
+    # Guarded on the column, for the reason the ordering guard above is guarded on
+    # its table: this runs against restored backups and corpora a tool opened
+    # read-only, and `no such column` reports every other finding as a crash.
+    has_primary_basis = any(
+        row[1] == "device_primary_basis"
+        for row in connection.execute("PRAGMA table_info(device_current_firmware)"))
+    if not has_primary_basis:
+        if _scalar(connection, "SELECT count(*) FROM device_current_firmware"
+                               " WHERE is_device_primary=1"):
+            findings.append(Finding(
+                "headline_build_basis_not_recorded", "warning",
+                _scalar(connection, "SELECT count(*) FROM device_current_firmware"
+                                    " WHERE is_device_primary=1"),
+                "the grid shows one build per device out of several candidates and this corpus "
+                "records nothing about what chose it -- migration 0035 has not been applied, so "
+                "the pick cannot be audited"))
+    else:
+        name_decided = _scalar(connection, f"""
+            SELECT count(*) FROM device_current_firmware
+             WHERE is_device_primary=1
+               AND device_primary_basis='{PRIMARY_BASIS_DECIDED_BY_NAME}'""")
+        if name_decided:
+            findings.append(Finding("headline_build_decided_by_publisher_name", "warning",
+                                    name_decided,
+                                    "for these devices the build the grid shows was chosen by the "
+                                    "publisher's NAME: two publishers describe the device, the "
+                                    "corpus has no basis to rank them (same currency_rank) and "
+                                    "their dates are not the same kind of measurement, so "
+                                    "source_id ascending -- alphabetically -- decided it. "
+                                    "Assigning one of them a higher currency_rank is a human "
+                                    "judgement about authority and is not made in code"))
+
+        # The other confession `device_primary_basis` can hold: nothing in the
+        # evidence separated the candidates and the row's own coordinates broke
+        # the tie. Reported separately because the repair is different -- a
+        # currency_rank fixes the one above and cannot fix this one.
+        #
+        # And deliberately NOT counting `one_publishers_region_choice` with it.
+        # That value means the runner-up was the SAME publisher's row for another
+        # region, so the arbitrariness is which region the grid shows -- which the
+        # grid already shows, beside the device's region count. Measured on the
+        # live corpus the two are 1 and 364; folding them together would report
+        # 365 unresolvable ties, a true sentence that reads as a far worse fact
+        # than the one it describes.
+        arbitrary = _scalar(connection, """
+            SELECT count(*) FROM device_current_firmware
+             WHERE is_device_primary=1 AND device_primary_basis='arbitrary_stable_order'""")
+        if arbitrary:
+            findings.append(Finding("headline_build_tie_broken_arbitrarily", "warning", arbitrary,
+                                    "for these devices two DIFFERENT publishers describe a build "
+                                    "the evidence cannot separate -- same basis, same stated "
+                                    "release date, same Android major -- so the pick was broken on "
+                                    "the row's own (target, channel), which is stable across "
+                                    "rebuilds and means nothing. Recorded rather than presented "
+                                    "as a decision. Whether two such builds are the same build "
+                                    "under two naming conventions is an identity judgement"))
 
     # -- the same field-name mismatch, in the one place it is still open ------
     # `observations.effective_at` (migration 0031) coalesces over

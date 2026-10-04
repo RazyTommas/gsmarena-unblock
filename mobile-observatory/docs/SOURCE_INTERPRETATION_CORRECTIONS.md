@@ -188,14 +188,122 @@ it is loud rather than silent — on the **deep** scan only, because it is a 222
 | `source_stated_release_date_not_read_by_the_generated_column` | warning (deep) | **44,351** |
 | `headline_build_decided_by_publisher_name` | warning | **243** (181 before this change) |
 
-That last one is a consequence, not a repair, and it is the user-visible part.
-`current_firmware`'s device-level pick ranks by `latest_basis`, then the
-publisher's `currency_rank`, then `source_id` — deliberately, so every date
-comparison after it is between rows of one publisher. mifirm's rows used to be
-`observation_order_only` and lost to the tracker's dated rows on basis alone; now
-both are `vendor_release_date`, both publishers are rank 50, and `mifirm.…` sorts
-before `xiaomi.…`. **39 Xiaomi devices' headline build changes publisher for that
-reason, and for 7 of them the new headline carries an earlier date than the one it
-replaced.** Three more change inside mifirm, from capture order to real dates,
-which is the unambiguous repair. Deciding that one of these publishers outranks
-the other is an authority judgement and was not made.
+That last one was a consequence, not a repair — and it is now fixed by migration
+0035 below rather than left as a judgement for someone else.
+
+## The headline build was decided alphabetically (2026-10-04, migration 0035)
+
+Repairing the release dates above moved 39 Xiaomi devices into a state where
+`current_firmware`'s device-level pick came down to `source_id` ASCENDING. It
+ranked `latest_basis` → `currency_rank` → `source_id`, with the date **after** the
+publisher; mifirm's rows used to be `observation_order_only` and lose on basis
+alone, and once dated both candidates were `vendor_release_date`, both publishers
+were rank 50, and `mifirm.` sorts before `xiaomi.`.
+
+**4 of those 39 ended up showing a build with an EARLIER stated release date than
+the one it replaced.** Trading an order decided by a hash for one decided by the
+alphabet is the same defect in a new coat.
+
+> That "4" corrects a "7" reported earlier the same day. The first count compared
+> `effective_at` across all 42 flips, including 3 where the basis itself changed —
+> so it was string-comparing a capture timestamp (`2026-09-02T11:12:58`) against a
+> release date (`2026-07-30`) and calling the release date "earlier". The
+> qualifier *both sides vendor-stated* is what makes the number mean anything.
+
+### The rule now, in order, with the reason for each key
+
+`current_firmware._PRIMARY_KEYS` is the single definition; both the `row_number()`
+that picks the winner and the derivation that records *why* read it.
+
+| # | key | why it is where it is |
+|---|---|---|
+| 1 | `latest_basis` | a capture-order guess must never outrank a declared latest. Ordering by date first would let a confident old row lose to an uncertain new one. |
+| 2 | `publisher_currency_rank` | a judgement a **human already recorded**, saying two publishers' dates do not measure the same event. google.ota.checkin says what the vendor's servers would hand the device today; an archive row says a build once existed. |
+| 3 | `latest_stated_date` | **the change.** Within one rank and one basis the dates *are* the same measurement, so the later one is the more recent build — whoever published it. |
+| 4 | `publisher_identity` | the publisher's NAME, gated to the complement of key 3. Outside the vendor-stated basis the dates are not comparable, so something must fix the publisher before key 6 reads one. |
+| 5 | `android_version` | a higher Android major at the same stated date is the more current software state. |
+| 6 | `observation_order` | capture order, by now always within one publisher. |
+| 7 | `arbitrary_stable_order` / `one_publishers_region_choice` | the row's own coordinates. Meaningless, and recorded as a confession rather than a reason. |
+
+**Key 2 stays ahead of key 3, and that qualification was learned the hard way.**
+The date was put ahead of `currency_rank` first, and
+`test_the_most_current_publisher_wins_regardless_of_date` — the guard the previous
+round wrote for the 218 devices once decided by a cross-publisher date comparison
+— failed immediately. It was right to. A rank is a statement about *meaning*;
+`source_id` ascending is a statement about the alphabet. What the date now outranks
+is the alphabet, and nothing else. It costs nothing for the 39 devices this was
+about: mifirm and the tracker are both rank 50, so the rank ties and the dates
+decide.
+
+No authority judgement is made or needed. "Current firmware" means the most recent
+one, which is derivable from the evidence.
+
+### Measured, on a copy
+
+| | 0034 only (`source_id` tiebreak) | 0034 + 0035 (later date wins) |
+|---|---|---|
+| headline builds changed vs pre-fix | 42 | **37** |
+| …showing an EARLIER stated date (both sides vendor-stated) | **4** | **0** |
+| `headline_build_decided_by_publisher_name` | 243 *(population at risk)* / 89 *(actually decided)* | **89** |
+| `headline_build_tie_broken_arbitrarily` | — | **1** |
+| `devices_with_current_firmware` | 845 | 845 |
+| devices / observations / releases / events | unchanged | unchanged |
+
+5 devices stopped flipping altogether: Xiaomi 17 Pro, 17 Pro Max, 15T and 12T go
+back to the tracker's genuinely later build, and Xiaomi Civi goes back to it
+because its two candidates tie (below). 0 devices flip *only* under 0035.
+
+### The pick now records what decided it
+
+`device_current_firmware.device_primary_basis`, in the same `*_basis` vocabulary
+`latest_basis` and `effective_at_basis` already use, derived from the same keys in
+the same pass as the pick, and carried to the grid as `build_choice_basis` with a
+per-value sentence in the row's attribution. `_validate` refuses to publish a
+primary row with no basis, or a basis on a row nobody chose. Live distribution:
+
+| value | devices |
+|---|---|
+| `one_publishers_region_choice` | 364 |
+| `sole_candidate` | 274 |
+| `publisher_identity` | **89** |
+| `latest_stated_date` | 78 |
+| `publisher_currency_rank` | 31 |
+| `observation_order` | 7 |
+| `arbitrary_stable_order` | **1** |
+| `android_version` | 1 |
+
+Two of those are confessions rather than reasons, and they are counted separately
+because the repair differs:
+
+- **`publisher_identity` — 89 devices**, every one `frbox.community.transsion_catalog`
+  in the `observation_order_only` basis, where the candidates carry no stated date
+  at all and comparing their capture times across publishers is the thing this
+  corpus forbids. **Zero in the vendor-stated-date basis**, which is the point. A
+  `currency_rank` would fix these; assigning one is a human judgement about
+  authority and is not made in code.
+- **`arbitrary_stable_order` — 1 device.** `OS1.0.2.0.TKVCNXM` against
+  `V816.0.2.0.TKVCNXM`: same stated date, same Android major, one build under two
+  of Xiaomi's own naming conventions. A `currency_rank` cannot fix this; collapsing
+  the two names is an identity judgement and is not made here.
+- `one_publishers_region_choice` is deliberately **not** counted with it: the
+  runner-up is the same publisher's row for another region, so the arbitrariness is
+  *which region* the grid shows — which the grid shows, beside the region count.
+  Folding 364 and 1 together would report 365 unresolvable ties, a true sentence
+  that reads as a far worse fact than the one it describes.
+
+### A release that arrives later needs no second repair pass
+
+0034's `UPDATE` is a one-shot over rows that existed when it ran. New rows are
+written by `promote_approved_product_observations`, which reads every declared
+spelling, so they arrive dated — the migration is not what dates them. Measured by
+approving the 106 products the live corpus holds back and promoting what they
+unlock, which is how the identity work actually creates releases:
+
+| | new releases | undated | `channel='unknown'` | new events | hash-ordered |
+|---|---|---|---|---|---|
+| promoted **after** 0034 + 0035 | 14,547 | **0** | **0** | 858 | **0** |
+| promoted at the branch point (no fix) | 14,544 | **14,544** | 14,544 | 3,733 | **3,733** |
+
+0 releases a second repair pass would have to date or re-channel, 0 events without
+a recorded basis, 0 `check_corpus` errors. The 858-against-3,733 gap is itself the
+measurement: hash ordering invents events.

@@ -173,6 +173,21 @@ provide typed `subjectType`, `subjectId`, and actual `watched` state. Region use
 captured target codes (e.g. ILO, MID, GLOBAL); no guessed geographic expansion.
 `devices` now includes `software_state_basis`:
 `source_manifest_latest`, `vendor_release_date`, or `observation_order_only`.
+
+It also includes **`build_choice_basis`** — which ordering key chose this row out
+of the device's candidates, from `device_current_firmware.device_primary_basis`
+(migration 0035): `sole_candidate`, `latest_basis`, `publisher_currency_rank`,
+`latest_stated_date`, `publisher_identity`, `android_version`,
+`observation_order`, `one_publishers_region_choice` or `arbitrary_stable_order`.
+Two of those are confessions rather than reasons — `publisher_identity` means the
+publisher's identifier decided it alphabetically (89 devices, all in the
+capture-order basis where the dates are not comparable) and
+`arbitrary_stable_order` means nothing in the evidence separated two publishers'
+builds (1 device). The grid prints a sentence per value in the row's attribution.
+Below schema 35 the field reports `null` rather than failing, and `check_corpus`
+names the absence. **Where two publishers both state a real release date and the
+corpus has no basis to rank them, the later date wins and the publisher's name is
+not consulted** — see `docs/SOURCE_INTERPRETATION_CORRECTIONS.md`.
 An observation-only fallback does not establish current Android/SPL; these remain
 unknown and do not satisfy Android-version filters. Exact device detail includes
 `latestFirmware` by region/channel only for a definite captured ordering. The

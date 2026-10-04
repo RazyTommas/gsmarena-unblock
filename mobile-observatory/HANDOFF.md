@@ -68,18 +68,15 @@ against it:
 A second batch over the migrated copy adds 0 events and 0 releases, and
 `corpus-identity.json` reports no divergence.
 
-**42 devices' headline build changes, and that is user-visible.** 3 are the plain
-repair (capture order → real dates, inside mifirm). The other **39 flip publisher
-from `xiaomi.community.firmware_tracker` to `mifirm.community.firmware_archive`,
-and 7 of those now show a build with an EARLIER date than the one it replaced.**
-The mechanism is pre-existing and deliberate: `current_firmware`'s device pick
-ranks by `latest_basis`, then `currency_rank`, then `source_id` — so every date
-comparison after it is between rows of one publisher. mifirm used to lose on
-basis alone; now both are `vendor_release_date`, both are rank 50, and `mifirm.…`
-sorts before `xiaomi.…` alphabetically. `check_corpus` now names the population:
-`headline_build_decided_by_publisher_name`, **243 devices (181 before this
-change)**. **Deciding that one of these publishers outranks the other is an
-authority judgement and was NOT made.**
+**42 devices' headline build changed, and that was user-visible — now 37, and
+migration 0035 made it a measurement instead of a judgement.** See the next
+section. Summary: `current_firmware`'s device pick ranked `latest_basis` →
+`currency_rank` → `source_id`, with the date AFTER the publisher, so once both
+candidates were dated and both publishers were rank 50 the pick came down to
+`mifirm.` sorting before `xiaomi.` — and **4 devices ended up showing a build with
+an EARLIER stated release date than the one it replaced.** The date now outranks
+the NAME (and only the name). 37 flips, **0** earlier-date,
+`headline_build_decided_by_publisher_name` **89**.
 
 **One instance of the same mismatch is left open on purpose.**
 `source_dates.STATED_DATE_FIELDS` drives `observations.effective_at` (migration
@@ -132,6 +129,113 @@ AND-keeps-the-bug shape. All three are fixed and now isolate what they name.
 `docs/SOURCE_INTERPRETATION_CORRECTIONS.md` has the full argument,
 `src/mobile_observatory/firmware_order.py` the reasoning for a table rather than
 a column, `docs/API.md` the `orderingBasis` contract.
+
+## The headline build was decided alphabetically (2026-10-04, migration 0035)
+
+Repairing the release dates above moved 39 Xiaomi devices into a state where the
+device-level pick came down to `source_id` ASCENDING, and **4 of them showed a
+build with an EARLIER stated release date than the one it replaced.** Replacing
+an order decided by a hash with a publisher decided by the alphabet is the same
+defect in a new coat, so it was not left as an authority judgement.
+
+**The rule now: when two publishers both state a real release date and the corpus
+has no basis to rank them, the later date wins and the name is not consulted.**
+"Current firmware" means the most recent one, which is derivable from the
+evidence. `current_firmware._PRIMARY_KEYS` is the single definition, read by both
+the `row_number()` that picks the winner and the derivation that records why:
+
+    1 latest_basis   2 publisher_currency_rank   3 latest_stated_date
+    4 publisher_identity   5 android_version   6 observation_order
+    7 arbitrary_stable_order / one_publishers_region_choice
+
+**Key 2 stays AHEAD of the date, and that qualification was learned the hard
+way.** The date was put ahead of `currency_rank` first and
+`test_the_most_current_publisher_wins_regardless_of_date` — the guard the previous
+round wrote for the 218 devices once decided by a cross-publisher date comparison
+— failed immediately. It was right to: a rank is a human-recorded statement that
+two publishers' dates do not measure the same event, where `source_id` ascending
+is a statement about the alphabet. What the date outranks is the alphabet. It
+costs nothing here — mifirm and the tracker are both rank 50, so the rank ties and
+the dates decide.
+
+Measured on a copy:
+
+| | 0034 only | 0034 + 0035 |
+|---|---|---|
+| headline builds changed vs pre-fix | 42 | **37** |
+| …showing an EARLIER stated date (both sides vendor-stated) | **4** | **0** |
+| `headline_build_decided_by_publisher_name` | 243 at risk / 89 actual | **89** |
+| `headline_build_tie_broken_arbitrarily` | — | **1** |
+| `devices_with_current_firmware` | 845 | 845 |
+| `check_corpus` | 0 errors | **0 errors, 7 fast / 8 deep** |
+
+5 devices stop flipping entirely (Xiaomi 17 Pro, 17 Pro Max, 15T, 12T back to the
+tracker's genuinely later build; Xiaomi Civi back to it on a tie). **0** devices
+flip only under 0035.
+
+**A correction to this file's own earlier number.** The section above first said
+*7* earlier-date cases. It was 4. The first count compared `effective_at` across
+all 42 flips including 3 where the basis itself changed, so it string-compared a
+capture timestamp (`2026-09-02T11:12:58`) against a release date (`2026-07-30`)
+and called the release date earlier. The qualifier *both sides vendor-stated* is
+what makes the number mean anything.
+
+**THE TIE RULE, and it is not `source_id`.** `device_current_firmware.device_primary_basis`
+(migration 0035) records which key separated the winner from the runner-up, in
+`latest_basis`'s own vocabulary, derived from the same keys in the same pass as the
+pick. `_validate` refuses to publish a primary row with no basis, or a basis on a
+row nobody chose. Carried to the grid as `build_choice_basis` with a sentence per
+value in the row's attribution. Live: `one_publishers_region_choice` 364 ·
+`sole_candidate` 274 · `publisher_identity` 89 · `latest_stated_date` 78 ·
+`publisher_currency_rank` 31 · `observation_order` 7 · `arbitrary_stable_order` 1
+· `android_version` 1.
+
+Genuine ties exist and are counted rather than assumed away: **exactly 1** device
+has two publishers' builds the evidence cannot separate — `OS1.0.2.0.TKVCNXM`
+against `V816.0.2.0.TKVCNXM`, same date, same Android major, one build under two
+of Xiaomi's own naming conventions. Collapsing those is an identity judgement and
+was not made. The 364 `one_publishers_region_choice` devices are deliberately NOT
+counted with it: there the runner-up is the same publisher's row for another
+region, so the arbitrariness is which region the grid shows — which the grid
+shows. Reporting 365 unresolvable ties would be a true sentence that reads as a
+far worse fact than the one it describes.
+
+**Cross-branch sequencing — THIS MUST LAND BEFORE THE IDENTITY BRANCH.** Measured
+by approving the 106 products the live corpus holds back, which is how the
+identity work actually creates releases:
+
+| | new releases | undated | new events | hash-ordered |
+|---|---|---|---|---|
+| promoted **after** 0034 + 0035 | 14,547 | **0** | 858 | **0** |
+| promoted at the branch point, no fix | 14,544 | **14,544** | 3,733 | **3,733** |
+
+So 0034's one-shot `UPDATE` is **not** a defect for a branch landing afterwards:
+new rows are dated by the promotion, not by the migration — 0 releases a second
+repair pass would have to date or re-channel, 0 events without a basis, 0
+`check_corpus` errors. Landing the identity branch first instead would publish
+**3,733 permanently hash-ordered claims**, because a recorded basis is frozen at
+decision time by design.
+
+Planted and caught (**15 of 15**): the name put back in front of the date ·
+`currency_rank` moved behind it · the date key losing its gate · `source_id`
+dropped outright · the basis derivation using `!=` instead of `IS NOT` · a
+one-publisher region choice reported as an unresolvable tie · the android
+tiebreak removed · `_validate` dropping either of its two basis checks · the grid
+hard-referencing the column and 500-ing below 0035 · the API dropping the field ·
+the client losing a label · the vocabulary drifting from the migration's CHECK ·
+the promotion stopping dating new releases · `check_corpus` counting the
+population at risk again.
+
+**Three of those did not fire on the first pass**, and each exposed a guard that
+could not fail: `IS NOT` against `!=` is *equivalent* on every state the
+projection fixtures can reach (the gates are keyed on `latest_basis`, which is an
+earlier key, so a gated key can never be the first differing one with exactly one
+NULL) — it needed a direct test of the generated SQL over a crafted pair; the
+`WHERE is_device_primary=1` on the derivation's UPDATE is redundant because the
+correlated subquery already returns NULL for every other row, so the invariant is
+held by `_validate` and the plant had to target that; and
+`headline_build_decided_by_publisher_name` had no test asserting its count, only
+tests of its sibling check.
 
 ## Deploy-rehearsal blockers, 2026-10-03 (latest) — three P1s and three adjacent
 
@@ -511,13 +615,14 @@ and the corpus's 20 cited artifacts were identical before and after with
 State: see the production-hardening round at the top for the current test count
 under BOTH `python3 -m unittest discover -s tests` and `pytest`; it was 570 before
 that round (521 before the round below, 347 before the robustness round).
-Corpus, as of 2026-10-04 and AFTER migration 0034: **0 errors, 6 warnings on the
-FAST check set; 7 on the full scan.** Before 0034 the same code reports 0 errors
-and 5 fast / 6 deep, the extra one being `event_order_basis_table_absent`. The
+Corpus, as of 2026-10-04 and AFTER migrations 0034 and 0035: **0 errors, 7
+warnings on the FAST check set; 8 on the full scan.** Before those migrations the
+same code reports 0 errors and 6 fast / 7 deep, the extras being
+`event_order_basis_table_absent` and `headline_build_basis_not_recorded`. The
 lines below said `3 fast / 4 full` and were measured on 2026-10-03; the fast set
 was already 4 at HEAD before this round (`observation_link_identity_owned_by_
 another_product`, 18), so take the numbers in this paragraph and not those.
-Fast-set cost is unchanged: 627.6ms at HEAD, 627.0ms now, five runs, minimum.
+Fast-set cost is unchanged: 627.6ms at HEAD, 609-627ms now, five runs, minimum.
 Those are two different measurements of two different things and are not
 comparable --
 `check_corpus(deep=False)` is what `/api/v1/admin/health` runs on every page load,
@@ -888,13 +993,20 @@ terminate TLS — what changed is that failing to is no longer invisible.
   warning, 44,351, deep scan). Closing it changes the Explore observations sort
   for 46% of the corpus and needs the banding decision `devices_page` already
   made — a judgement, deliberately left to a human.
-- **39 devices' headline build now comes from mifirm rather than the Xiaomi
-  tracker purely because `mifirm.…` sorts before `xiaomi.…`**, both being
-  `currency_rank` 50 with the same `latest_basis`; 7 of them show an earlier date
-  than the build they replaced. 243 devices are in that tiebreak state (181
-  before this change), counted by
-  `headline_build_decided_by_publisher_name`. Giving one publisher a higher
-  `currency_rank` is an authority judgement and was not made.
+- ~~39 devices' headline build comes from mifirm purely because `mifirm.` sorts
+  before `xiaomi.`~~ — CLOSED by migration 0035: within one `currency_rank` and
+  one basis, the later stated release date decides and the name is not consulted.
+  37 flips, **0** showing an earlier date. What remains is measured, not
+  estimated: **89** devices where the name really does decide (all
+  `frbox.community.transsion_catalog` in the capture-order basis, where no date
+  is stated at all) and **1** genuine cross-publisher tie. Giving `frbox` a
+  `currency_rank`, or collapsing `OS1.0.2.0.TKVCNXM` and `V816.0.2.0.TKVCNXM`,
+  are the two human judgements left and neither was made.
+- **Migration 0035 is not applied to `.observatory-data` either.** It is cheap —
+  two `ALTER TABLE ADD COLUMN`s, no row rewrite — but the projection must be
+  rebuilt afterwards for the column to hold anything, which the batch does.
+  Until then `check_corpus` reports `headline_build_basis_not_recorded` and the
+  grid's `build_choice_basis` is null.
 - ~~`identity_resolution_rationales` is outside every changeset~~ — CLOSED by
   migration 0033, which IS applied to `.observatory-data` (verified 2026-10-03:
   the live corpus reports schema 33). It was applied by a server restart, not by

@@ -118,9 +118,8 @@ class TheDefaultInvocationRefuses(unittest.TestCase):
     def test_the_refusal_states_what_the_snapshot_actually_holds(self) -> None:
         """Read from the bundle's own manifest, never hardcoded here -- a number
         typed into a refusal goes stale the first time the bundle moves."""
-        manifest = json.loads(
-            (ROOT / "portable" / "mobile-observatory-2026-09-17.json").read_text())
-        devices = manifest["corpus_row_counts"]["hardware_models"]
+        chosen, _ = chosen_bundle()
+        devices = chosen["counts"]["hardware_models"]
         _, _, err = self.run_it()
         self.assertIn(f"{devices:,} devices", err)
 
@@ -137,8 +136,29 @@ class TheDefaultInvocationRefuses(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertIn("ZIP MISSING", out)
         self.assertIn("present", out)
-        self.assertEqual(2, len(out.strip().splitlines()),
-                         "both declared manifests, not only the usable one")
+        declared = len(list((ROOT / "portable").glob("*.json")))
+        self.assertEqual(declared, len(out.strip().splitlines()),
+                         "every declared manifest, not only the usable ones")
+
+
+def chosen_bundle():
+    """The bundle run.py would actually pick, asked of run.py's own selector.
+
+    Three assertions here used to name `mobile-observatory-2026-09-17` in the
+    source. Their docstrings already said "read from the bundle's own manifest,
+    never hardcoded here -- a number typed into a refusal goes stale the first
+    time the bundle moves", and the numbers WERE read from a manifest; it was
+    WHICH manifest that was typed in. Packaging 2026-10-04 made run.py choose
+    the new one -- correctly, that is the documented rule -- and these three
+    went red for doing exactly the right thing. A guard that breaks every time
+    the thing it guards is used as intended teaches people to edit the guard.
+
+    `launcher` is the module already loaded at the top of this file, so this
+    asks the same selector the subprocess will run rather than a second copy
+    of it that could drift.
+    """
+    inventory = launcher.bundle_inventory(ROOT / "portable")
+    return launcher.select_bundle(inventory), inventory
 
 
 class TheBundlePathIsStillThereAndSaysWhatItIs(unittest.TestCase):
@@ -156,7 +176,8 @@ class TheBundlePathIsStillThereAndSaysWhatItIs(unittest.TestCase):
                  "--data-dir", str(target)],
                 cwd=ROOT, capture_output=True, text=True, timeout=900)
             self.assertEqual(0, proc.returncode, proc.stderr)
-            self.assertIn("mobile-observatory-2026-09-17.zip", proc.stdout)
+            chosen, _ = chosen_bundle()
+            self.assertIn(chosen["archive"].name, proc.stdout)
             self.assertIn("is NOT the corpus", proc.stdout,
                           "even the opt-in path must say what it is not")
             connection = sqlite3.connect(target / "corpus.sqlite")
@@ -165,14 +186,13 @@ class TheBundlePathIsStillThereAndSaysWhatItIs(unittest.TestCase):
                           for t in ("hardware_models", "observations")}
             finally:
                 connection.close()
-        manifest = json.loads(
-            (ROOT / "portable" / "mobile-observatory-2026-09-17.json").read_text())
-        self.assertEqual(manifest["corpus_row_counts"]["hardware_models"],
-                         counts["hardware_models"])
-        self.assertEqual(manifest["corpus_row_counts"]["observations"],
-                         counts["observations"])
-        self.assertEqual(83, counts["hardware_models"],
-                         "the measured tenth-of-the-corpus figure from the handoff")
+        self.assertEqual(chosen["counts"]["hardware_models"], counts["hardware_models"])
+        self.assertEqual(chosen["counts"]["observations"], counts["observations"])
+        # NOT `assertEqual(83, ...)`. 83 was the 2026-09-17 bundle's device count,
+        # and the point of this test is that the restored rows equal the manifest's
+        # claim -- whichever bundle is current. Pinning 83 asserted which bundle
+        # ships, which is not what the name says and goes stale on every repack.
+        self.assertGreater(counts["hardware_models"], 0)
 
 
 class SelectingABundleIsNotADateTypedIntoTheSource(unittest.TestCase):

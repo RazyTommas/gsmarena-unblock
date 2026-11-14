@@ -70,8 +70,22 @@ def ours_from_csv(path):
     return out
 
 
+# Samsung's firmware manifest serves its payload only to the FUS client
+# identifier and answers a generic browser UA with a refusal, which http_get
+# turns into None. That is exactly the case common.http_get's docstring
+# describes -- "the caller passes the identifier explicitly rather than the
+# module changing its default UA for everything" -- and this call site never
+# did. Measured 2026-10-05 against SM-S938B/MID: default UA -> None, this UA
+# -> 200, 2506 bytes. So every run reported "unchecked" for every device and
+# "0 new in line", which reads as "nothing to update" and is really "I could
+# not look". The identifier is the one the project is authorised to use:
+# metadata only, no credentials, no evasion.
+FUS_CLIENT = {"User-Agent": "Kies2.0_FUS"}
+
+
 def upstream(csc, model):
-    xml = http_get(MANIFEST.format(csc=csc, model=model), timeout=20)
+    xml = http_get(MANIFEST.format(csc=csc, model=model), timeout=20,
+                   headers=FUS_CLIENT)
     if not xml:
         return None
     m = re.search(r"<latest[^>]*>([^<]+)</latest>", xml)
